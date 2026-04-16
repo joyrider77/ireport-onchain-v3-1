@@ -1,0 +1,917 @@
+type _ImmutableObjectStorageRefillResult = 
+ record {
+   success: opt bool;
+   topped_up_amount: opt nat;
+ };
+type _ImmutableObjectStorageRefillInformation = record {
+                                                  proposed_top_up_amount:
+                                                   opt nat;};
+type _ImmutableObjectStorageCreateCertificateResult = 
+ record {
+   blob_hash: text;
+   method: text;
+ };
+type WorkTimeBalance = 
+ record {
+   istStunden: int;
+   korrektionen: int;
+   periodEnd: text;
+   periodStart: text;
+   saldo: int;
+   sollStunden: int;
+   ueberzeit: int;
+ };
+type VacationBalance = 
+ record {
+   companyId: CompanyId;
+   dauer: int;
+   employeeId: EmployeeId;
+   id: text;
+   kalenderjahr: int;
+   verfallsdatum: opt int;
+ };
+type UserRole = 
+ variant {
+   admin;
+   guest;
+   user;
+ };
+type UserNotificationSettings = 
+ record {
+   companyId: CompanyId;
+   emailNewVacationRequest: bool;
+   emailOnApproval: bool;
+   principalId: principal;
+ };
+type UpdateVacationBalanceInput = 
+ record {
+   dauer: opt int;
+   kalenderjahr: opt int;
+   verfallsdatum: opt int;
+ };
+type UpdateTimeEntryInput = 
+ record {
+   billable: opt bool;
+   bis: opt text;
+   date: opt text;
+   description: opt text;
+   hours: opt float64;
+   projectId: opt ProjectId;
+   serviceTypeId: opt ServiceTypeId;
+   von: opt text;
+ };
+type UpdateTimeBalanceCorrectionInput = 
+ record {
+   bemerkung: opt text;
+   dauer: opt int;
+   typ: opt variant {
+              gutschrift;
+              reduktion;
+            };
+   ueberzeit: opt int;
+   wirkungsdatum: opt int;
+ };
+type UpdateServiceTypeInput = 
+ record {
+   aktiv: opt bool;
+   billable: opt bool;
+   defaultRate: opt float64;
+   name: opt text;
+ };
+type UpdateProjectInput = 
+ record {
+   active: opt bool;
+   billableRate: opt float64;
+   code: opt text;
+   customerId: opt CustomerId;
+   erfassungsart: opt Erfassungsart;
+   kurzbezeichnung: opt text;
+   name: opt text;
+   projektleiter: opt EmployeeId;
+   status: opt ProjectStatus;
+ };
+type UpdateHolidayInput = 
+ record {
+   date: opt text;
+   ganztaegig: opt bool;
+   name: opt text;
+ };
+type UpdateExpenseTypeInput = 
+ record {
+   aktiv: opt bool;
+   billable: opt bool;
+   name: opt text;
+   reimbursable: opt bool;
+ };
+type UpdateExpenseInput = 
+ record {
+   billableCHF: opt float64;
+   date: opt text;
+   description: opt text;
+   expenseTypeId: opt ExpenseTypeId;
+   receiptBlobId: opt text;
+   reimbursementCHF: opt float64;
+ };
+type UpdateEmploymentInput = 
+ record {
+   bis: opt int;
+   feiertagsberechnungsart: opt FeiertagsberechnungsartType;
+   funktion: opt text;
+   pensum: float64;
+   stundenDi: nat;
+   stundenDo: nat;
+   stundenFr: nat;
+   stundenMi: nat;
+   stundenMo: nat;
+   stundenSa: nat;
+   stundenSo: nat;
+   von: opt int;
+ };
+type UpdateEmployeeInput = 
+ record {
+   active: opt bool;
+   adresseZusatz1: opt text;
+   adresseZusatz2: opt text;
+   email: opt text;
+   employmentType: opt EmploymentType;
+   firstName: opt text;
+   geburtsdatum: opt int;
+   land: opt text;
+   lastName: opt text;
+   ort: opt text;
+   plz: opt text;
+   postfach: opt text;
+   role: opt Role;
+   startDate: opt text;
+   strasse: opt text;
+   weeklyHoursTarget: opt float64;
+ };
+type UpdateCustomerInput = 
+ record {
+   aktiv: opt bool;
+   beschreibung: opt text;
+   contact: opt text;
+   kundennummer: opt text;
+   name: opt text;
+   notes: opt text;
+   rechnungsadresse: opt Rechnungsadresse;
+   waehrung: opt text;
+   zeiterfassungsart: opt KundeZeiterfassungsart;
+ };
+type UpdateCompanyInput = 
+ record {
+   address: opt text;
+   logoUrl: opt text;
+   name: opt text;
+   taxId: opt text;
+ };
+type UpdateAbsenceTypeInput = 
+ record {
+   aktiv: opt bool;
+   compensated: opt bool;
+   name: opt text;
+   requiresApproval: opt bool;
+ };
+type UpdateAbsenceInput = 
+ record {
+   dateFrom: opt text;
+   dateTo: opt text;
+   dauer: opt nat;
+   description: opt text;
+   ganztaetig: opt bool;
+ };
+type Timestamp = int;
+type TimeEntryId = nat;
+type TimeEntryFilter = 
+ record {
+   dateFrom: opt text;
+   dateTo: opt text;
+   employeeId: opt EmployeeId;
+   projectId: opt ProjectId;
+ };
+type TimeEntry = 
+ record {
+   billable: bool;
+   bis: opt text;
+   companyId: CompanyId;
+   createdAt: Timestamp;
+   date: text;
+   description: text;
+   employeeId: EmployeeId;
+   hours: float64;
+   id: TimeEntryId;
+   projectId: ProjectId;
+   serviceTypeId: ServiceTypeId;
+   von: opt text;
+ };
+type TimeBalanceCorrection = 
+ record {
+   bemerkung: text;
+   companyId: CompanyId;
+   dauer: int;
+   employeeId: EmployeeId;
+   id: text;
+   typ: variant {
+          gutschrift;
+          reduktion;
+        };
+   ueberzeit: int;
+   wirkungsdatum: int;
+ };
+type Time = int;
+type Standardarbeitszeiten = 
+ record {
+   friday: vec StandardTimeBlock;
+   monday: vec StandardTimeBlock;
+   saturday: vec StandardTimeBlock;
+   sunday: vec StandardTimeBlock;
+   thursday: vec StandardTimeBlock;
+   tuesday: vec StandardTimeBlock;
+   wednesday: vec StandardTimeBlock;
+ };
+type StandardTimeBlock = 
+ record {
+   bis: text;
+   von: text;
+ };
+type ServiceTypeId = nat;
+type ServiceType = 
+ record {
+   aktiv: bool;
+   billable: bool;
+   companyId: CompanyId;
+   defaultRate: float64;
+   id: ServiceTypeId;
+   name: text;
+ };
+type Role = 
+ variant {
+   admin;
+   employee;
+   manager;
+ };
+type Result_9 = 
+ variant {
+   err: text;
+   ok: Employment;
+ };
+type Result_8 = 
+ variant {
+   err: text;
+   ok: Expense;
+ };
+type Result_7 = 
+ variant {
+   err: text;
+   ok: ExpenseType;
+ };
+type Result_6 = 
+ variant {
+   err: text;
+   ok: Holiday;
+ };
+type Result_5 = 
+ variant {
+   err: text;
+   ok: Project;
+ };
+type Result_4 = 
+ variant {
+   err: text;
+   ok: ServiceType;
+ };
+type Result_3 = 
+ variant {
+   err: text;
+   ok: TimeBalanceCorrection;
+ };
+type Result_26 = 
+ variant {
+   err: text;
+   ok: ProjectAssignment;
+ };
+type Result_25 = 
+ variant {
+   err: text;
+   ok: text;
+ };
+type Result_24 = 
+ variant {
+   err: text;
+   ok: WorkTimeBalance;
+ };
+type Result_23 = 
+ variant {
+   err: text;
+   ok: opt Employment;
+ };
+type Result_22 = 
+ variant {
+   err: text;
+   ok: vec ProjectMemberAssignment;
+ };
+type Result_21 = 
+ variant {
+   err: text;
+   ok: Standardarbeitszeiten;
+ };
+type Result_20 = 
+ variant {
+   err: text;
+   ok: int;
+ };
+type Result_2 = 
+ variant {
+   err: text;
+   ok: TimeEntry;
+ };
+type Result_19 = 
+ variant {
+   err: text;
+   ok: vec Employment;
+ };
+type Result_18 = 
+ variant {
+   err: text;
+   ok: vec TimeBalanceCorrection;
+ };
+type Result_17 = 
+ variant {
+   err: text;
+   ok: vec VacationBalance;
+ };
+type Result_16 = 
+ variant {
+   err: text;
+   ok;
+ };
+type Result_15 = 
+ variant {
+   err: text;
+   ok: Absence;
+ };
+type Result_14 = 
+ variant {
+   err: text;
+   ok: AbsenceType;
+ };
+type Result_13 = 
+ variant {
+   err: text;
+   ok: Company;
+ };
+type Result_12 = 
+ variant {
+   err: text;
+   ok: CompanySettings;
+ };
+type Result_11 = 
+ variant {
+   err: text;
+   ok: Customer;
+ };
+type Result_10 = 
+ variant {
+   err: text;
+   ok: Employee;
+ };
+type Result_1 = 
+ variant {
+   err: text;
+   ok: UserNotificationSettings;
+ };
+type Result = 
+ variant {
+   err: text;
+   ok: VacationBalance;
+ };
+type ReportFilter = 
+ record {
+   customerId: opt CompanyId;
+   dateFrom: text;
+   dateTo: text;
+   employeeId: opt EmployeeId;
+   projectId: opt ProjectId;
+ };
+type ReportData = 
+ record {
+   billableHours: float64;
+   entries: vec TimeEntry;
+   expenseItems: vec Expense;
+   expenses: float64;
+ };
+type Rechnungsadresse = 
+ record {
+   land: text;
+   ort: opt text;
+   plz: opt text;
+   postfach: opt text;
+   strasse: opt text;
+   zusatz1: opt text;
+   zusatz2: opt text;
+ };
+type ProjectStatus = 
+ variant {
+   abgeschlossen;
+   aktiv;
+   inaktiv;
+ };
+type ProjectMemberAssignment = 
+ record {
+   employeeId: EmployeeId;
+   serviceTypeId: ServiceTypeId;
+   stundensatz: float64;
+ };
+type ProjectId = nat;
+type ProjectAssignment = 
+ record {
+   companyId: CompanyId;
+   employeeId: EmployeeId;
+   projectId: ProjectId;
+ };
+type Project = 
+ record {
+   active: bool;
+   billableRate: float64;
+   code: text;
+   companyId: CompanyId;
+   customerId: CustomerId;
+   erfassungsart: opt Erfassungsart;
+   id: ProjectId;
+   kurzbezeichnung: text;
+   name: text;
+   projektleiter: opt EmployeeId;
+   status: ProjectStatus;
+ };
+type KundeZeiterfassungsart = 
+ variant {
+   block;
+   stuendlich;
+ };
+type HolidayId = nat;
+type Holiday = 
+ record {
+   companyId: CompanyId;
+   date: text;
+   ganztaegig: bool;
+   id: HolidayId;
+   name: text;
+ };
+type FeiertagsberechnungsartType = 
+ variant {
+   entschaedigt;
+   exakt;
+   exaktWochentag;
+   prozentual;
+ };
+type ExpenseTypeId = nat;
+type ExpenseType = 
+ record {
+   aktiv: bool;
+   billable: bool;
+   companyId: CompanyId;
+   id: ExpenseTypeId;
+   name: text;
+   reimbursable: bool;
+ };
+type ExpenseStatus = 
+ variant {
+   approved;
+   pending;
+   rejected;
+ };
+type ExpenseId = nat;
+type ExpenseFilter = 
+ record {
+   dateFrom: opt text;
+   dateTo: opt text;
+   employeeId: opt EmployeeId;
+   status: opt ExpenseStatus;
+ };
+type Expense = 
+ record {
+   billableCHF: float64;
+   companyId: CompanyId;
+   date: text;
+   description: text;
+   employeeId: EmployeeId;
+   expenseTypeId: ExpenseTypeId;
+   id: ExpenseId;
+   receiptBlobId: opt text;
+   reimbursementCHF: float64;
+   resetReason: opt text;
+   status: ExpenseStatus;
+ };
+type Erfassungsart = 
+ variant {
+   dauer;
+   zeitBlock;
+ };
+type EmploymentType = 
+ variant {
+   contractor;
+   fullTime;
+   partTime;
+ };
+type Employment = 
+ record {
+   bis: opt int;
+   companyId: CompanyId;
+   employeeId: EmployeeId;
+   feiertagsberechnungsart: FeiertagsberechnungsartType;
+   funktion: text;
+   id: text;
+   pensum: float64;
+   stundenDi: nat;
+   stundenDo: nat;
+   stundenFr: nat;
+   stundenMi: nat;
+   stundenMo: nat;
+   stundenSa: nat;
+   stundenSo: nat;
+   von: int;
+ };
+type EmployeeId = nat;
+type Employee = 
+ record {
+   active: bool;
+   adresseZusatz1: opt text;
+   adresseZusatz2: opt text;
+   companyId: CompanyId;
+   email: text;
+   employmentType: EmploymentType;
+   firstName: text;
+   geburtsdatum: opt int;
+   id: EmployeeId;
+   land: opt text;
+   lastName: text;
+   ort: opt text;
+   plz: opt text;
+   postfach: opt text;
+   principalId: opt principal;
+   role: Role;
+   startDate: text;
+   strasse: opt text;
+   weeklyHoursTarget: float64;
+ };
+type DashboardStats = 
+ record {
+   approvedVacationDays: nat;
+   hoursTarget: float64;
+   hoursThisWeek: float64;
+   pendingExpenses: nat;
+   pendingVacations: nat;
+   remainingVacationMinutes: int;
+ };
+type CustomerId = nat;
+type Customer = 
+ record {
+   aktiv: bool;
+   beschreibung: opt text;
+   companyId: CompanyId;
+   contact: opt text;
+   id: CustomerId;
+   kundennummer: opt text;
+   name: text;
+   notes: opt text;
+   rechnungsadresse: opt Rechnungsadresse;
+   waehrung: text;
+   zeiterfassungsart: KundeZeiterfassungsart;
+ };
+type CreateVacationBalanceInput = 
+ record {
+   dauer: int;
+   kalenderjahr: int;
+   verfallsdatum: opt int;
+ };
+type CreateTimeEntryInput = 
+ record {
+   billable: bool;
+   bis: opt text;
+   date: text;
+   description: text;
+   hours: float64;
+   projectId: ProjectId;
+   serviceTypeId: ServiceTypeId;
+   von: opt text;
+ };
+type CreateTimeBalanceCorrectionInput = 
+ record {
+   bemerkung: text;
+   dauer: int;
+   typ: variant {
+          gutschrift;
+          reduktion;
+        };
+   ueberzeit: int;
+   wirkungsdatum: int;
+ };
+type CreateServiceTypeInput = 
+ record {
+   aktiv: opt bool;
+   billable: bool;
+   defaultRate: float64;
+   name: text;
+ };
+type CreateProjectInput = 
+ record {
+   billableRate: float64;
+   code: text;
+   customerId: CustomerId;
+   erfassungsart: opt Erfassungsart;
+   kurzbezeichnung: text;
+   name: text;
+   projektleiter: opt EmployeeId;
+   status: opt ProjectStatus;
+ };
+type CreateHolidayInput = 
+ record {
+   date: text;
+   ganztaegig: opt bool;
+   name: text;
+ };
+type CreateExpenseTypeInput = 
+ record {
+   aktiv: opt bool;
+   billable: bool;
+   name: text;
+   reimbursable: bool;
+ };
+type CreateExpenseInput = 
+ record {
+   billableCHF: float64;
+   date: text;
+   description: text;
+   expenseTypeId: ExpenseTypeId;
+   receiptBlobId: opt text;
+   reimbursementCHF: float64;
+ };
+type CreateEmploymentInput = 
+ record {
+   bis: opt int;
+   feiertagsberechnungsart: FeiertagsberechnungsartType;
+   funktion: text;
+   pensum: float64;
+   stundenDi: nat;
+   stundenDo: nat;
+   stundenFr: nat;
+   stundenMi: nat;
+   stundenMo: nat;
+   stundenSa: nat;
+   stundenSo: nat;
+   von: int;
+ };
+type CreateEmployeeInput = 
+ record {
+   adresseZusatz1: opt text;
+   adresseZusatz2: opt text;
+   email: text;
+   employmentType: EmploymentType;
+   firstName: text;
+   geburtsdatum: opt int;
+   land: opt text;
+   lastName: text;
+   ort: opt text;
+   plz: opt text;
+   postfach: opt text;
+   role: Role;
+   startDate: text;
+   strasse: opt text;
+   weeklyHoursTarget: float64;
+ };
+type CreateCustomerInput = 
+ record {
+   aktiv: opt bool;
+   beschreibung: opt text;
+   contact: opt text;
+   kundennummer: opt text;
+   name: text;
+   notes: opt text;
+   rechnungsadresse: opt Rechnungsadresse;
+   waehrung: opt text;
+   zeiterfassungsart: opt KundeZeiterfassungsart;
+ };
+type CreateAbsenceTypeInput = 
+ record {
+   aktiv: opt bool;
+   compensated: bool;
+   name: text;
+   requiresApproval: bool;
+ };
+type CreateAbsenceInput = 
+ record {
+   absenceTypeId: AbsenceTypeId;
+   dateFrom: text;
+   dateTo: text;
+   dauer: nat;
+   description: opt text;
+   ganztaetig: bool;
+ };
+type CompanySettings = 
+ record {
+   allowExpiredVacationBalance: bool;
+   approvalRequired: bool;
+   companyId: CompanyId;
+   emailNewVacationRequest: bool;
+   emailOnApproval: bool;
+   maxVacationDays: nat;
+   timezone: text;
+   vacationCarryoverDays: nat;
+ };
+type CompanyId = nat;
+type Company = 
+ record {
+   address: opt text;
+   createdAt: Timestamp;
+   id: CompanyId;
+   logoUrl: opt text;
+   name: text;
+   taxId: opt text;
+ };
+type CalendarData = 
+ record {
+   absences: vec Absence;
+   expenses: vec Expense;
+   timeEntries: vec TimeEntry;
+ };
+type AuditEntry = 
+ record {
+   action: text;
+   changedBy: principal;
+   id: nat;
+   newStatus: text;
+   oldStatus: text;
+   previousApprovedBy: opt principal;
+   reason: opt text;
+   targetId: nat;
+   targetType: text;
+   timestamp: Time;
+ };
+type AbsenceTypeId = nat;
+type AbsenceType = 
+ record {
+   aktiv: bool;
+   companyId: CompanyId;
+   compensated: bool;
+   id: AbsenceTypeId;
+   name: text;
+   requiresApproval: bool;
+ };
+type AbsenceStatus = 
+ variant {
+   approved;
+   rejected;
+   submitted;
+ };
+type AbsenceId = nat;
+type AbsenceFilter = 
+ record {
+   absenceTypeId: opt AbsenceTypeId;
+   dateFrom: opt text;
+   dateTo: opt text;
+   employeeId: opt EmployeeId;
+   status: opt AbsenceStatus;
+ };
+type Absence = 
+ record {
+   absenceTypeId: AbsenceTypeId;
+   approvedBy: opt principal;
+   companyId: CompanyId;
+   createdAt: Timestamp;
+   dateFrom: text;
+   dateTo: text;
+   dauer: nat;
+   description: opt text;
+   employeeId: EmployeeId;
+   ganztaetig: bool;
+   id: AbsenceId;
+   rejectionComment: opt text;
+   resetReason: opt text;
+   status: AbsenceStatus;
+ };
+service : {
+  _immutableObjectStorageBlobsAreLive: (hashes: vec blob) -> (vec bool) query;
+  _immutableObjectStorageBlobsToDelete: () -> (vec blob) query;
+  _immutableObjectStorageConfirmBlobDeletion: (blobs: vec blob) -> ();
+  _immutableObjectStorageCreateCertificate: (blobHash: text) ->
+   (_ImmutableObjectStorageCreateCertificateResult);
+  _immutableObjectStorageRefillCashier: (refillInformation:
+   opt _ImmutableObjectStorageRefillInformation) ->
+   (_ImmutableObjectStorageRefillResult);
+  _immutableObjectStorageUpdateGatewayPrincipals: () -> ();
+  _initializeAccessControl: () -> ();
+  approveAbsence: (id: AbsenceId) -> (Result_15);
+  approveExpense: (id: ExpenseId) -> (Result_8);
+  assignCallerUserRole: (user: principal, role: UserRole) -> ();
+  assignEmployeeToProject: (employeeId: EmployeeId, projectId: ProjectId) ->
+   (Result_26);
+  createAbsence: (input: CreateAbsenceInput) -> (Result_15);
+  createAbsenceType: (input: CreateAbsenceTypeInput) -> (Result_14);
+  createCustomer: (input: CreateCustomerInput) -> (Result_11);
+  createEmployee: (input: CreateEmployeeInput) -> (Result_10);
+  createEmployment: (employeeId: EmployeeId, input: CreateEmploymentInput) ->
+   (Result_9);
+  createExpense: (input: CreateExpenseInput) -> (Result_8);
+  createExpenseType: (input: CreateExpenseTypeInput) -> (Result_7);
+  createHoliday: (input: CreateHolidayInput) -> (Result_6);
+  createProject: (input: CreateProjectInput) -> (Result_5);
+  createServiceType: (input: CreateServiceTypeInput) -> (Result_4);
+  createTimeBalanceCorrection: (employeeId: EmployeeId, input:
+   CreateTimeBalanceCorrectionInput) -> (Result_3);
+  createTimeEntry: (input: CreateTimeEntryInput) -> (Result_2);
+  createVacationBalance: (employeeId: EmployeeId, input:
+   CreateVacationBalanceInput) -> (Result);
+  deleteAbsence: (id: AbsenceId) -> (Result_16);
+  deleteAbsenceType: (id: AbsenceTypeId) -> (Result_16);
+  deleteCustomer: (id: CustomerId) -> (Result_16);
+  deleteEmployee: (id: EmployeeId) -> (Result_16);
+  deleteEmployment: (employeeId: EmployeeId, employmentId: text) ->
+   (Result_16);
+  deleteExpense: (id: ExpenseId) -> (Result_16);
+  deleteExpenseType: (id: ExpenseTypeId) -> (Result_16);
+  deleteHoliday: (id: HolidayId) -> (Result_16);
+  deleteProject: (id: ProjectId) -> (Result_16);
+  deleteServiceType: (id: ServiceTypeId) -> (Result_16);
+  deleteTimeBalanceCorrection: (employeeId: EmployeeId, correctionId:
+   text) -> (Result_16);
+  deleteTimeEntry: (id: TimeEntryId) -> (Result_16);
+  deleteVacationBalance: (employeeId: EmployeeId, balanceId: text) ->
+   (Result_16);
+  generateInviteCode: (employeeId: EmployeeId) -> (Result_25);
+  getCalendarEntries: (month: text, year: nat) -> (CalendarData) query;
+  getCallerUserRole: () -> (UserRole) query;
+  getCompanySettings: () -> (Result_12) query;
+  getDashboardStats: () -> (DashboardStats) query;
+  getEmployeeWorkTimeBalance: (employeeId: EmployeeId, startDate: text,
+   endDate: text) -> (Result_24) query;
+  getEmployeeWorkTimeBalanceFromStart: (employeeId: EmployeeId) ->
+   (Result_24) query;
+  getEmploymentForDate: (employeeId: EmployeeId, date: text) ->
+   (Result_23) query;
+  getMyCompany: () -> (Result_13) query;
+  getMyEmployee: () -> (Result_10) query;
+  getMyStandardarbeitszeiten: () -> (Result_21) query;
+  getProjectMembers: (projectId: ProjectId) -> (Result_22) query;
+  getReportData: (filter: ReportFilter) -> (ReportData) query;
+  getStandardarbeitszeitenForEmployee: (employeeId: EmployeeId) ->
+   (Result_21) query;
+  getTimeBalance: (employeeId: EmployeeId) -> (Result_20) query;
+  getUserNotificationSettings: () -> (Result_1) query;
+  isCallerAdmin: () -> (bool) query;
+  isRegistered: () -> (bool) query;
+  listAbsenceTypes: () -> (vec AbsenceType) query;
+  listAbsences: (filter: AbsenceFilter) -> (vec Absence) query;
+  listAuditLog: (targetType: opt text, targetId: opt nat) ->
+   (vec AuditEntry) query;
+  listCustomers: () -> (vec Customer) query;
+  listEmployees: () -> (vec Employee) query;
+  listEmployments: (employeeId: EmployeeId) -> (Result_19) query;
+  listExpenseTypes: () -> (vec ExpenseType) query;
+  listExpenses: (filter: ExpenseFilter) -> (vec Expense) query;
+  listHolidays: () -> (vec Holiday) query;
+  listProjectAssignments: () -> (vec ProjectAssignment) query;
+  listProjects: () -> (vec Project) query;
+  listServiceTypes: () -> (vec ServiceType) query;
+  listTimeBalanceCorrections: (employeeId: EmployeeId) -> (Result_18) query;
+  listTimeEntries: (filter: TimeEntryFilter) -> (vec TimeEntry) query;
+  listVacationBalances: (employeeId: EmployeeId) -> (Result_17) query;
+  redeemInviteCode: (code: text) -> (Result_10);
+  registerCompany: (name: text, firstName: text, lastName: text, email:
+   text) -> (Result_13);
+  rejectAbsence: (id: AbsenceId, comment: text) -> (Result_15);
+  rejectExpense: (id: ExpenseId, comment: opt text) -> (Result_8);
+  removeEmployeeFromProject: (employeeId: EmployeeId, projectId:
+   ProjectId) -> (Result_16);
+  resetAbsenceToAusstehend: (id: AbsenceId, reason: text) -> (Result_15);
+  resetExpenseToAusstehend: (id: ExpenseId, reason: text) -> (Result_8);
+  revokeInviteCode: (code: text) -> (Result_16);
+  setMyStandardarbeitszeiten: (data: Standardarbeitszeiten) -> (Result_16);
+  setProjectMembers: (projectId: ProjectId, members:
+   vec ProjectMemberAssignment) -> (Result_16);
+  setStandardarbeitszeitenForEmployee: (employeeId: EmployeeId, data:
+   Standardarbeitszeiten) -> (Result_16);
+  updateAbsence: (id: AbsenceId, input: UpdateAbsenceInput) -> (Result_15);
+  updateAbsenceType: (id: AbsenceTypeId, input: UpdateAbsenceTypeInput) ->
+   (Result_14);
+  updateCompany: (input: UpdateCompanyInput) -> (Result_13);
+  updateCompanySettings: (input: CompanySettings) -> (Result_12);
+  updateCustomer: (id: CustomerId, input: UpdateCustomerInput) -> (Result_11);
+  updateEmployee: (id: EmployeeId, input: UpdateEmployeeInput) -> (Result_10);
+  updateEmployment: (employeeId: EmployeeId, employmentId: text, input:
+   UpdateEmploymentInput) -> (Result_9);
+  updateExpense: (id: ExpenseId, input: UpdateExpenseInput) -> (Result_8);
+  updateExpenseType: (id: ExpenseTypeId, input: UpdateExpenseTypeInput) ->
+   (Result_7);
+  updateHoliday: (id: HolidayId, input: UpdateHolidayInput) -> (Result_6);
+  updateProject: (id: ProjectId, input: UpdateProjectInput) -> (Result_5);
+  updateServiceType: (id: ServiceTypeId, input: UpdateServiceTypeInput) ->
+   (Result_4);
+  updateTimeBalanceCorrection: (employeeId: EmployeeId, correctionId: 
+   text, input: UpdateTimeBalanceCorrectionInput) -> (Result_3);
+  updateTimeEntry: (id: TimeEntryId, input: UpdateTimeEntryInput) ->
+   (Result_2);
+  updateUserNotificationSettings: (input: UserNotificationSettings) ->
+   (Result_1);
+  updateVacationBalance: (employeeId: EmployeeId, balanceId: text, input:
+   UpdateVacationBalanceInput) -> (Result);
+}

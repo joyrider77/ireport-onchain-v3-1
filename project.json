@@ -1,0 +1,23 @@
+{
+  "overview": "iReport Onchain V3.1 – deutschsprachige Multi-Tenant HR- und Zeiterfassungs-App für Schweizer Unternehmen. Vollständig dezentral auf dem Internet Computer betrieben, mit rollenbasiertem Zugriff, Zeiterfassung, Spesenverwaltung und Genehmigungsworkflows.",
+  "features": [
+    "Zeiterfassung mit Wochenkalender und Stoppuhr",
+    "Spesenverwaltung mit Beleg-Upload",
+    "Ferienanträge und Genehmigungsworkflow",
+    "Mitarbeiterverwaltung mit Beschäftigungen",
+    "Arbeitszeitsaldo-Berechnung",
+    "Kalenderübersicht mit allen Eintragstypen",
+    "Multi-Tenant Datentrennung pro Firma",
+    "Authentifizierung via Internet Identity"
+  ],
+  "category": "productivity",
+  "tags": [
+    "hr",
+    "zeiterfassung",
+    "schweiz",
+    "saas",
+    "internet-computer",
+    "multi-tenant"
+  ],
+  "last_updated": "2026-04-14T11:56:14.366Z"
+}

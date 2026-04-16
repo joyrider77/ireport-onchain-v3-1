@@ -1,0 +1,222 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-display: "Figtree";
+    --font-body: "Nunito";
+    --font-mono: "Geist Mono";
+    --font-play: "Play", sans-serif;
+    --radius: 0.5rem;
+
+    /* App Interior Tokens (teal #006066) */
+    --background: 0.99 0 0;
+    --foreground: 0.25 0.02 250;
+    --card: 1.0 0 0;
+    --card-foreground: 0.25 0.02 250;
+    --popover: 1.0 0 0;
+    --popover-foreground: 0.25 0.02 250;
+
+    --primary: 0.42 0.085 196;
+    --primary-foreground: 0.99 0 0;
+
+    --secondary: 0.92 0.015 196;
+    --secondary-foreground: 0.25 0.02 196;
+    --muted: 0.94 0.01 220;
+    --muted-foreground: 0.5 0.015 220;
+
+    --accent: 0.92 0.02 196;
+    --accent-foreground: 0.25 0.05 196;
+
+    --destructive: 0.55 0.22 25;
+    --destructive-foreground: 0.98 0 0;
+
+    --border: 0.92 0.02 255;
+    --input: 0.96 0.02 255;
+    --ring: 0.47 0.11 203;
+
+    --chart-1: 0.65 0.2 40;
+    --chart-2: 0.6 0.15 180;
+    --chart-3: 0.55 0.12 200;
+    --chart-4: 0.75 0.18 80;
+    --chart-5: 0.65 0.14 150;
+
+    --sidebar: 0.97 0.01 254;
+    --sidebar-foreground: 0.25 0.02 250;
+    --sidebar-primary: 0.47 0.11 203;
+    --sidebar-primary-foreground: 0.98 0 0;
+    --sidebar-accent: 0.92 0.02 255;
+    --sidebar-accent-foreground: 0.3 0.02 250;
+    --sidebar-border: 0.92 0.02 255;
+    --sidebar-ring: 0.47 0.11 203;
+
+    /* Landing Page Tokens (iServices CD Manual) */
+    --landing-hero-bg: 0.26 0.12 256; /* Deep Cornflower Blue #0A4A75 */
+    --landing-primary: 0.42 0.09 256; /* Strong Cornflower Blue #1F6495 */
+    --landing-secondary: 0.54 0.11 256; /* Brilliant Azure #5090C1 */
+    --landing-white: 0.995 0 0; /* White */
+    --landing-light-bg: 0.97 0.01 254; /* Light neutral for sections */
+    --landing-text: 0.15 0.02 250; /* Dark text */
+    --landing-text-secondary: 0.45 0.02 250; /* Medium-dark text */
+  }
+
+  .dark {
+    --background: 0.12 0.01 254;
+    --foreground: 0.92 0.02 250;
+    --card: 0.16 0.01 254;
+    --card-foreground: 0.92 0.02 250;
+    --popover: 0.2 0.02 254;
+    --popover-foreground: 0.92 0.02 250;
+
+    --primary: 0.6 0.12 203;
+    --primary-foreground: 0.12 0.01 254;
+
+    --secondary: 0.24 0.01 254;
+    --secondary-foreground: 0.82 0.02 250;
+    --muted: 0.24 0.01 254;
+    --muted-foreground: 0.58 0.02 250;
+
+    --accent: 0.6 0.12 203;
+    --accent-foreground: 0.12 0.01 254;
+
+    --destructive: 0.65 0.19 22;
+    --destructive-foreground: 0.12 0.01 254;
+
+    --border: 0.24 0.01 254;
+    --input: 0.24 0.01 254;
+    --ring: 0.6 0.12 203;
+
+    --chart-1: 0.55 0.18 40;
+    --chart-2: 0.65 0.14 180;
+    --chart-3: 0.58 0.1 200;
+    --chart-4: 0.68 0.16 80;
+    --chart-5: 0.58 0.12 150;
+
+    --sidebar: 0.16 0.01 254;
+    --sidebar-foreground: 0.92 0.02 250;
+    --sidebar-primary: 0.6 0.12 203;
+    --sidebar-primary-foreground: 0.12 0.01 254;
+    --sidebar-accent: 0.24 0.01 254;
+    --sidebar-accent-foreground: 0.82 0.02 250;
+    --sidebar-border: 0.24 0.01 254;
+    --sidebar-ring: 0.6 0.12 203;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+}
+
+@font-face {
+  font-family: "Figtree";
+  src: url("/assets/fonts/Figtree.woff2") format("woff2");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Nunito";
+  src: url("/assets/fonts/Nunito.woff2") format("woff2");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/assets/fonts/GeistMono.woff2") format("woff2");
+  font-display: swap;
+}
+
+@layer utilities {
+  .transition-smooth {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .font-play {
+    font-family: var(--font-play);
+  }
+
+  .text-xs {
+    @apply text-[0.75rem] leading-tight;
+  }
+
+  .text-sm {
+    @apply text-[0.875rem] leading-snug;
+  }
+
+  .text-base {
+    @apply text-[1rem] leading-normal;
+  }
+
+  .text-lg {
+    @apply text-[1.125rem] leading-relaxed;
+  }
+
+  .text-xl {
+    @apply text-[1.25rem] leading-relaxed;
+  }
+
+  .text-2xl {
+    @apply text-[1.5rem] leading-tight font-semibold;
+  }
+
+  .text-3xl {
+    @apply text-[1.875rem] leading-tight font-semibold;
+  }
+
+  .text-4xl {
+    @apply text-[2.25rem] leading-tight font-bold;
+  }
+
+  .shadow-card {
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+  }
+
+  .shadow-elevated {
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  }
+
+  /* Landing Page Utilities */
+  .landing-hero-bg {
+    @apply bg-[oklch(var(--landing-hero-bg))];
+  }
+
+  .landing-primary {
+    @apply text-[oklch(var(--landing-primary))];
+  }
+
+  .landing-primary-bg {
+    @apply bg-[oklch(var(--landing-primary))];
+  }
+
+  .landing-secondary {
+    @apply text-[oklch(var(--landing-secondary))];
+  }
+
+  .landing-white {
+    @apply text-[oklch(var(--landing-white))];
+  }
+
+  .landing-text {
+    @apply text-[oklch(var(--landing-text))];
+  }
+
+  .landing-text-secondary {
+    @apply text-[oklch(var(--landing-text-secondary))];
+  }
+
+  .landing-section-bg {
+    @apply bg-[oklch(var(--landing-light-bg))];
+  }
+
+  .shadow-subtle {
+    box-shadow: 0 1px 2px 0 rgba(10, 74, 117, 0.06);
+  }
+
+  .shadow-landing {
+    box-shadow: 0 2px 4px 0 rgba(10, 74, 117, 0.08), 0 4px 12px 0
+      rgba(10, 74, 117, 0.12);
+  }
+}
