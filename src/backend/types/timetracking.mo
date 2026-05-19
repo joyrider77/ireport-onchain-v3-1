@@ -29,6 +29,7 @@ module {
     description : Text;
     billable : Bool;
     createdAt : Timestamp;
+    fakturiertInRechnungId : ?Nat; // ID der Rechnung, in der dieser Eintrag fakturiert wurde
   };
 
   // Speseneintrag
@@ -44,6 +45,9 @@ module {
     receiptBlobId : ?Text;
     status : ExpenseStatus;
     resetReason : ?Text; // Begründung beim Zurücksetzen auf ausstehend
+    kundeId : ?Nat;   // Kunde, dem die Spese zugeordnet ist
+    projektId : ?Nat; // Projekt, dem die Spese zugeordnet ist
+    fakturiertInRechnungId : ?Nat; // ID der Rechnung, in der diese Spese fakturiert wurde
   };
 
   // Abwesenheit
@@ -101,6 +105,7 @@ module {
     bis : ?Text;
     description : Text;
     billable : Bool;
+    requiresApproval : ?Bool; // true = direkt als #submitted einreichen (via approval data map)
   };
 
   // Aktualisierung eines Zeiteintrags
@@ -123,6 +128,8 @@ module {
     reimbursementCHF : Float;
     description : Text;
     receiptBlobId : ?Text;
+    kundeId : ?Nat;   // Optionale Kundenzuordnung
+    projektId : ?Nat; // Optionale Projektzuordnung
   };
 
   // Aktualisierung eines Speseneintrags
@@ -133,6 +140,8 @@ module {
     reimbursementCHF : ?Float;
     description : ?Text;
     receiptBlobId : ?Text;
+    kundeId : ?Nat;   // Optionale Kundenzuordnung (aktualisieren)
+    projektId : ?Nat; // Optionale Projektzuordnung (aktualisieren)
   };
 
   // Eingabe für neue Abwesenheit
@@ -178,6 +187,50 @@ module {
     expenses : Float;
     entries : [TimeEntry];
     expenseItems : [Expense];
+  };
+
+  // Budget-Auswertung: Kosten pro Leistungsart eines Mitarbeiters
+  public type ServiceTypeBudgetReport = {
+    serviceTypeId : ServiceTypeId;
+    serviceTypeName : Text;
+    kostendachCHF : Float;
+    aufgewendetCHF : Float;
+    aufgewendeteStunden : Float;
+  };
+
+  // Budget-Auswertung: Kosten pro Mitarbeiter
+  public type EmployeeBudgetReport = {
+    employeeId : EmployeeId;
+    employeeName : Text;
+    kostendachCHF : Float;
+    aufgewendetCHF : Float;
+    aufgewendeteStunden : Float;
+    serviceTypeReports : [ServiceTypeBudgetReport];
+  };
+
+  // Budget-Auswertung: Gesamtbericht für ein Projekt
+  public type ProjectBudgetReport = {
+    projectId : ProjectId;
+    projectName : Text;
+    customerName : Text;
+    totalKostendachCHF : Float;
+    totalAufgewendetCHF : Float;
+    totalStunden : Float;
+    employeeReports : [EmployeeBudgetReport];
+  };
+
+  // Maskierter Kalender-Eintrag für den Firmenkalender (serverseitig maskiert)
+  public type MaskedCalendarAbsence = {
+    id : Text;           // AbsenceId als Text
+    employeeId : ?Text;  // null wenn anonymisiert
+    employeeName : ?Text; // null wenn anonymisiert
+    fromDate : Text;     // YYYY-MM-DD
+    toDate : Text;       // YYYY-MM-DD
+    displayTitle : Text; // "Ferien", "Nicht verfügbar", "Abwesenheit" etc.
+    displayColor : ?Text; // Hex-Farbe oder null
+    isOwnEntry : Bool;
+    visibilityMode : Text; // "full" | "masked_reason" | "anonymized" | "hidden"
+    status : Text;       // "genehmigt" | "ausstehend"
   };
 
   // Dashboard-Statistiken

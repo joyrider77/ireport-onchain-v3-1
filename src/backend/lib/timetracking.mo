@@ -64,6 +64,7 @@ module {
       description = input.description;
       billable = input.billable;
       createdAt = Time.now();
+      fakturiertInRechnungId = null;
     };
     timeEntries.add(entry);
     entry;

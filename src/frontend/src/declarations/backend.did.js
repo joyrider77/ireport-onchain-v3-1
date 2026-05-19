@@ -19,6 +19,11 @@ export const _ImmutableObjectStorageRefillResult = IDL.Record({
   'success' : IDL.Opt(IDL.Bool),
   'topped_up_amount' : IDL.Opt(IDL.Nat),
 });
+export const BillingModel = IDL.Variant({
+  'monthly' : IDL.Null,
+  'yearly' : IDL.Null,
+});
+export const Result_21 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
 export const AbsenceId = IDL.Nat;
 export const AbsenceStatus = IDL.Variant({
   'submitted' : IDL.Null,
@@ -45,7 +50,11 @@ export const Absence = IDL.Record({
   'dauer' : IDL.Nat,
   'companyId' : CompanyId,
 });
-export const Result_15 = IDL.Variant({ 'ok' : Absence, 'err' : IDL.Text });
+export const Result_19 = IDL.Variant({ 'ok' : Absence, 'err' : IDL.Text });
+export const AbsenceApprovalInput = IDL.Record({
+  'reason' : IDL.Opt(IDL.Text),
+});
+export const Result_5 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
 export const ExpenseId = IDL.Nat;
 export const ExpenseStatus = IDL.Variant({
   'pending' : IDL.Null,
@@ -56,30 +65,179 @@ export const ExpenseTypeId = IDL.Nat;
 export const Expense = IDL.Record({
   'id' : ExpenseId,
   'status' : ExpenseStatus,
+  'fakturiertInRechnungId' : IDL.Opt(IDL.Nat),
   'date' : IDL.Text,
   'description' : IDL.Text,
   'employeeId' : EmployeeId,
+  'projektId' : IDL.Opt(IDL.Nat),
   'resetReason' : IDL.Opt(IDL.Text),
   'billableCHF' : IDL.Float64,
+  'kundeId' : IDL.Opt(IDL.Nat),
   'reimbursementCHF' : IDL.Float64,
   'expenseTypeId' : ExpenseTypeId,
   'receiptBlobId' : IDL.Opt(IDL.Text),
   'companyId' : CompanyId,
 });
-export const Result_8 = IDL.Variant({ 'ok' : Expense, 'err' : IDL.Text });
+export const Result_11 = IDL.Variant({ 'ok' : Expense, 'err' : IDL.Text });
+export const TimeEntryId = IDL.Nat;
+export const TimeEntryApprovalInput = IDL.Record({
+  'reason' : IDL.Opt(IDL.Text),
+});
+export const ProjectId = IDL.Nat;
+export const ServiceTypeId = IDL.Nat;
+export const TimeEntry = IDL.Record({
+  'id' : TimeEntryId,
+  'bis' : IDL.Opt(IDL.Text),
+  'von' : IDL.Opt(IDL.Text),
+  'hours' : IDL.Float64,
+  'fakturiertInRechnungId' : IDL.Opt(IDL.Nat),
+  'date' : IDL.Text,
+  'createdAt' : Timestamp,
+  'description' : IDL.Text,
+  'employeeId' : EmployeeId,
+  'billable' : IDL.Bool,
+  'projectId' : ProjectId,
+  'serviceTypeId' : ServiceTypeId,
+  'companyId' : CompanyId,
+});
+export const Result_3 = IDL.Variant({ 'ok' : TimeEntry, 'err' : IDL.Text });
 export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
-export const ProjectId = IDL.Nat;
 export const ProjectAssignment = IDL.Record({
   'employeeId' : EmployeeId,
   'projectId' : ProjectId,
   'companyId' : CompanyId,
 });
-export const Result_26 = IDL.Variant({
+export const Result_46 = IDL.Variant({
   'ok' : ProjectAssignment,
+  'err' : IDL.Text,
+});
+export const MonthlyBillingEntry = IDL.Record({
+  'month' : IDL.Text,
+  'activeUserCount' : IDL.Nat,
+  'planId' : IDL.Text,
+  'billableUserCount' : IDL.Nat,
+  'billingModel' : IDL.Opt(IDL.Text),
+  'year' : IDL.Nat,
+  'creditAmount' : IDL.Opt(IDL.Float64),
+  'totalCHF' : IDL.Float64,
+  'companyName' : IDL.Text,
+  'nextDueDateTimestamp' : IDL.Opt(IDL.Int),
+  'planName' : IDL.Text,
+  'proRataAmount' : IDL.Opt(IDL.Float64),
+  'proRataNote' : IDL.Opt(IDL.Text),
+  'companyId' : IDL.Nat,
+});
+export const Result_45 = IDL.Variant({
+  'ok' : IDL.Record({
+    'note' : IDL.Text,
+    'remainingDays' : IDL.Nat,
+    'isUpgrade' : IDL.Bool,
+    'proRataAmount' : IDL.Float64,
+  }),
+  'err' : IDL.Text,
+});
+export const InvoiceStatus = IDL.Variant({
+  'entwurf' : IDL.Null,
+  'versendet' : IDL.Null,
+  'bezahlt' : IDL.Null,
+  'storniert' : IDL.Null,
+  'ueberfaellig' : IDL.Null,
+});
+export const InvoicePositionTyp = IDL.Variant({
+  'leistung' : IDL.Null,
+  'freitext' : IDL.Null,
+  'spese' : IDL.Null,
+});
+export const InvoicePosition = IDL.Record({
+  'id' : IDL.Nat,
+  'typ' : InvoicePositionTyp,
+  'menge' : IDL.Float64,
+  'referenzId' : IDL.Opt(IDL.Nat),
+  'total' : IDL.Float64,
+  'bezeichnung' : IDL.Text,
+  'invoiceId' : IDL.Nat,
+  'preis' : IDL.Float64,
+  'einheit' : IDL.Text,
+});
+export const CustomerId = IDL.Nat;
+export const Invoice = IDL.Record({
+  'id' : IDL.Nat,
+  'status' : InvoiceStatus,
+  'rechnungsnummer' : IDL.Text,
+  'total' : IDL.Float64,
+  'createdAt' : Timestamp,
+  'createdBy' : IDL.Principal,
+  'fusstext' : IDL.Text,
+  'mwstBetrag' : IDL.Float64,
+  'positionen' : IDL.Vec(InvoicePosition),
+  'faelligkeitsdatum' : IDL.Text,
+  'qrAktiv' : IDL.Bool,
+  'mwstSatz' : IDL.Float64,
+  'rabatt' : IDL.Float64,
+  'kopftext' : IDL.Text,
+  'kundeId' : CustomerId,
+  'zwischensumme' : IDL.Float64,
+  'datum' : IDL.Text,
+  'skonto' : IDL.Float64,
+  'waehrung' : IDL.Text,
+  'companyId' : CompanyId,
+});
+export const Result_8 = IDL.Variant({ 'ok' : Invoice, 'err' : IDL.Text });
+export const CompanySubscription = IDL.Record({
+  'stripeCurrentPeriodEnd' : IDL.Opt(IDL.Int),
+  'latestStripePaymentStatus' : IDL.Opt(IDL.Text),
+  'latestStripeInvoiceId' : IDL.Opt(IDL.Text),
+  'nextDueDate' : IDL.Opt(IDL.Int),
+  'planId' : IDL.Text,
+  'stripeSubscriptionId' : IDL.Opt(IDL.Text),
+  'billingModel' : BillingModel,
+  'proRataCalculatedAt' : IDL.Opt(IDL.Int),
+  'scheduledPlanChangePriceId' : IDL.Opt(IDL.Text),
+  'stripeCancelAtPeriodEnd' : IDL.Bool,
+  'stripeProductId' : IDL.Opt(IDL.Text),
+  'stripeCustomerId' : IDL.Opt(IDL.Text),
+  'subscriptionStartDate' : IDL.Opt(IDL.Int),
+  'scheduledPlanChangeEffectiveAt' : IDL.Opt(IDL.Int),
+  'stripeStatus' : IDL.Opt(IDL.Text),
+  'proRataAmount' : IDL.Opt(IDL.Float64),
+  'stripeCurrentPeriodStart' : IDL.Opt(IDL.Int),
+  'lastStripeSyncAt' : IDL.Opt(IDL.Int),
+  'scheduledPlanChangeId' : IDL.Opt(IDL.Text),
+  'proRataNote' : IDL.Opt(IDL.Text),
+  'companyId' : IDL.Nat,
+});
+export const Result_20 = IDL.Variant({
+  'ok' : CompanySubscription,
+  'err' : IDL.Text,
+});
+export const FeatureKey = IDL.Text;
+export const FeatureAccessResult = IDL.Record({
+  'featureKey' : FeatureKey,
+  'hasAccess' : IDL.Bool,
+  'companyId' : CompanyId,
+});
+export const Result_44 = IDL.Variant({
+  'ok' : IDL.Record({
+    'estimatedMonthlyCost' : IDL.Float64,
+    'currentPlanId' : IDL.Opt(IDL.Text),
+    'activeUserCount' : IDL.Nat,
+    'changeNeeded' : IDL.Bool,
+    'suggestedPlanId' : IDL.Opt(IDL.Text),
+    'suggestedPlanName' : IDL.Text,
+    'currentPlanName' : IDL.Text,
+  }),
+  'err' : IDL.Text,
+});
+export const Result_43 = IDL.Variant({
+  'ok' : IDL.Record({
+    'internalStatus' : IDL.Text,
+    'inSync' : IDL.Bool,
+    'stripeStatus' : IDL.Text,
+  }),
   'err' : IDL.Text,
 });
 export const CreateAbsenceInput = IDL.Record({
@@ -90,10 +248,27 @@ export const CreateAbsenceInput = IDL.Record({
   'dateFrom' : IDL.Text,
   'dauer' : IDL.Nat,
 });
+export const CalendarVisibilityMode = IDL.Variant({
+  'full' : IDL.Null,
+  'hidden' : IDL.Null,
+  'anonymized' : IDL.Null,
+  'masked_reason' : IDL.Null,
+});
+export const AbsenceTypeVisibility = IDL.Record({
+  'visibleForRoles' : IDL.Vec(IDL.Text),
+  'showAbsenceTypeName' : IDL.Bool,
+  'visibilityMode' : CalendarVisibilityMode,
+  'showComment' : IDL.Bool,
+  'companyCalendarDisplayName' : IDL.Opt(IDL.Text),
+  'showEmployeeName' : IDL.Bool,
+  'visibleInCompanyCalendar' : IDL.Bool,
+  'companyCalendarColor' : IDL.Opt(IDL.Text),
+});
 export const CreateAbsenceTypeInput = IDL.Record({
   'aktiv' : IDL.Opt(IDL.Bool),
   'name' : IDL.Text,
   'requiresApproval' : IDL.Bool,
+  'visibility' : IDL.Opt(AbsenceTypeVisibility),
   'compensated' : IDL.Bool,
 });
 export const AbsenceType = IDL.Record({
@@ -101,10 +276,11 @@ export const AbsenceType = IDL.Record({
   'aktiv' : IDL.Bool,
   'name' : IDL.Text,
   'requiresApproval' : IDL.Bool,
+  'visibility' : IDL.Opt(AbsenceTypeVisibility),
   'compensated' : IDL.Bool,
   'companyId' : CompanyId,
 });
-export const Result_14 = IDL.Variant({ 'ok' : AbsenceType, 'err' : IDL.Text });
+export const Result_18 = IDL.Variant({ 'ok' : AbsenceType, 'err' : IDL.Text });
 export const Rechnungsadresse = IDL.Record({
   'ort' : IDL.Opt(IDL.Text),
   'plz' : IDL.Opt(IDL.Text),
@@ -129,7 +305,6 @@ export const CreateCustomerInput = IDL.Record({
   'beschreibung' : IDL.Opt(IDL.Text),
   'waehrung' : IDL.Opt(IDL.Text),
 });
-export const CustomerId = IDL.Nat;
 export const Customer = IDL.Record({
   'id' : CustomerId,
   'rechnungsadresse' : IDL.Opt(Rechnungsadresse),
@@ -143,7 +318,7 @@ export const Customer = IDL.Record({
   'waehrung' : IDL.Text,
   'companyId' : CompanyId,
 });
-export const Result_11 = IDL.Variant({ 'ok' : Customer, 'err' : IDL.Text });
+export const Result_15 = IDL.Variant({ 'ok' : Customer, 'err' : IDL.Text });
 export const Role = IDL.Variant({
   'manager' : IDL.Null,
   'admin' : IDL.Null,
@@ -178,8 +353,10 @@ export const Employee = IDL.Record({
   'weeklyHoursTarget' : IDL.Float64,
   'active' : IDL.Bool,
   'postfach' : IDL.Opt(IDL.Text),
+  'activatedAt' : IDL.Opt(IDL.Int),
   'land' : IDL.Opt(IDL.Text),
   'role' : Role,
+  'deactivatedAt' : IDL.Opt(IDL.Int),
   'email' : IDL.Text,
   'geburtsdatum' : IDL.Opt(IDL.Int),
   'employmentType' : EmploymentType,
@@ -192,12 +369,11 @@ export const Employee = IDL.Record({
   'companyId' : CompanyId,
   'firstName' : IDL.Text,
 });
-export const Result_10 = IDL.Variant({ 'ok' : Employee, 'err' : IDL.Text });
+export const Result_13 = IDL.Variant({ 'ok' : Employee, 'err' : IDL.Text });
 export const FeiertagsberechnungsartType = IDL.Variant({
-  'exaktWochentag' : IDL.Null,
-  'entschaedigt' : IDL.Null,
-  'exakt' : IDL.Null,
-  'prozentual' : IDL.Null,
+  'wochentag_sollzeit' : IDL.Null,
+  'durchschnittssoll' : IDL.Null,
+  'keineGutschrift' : IDL.Null,
 });
 export const CreateEmploymentInput = IDL.Record({
   'bis' : IDL.Opt(IDL.Int),
@@ -230,11 +406,13 @@ export const Employment = IDL.Record({
   'funktion' : IDL.Text,
   'companyId' : CompanyId,
 });
-export const Result_9 = IDL.Variant({ 'ok' : Employment, 'err' : IDL.Text });
+export const Result_12 = IDL.Variant({ 'ok' : Employment, 'err' : IDL.Text });
 export const CreateExpenseInput = IDL.Record({
   'date' : IDL.Text,
   'description' : IDL.Text,
+  'projektId' : IDL.Opt(IDL.Nat),
   'billableCHF' : IDL.Float64,
+  'kundeId' : IDL.Opt(IDL.Nat),
   'reimbursementCHF' : IDL.Float64,
   'expenseTypeId' : ExpenseTypeId,
   'receiptBlobId' : IDL.Opt(IDL.Text),
@@ -253,7 +431,7 @@ export const ExpenseType = IDL.Record({
   'reimbursable' : IDL.Bool,
   'companyId' : CompanyId,
 });
-export const Result_7 = IDL.Variant({ 'ok' : ExpenseType, 'err' : IDL.Text });
+export const Result_10 = IDL.Variant({ 'ok' : ExpenseType, 'err' : IDL.Text });
 export const CreateHolidayInput = IDL.Record({
   'ganztaegig' : IDL.Opt(IDL.Bool),
   'date' : IDL.Text,
@@ -267,7 +445,163 @@ export const Holiday = IDL.Record({
   'name' : IDL.Text,
   'companyId' : CompanyId,
 });
-export const Result_6 = IDL.Variant({ 'ok' : Holiday, 'err' : IDL.Text });
+export const Result_9 = IDL.Variant({ 'ok' : Holiday, 'err' : IDL.Text });
+export const InvoicePositionInput = IDL.Record({
+  'typ' : InvoicePositionTyp,
+  'menge' : IDL.Float64,
+  'referenzId' : IDL.Opt(IDL.Nat),
+  'bezeichnung' : IDL.Text,
+  'preis' : IDL.Float64,
+  'einheit' : IDL.Text,
+});
+export const CreateInvoiceInput = IDL.Record({
+  'fusstext' : IDL.Text,
+  'positionen' : IDL.Vec(InvoicePositionInput),
+  'qrAktiv' : IDL.Opt(IDL.Bool),
+  'mwstSatz' : IDL.Float64,
+  'rabatt' : IDL.Float64,
+  'kopftext' : IDL.Text,
+  'kundeId' : CustomerId,
+  'skonto' : IDL.Float64,
+});
+export const NotificationFormat = IDL.Variant({
+  'html' : IDL.Null,
+  'markdown' : IDL.Null,
+});
+export const NotificationPriority = IDL.Variant({
+  'normal' : IDL.Null,
+  'important' : IDL.Null,
+  'critical' : IDL.Null,
+});
+export const NotificationTargetType = IDL.Variant({
+  'mixed' : IDL.Null,
+  'role' : IDL.Null,
+  'user' : IDL.Null,
+  'tenant' : IDL.Null,
+});
+export const NotificationStatus = IDL.Variant({
+  'sent' : IDL.Null,
+  'draft' : IDL.Null,
+  'archived' : IDL.Null,
+});
+export const Notification = IDL.Record({
+  'id' : IDL.Text,
+  'status' : NotificationStatus,
+  'title' : IDL.Text,
+  'validFrom' : IDL.Int,
+  'createdAt' : IDL.Int,
+  'senderDisplayName' : IDL.Text,
+  'messageFormat' : NotificationFormat,
+  'messageBody' : IDL.Text,
+  'targetRoleIds' : IDL.Vec(IDL.Text),
+  'targetUserIds' : IDL.Vec(IDL.Text),
+  'targetType' : NotificationTargetType,
+  'priority' : NotificationPriority,
+  'targetTenantIds' : IDL.Vec(IDL.Text),
+  'senderUserId' : IDL.Text,
+  'validUntil' : IDL.Opt(IDL.Int),
+});
+export const InvoiceTemplateInput = IDL.Record({
+  'qrIban' : IDL.Opt(IDL.Text),
+  'fusszeileLayout' : IDL.Opt(IDL.Text),
+  'qrKontoinhaberAdresse' : IDL.Opt(IDL.Text),
+  'bank' : IDL.Text,
+  'iban' : IDL.Text,
+  'kopfzeileLayout' : IDL.Opt(IDL.Text),
+  'fusstext' : IDL.Text,
+  'mwstNummer' : IDL.Text,
+  'qrKontoinhaber' : IDL.Opt(IDL.Text),
+  'kopfzeileLogoQuelle' : IDL.Opt(IDL.Text),
+  'qrReferenztyp' : IDL.Opt(IDL.Text),
+  'kopfzeileBildPosition' : IDL.Opt(IDL.Text),
+  'kopfzeileAdressePosition' : IDL.Opt(IDL.Text),
+  'zahlungszielTage' : IDL.Nat,
+  'kopfzeileBildUrl' : IDL.Opt(IDL.Text),
+  'qrWaehrung' : IDL.Opt(IDL.Text),
+  'spalten' : IDL.Vec(IDL.Text),
+  'qrReferenzPraefix' : IDL.Opt(IDL.Text),
+  'fusszeilePosition' : IDL.Opt(IDL.Text),
+  'mwstSatz' : IDL.Opt(IDL.Float64),
+  'kopfzeileLogoGroesse' : IDL.Opt(IDL.Text),
+  'kopftext' : IDL.Text,
+  'kundenadresseAbstandNach' : IDL.Opt(IDL.Nat),
+  'kundenadresseAbstandOben' : IDL.Opt(IDL.Float64),
+  'kundenadresseEinrueckungZeichen' : IDL.Opt(IDL.Nat),
+  'fusszeileBildPosition' : IDL.Opt(IDL.Text),
+  'kopfzeileAdresse' : IDL.Opt(IDL.Text),
+  'kopfzeilePosition' : IDL.Opt(IDL.Text),
+  'praefix' : IDL.Text,
+  'naechsteNummer' : IDL.Nat,
+  'qrAktivStandard' : IDL.Opt(IDL.Bool),
+  'farbe' : IDL.Text,
+  'fusszeileBildUrl' : IDL.Opt(IDL.Text),
+  'kundenadresseLinks' : IDL.Opt(IDL.Bool),
+});
+export const InvoiceTemplate = IDL.Record({
+  'id' : IDL.Nat,
+  'qrIban' : IDL.Opt(IDL.Text),
+  'fusszeileLayout' : IDL.Opt(IDL.Text),
+  'qrKontoinhaberAdresse' : IDL.Opt(IDL.Text),
+  'bank' : IDL.Text,
+  'iban' : IDL.Text,
+  'kopfzeileLayout' : IDL.Opt(IDL.Text),
+  'createdAt' : Timestamp,
+  'fusstext' : IDL.Text,
+  'mwstNummer' : IDL.Text,
+  'qrKontoinhaber' : IDL.Opt(IDL.Text),
+  'kopfzeileLogoQuelle' : IDL.Opt(IDL.Text),
+  'qrReferenztyp' : IDL.Opt(IDL.Text),
+  'kopfzeileBildPosition' : IDL.Opt(IDL.Text),
+  'kopfzeileAdressePosition' : IDL.Opt(IDL.Text),
+  'zahlungszielTage' : IDL.Nat,
+  'kopfzeileBildUrl' : IDL.Opt(IDL.Text),
+  'qrWaehrung' : IDL.Opt(IDL.Text),
+  'spalten' : IDL.Vec(IDL.Text),
+  'qrReferenzPraefix' : IDL.Opt(IDL.Text),
+  'fusszeilePosition' : IDL.Opt(IDL.Text),
+  'mwstSatz' : IDL.Float64,
+  'kopfzeileLogoGroesse' : IDL.Opt(IDL.Text),
+  'kopftext' : IDL.Text,
+  'kundenadresseAbstandNach' : IDL.Opt(IDL.Nat),
+  'kundenadresseAbstandOben' : IDL.Opt(IDL.Float64),
+  'kundenadresseEinrueckungZeichen' : IDL.Opt(IDL.Nat),
+  'fusszeileBildPosition' : IDL.Opt(IDL.Text),
+  'kopfzeileAdresse' : IDL.Opt(IDL.Text),
+  'kopfzeilePosition' : IDL.Opt(IDL.Text),
+  'praefix' : IDL.Text,
+  'naechsteNummer' : IDL.Nat,
+  'qrAktivStandard' : IDL.Bool,
+  'farbe' : IDL.Text,
+  'fusszeileBildUrl' : IDL.Opt(IDL.Text),
+  'kundenadresseLinks' : IDL.Opt(IDL.Bool),
+  'companyId' : CompanyId,
+});
+export const Result_42 = IDL.Variant({
+  'ok' : InvoiceTemplate,
+  'err' : IDL.Text,
+});
+export const CreatePauseOverrideInput = IDL.Record({
+  'action' : IDL.Text,
+  'userId' : IDL.Nat,
+  'date' : IDL.Text,
+  'gapEnd' : IDL.Int,
+  'gapStart' : IDL.Int,
+  'reason' : IDL.Opt(IDL.Text),
+  'companyId' : IDL.Nat,
+});
+export const PauseOverride = IDL.Record({
+  'id' : IDL.Nat,
+  'action' : IDL.Text,
+  'userId' : IDL.Nat,
+  'date' : IDL.Text,
+  'createdByUserId' : IDL.Nat,
+  'createdAt' : IDL.Int,
+  'gapEnd' : IDL.Int,
+  'updatedAt' : IDL.Int,
+  'gapStart' : IDL.Int,
+  'reason' : IDL.Opt(IDL.Text),
+  'companyId' : IDL.Nat,
+});
 export const ProjectStatus = IDL.Variant({
   'aktiv' : IDL.Null,
   'inaktiv' : IDL.Null,
@@ -285,6 +619,7 @@ export const CreateProjectInput = IDL.Record({
   'name' : IDL.Text,
   'customerId' : CustomerId,
   'kurzbezeichnung' : IDL.Text,
+  'kostendachCHF' : IDL.Opt(IDL.Float64),
   'projektleiter' : IDL.Opt(EmployeeId),
 });
 export const Project = IDL.Record({
@@ -297,17 +632,17 @@ export const Project = IDL.Record({
   'name' : IDL.Text,
   'customerId' : CustomerId,
   'kurzbezeichnung' : IDL.Text,
+  'kostendachCHF' : IDL.Opt(IDL.Float64),
   'projektleiter' : IDL.Opt(EmployeeId),
   'companyId' : CompanyId,
 });
-export const Result_5 = IDL.Variant({ 'ok' : Project, 'err' : IDL.Text });
+export const Result_7 = IDL.Variant({ 'ok' : Project, 'err' : IDL.Text });
 export const CreateServiceTypeInput = IDL.Record({
   'defaultRate' : IDL.Float64,
   'aktiv' : IDL.Opt(IDL.Bool),
   'name' : IDL.Text,
   'billable' : IDL.Bool,
 });
-export const ServiceTypeId = IDL.Nat;
 export const ServiceType = IDL.Record({
   'id' : ServiceTypeId,
   'defaultRate' : IDL.Float64,
@@ -316,7 +651,15 @@ export const ServiceType = IDL.Record({
   'billable' : IDL.Bool,
   'companyId' : CompanyId,
 });
-export const Result_4 = IDL.Variant({ 'ok' : ServiceType, 'err' : IDL.Text });
+export const Result_6 = IDL.Variant({ 'ok' : ServiceType, 'err' : IDL.Text });
+export const Result_38 = IDL.Variant({
+  'ok' : IDL.Record({ 'url' : IDL.Text, 'sessionId' : IDL.Text }),
+  'err' : IDL.Text,
+});
+export const Result_37 = IDL.Variant({
+  'ok' : IDL.Record({ 'url' : IDL.Text }),
+  'err' : IDL.Text,
+});
 export const CreateTimeBalanceCorrectionInput = IDL.Record({
   'typ' : IDL.Variant({ 'gutschrift' : IDL.Null, 'reduktion' : IDL.Null }),
   'ueberzeit' : IDL.Int,
@@ -334,7 +677,7 @@ export const TimeBalanceCorrection = IDL.Record({
   'dauer' : IDL.Int,
   'companyId' : CompanyId,
 });
-export const Result_3 = IDL.Variant({
+export const Result_4 = IDL.Variant({
   'ok' : TimeBalanceCorrection,
   'err' : IDL.Text,
 });
@@ -346,24 +689,9 @@ export const CreateTimeEntryInput = IDL.Record({
   'description' : IDL.Text,
   'billable' : IDL.Bool,
   'projectId' : ProjectId,
+  'requiresApproval' : IDL.Opt(IDL.Bool),
   'serviceTypeId' : ServiceTypeId,
 });
-export const TimeEntryId = IDL.Nat;
-export const TimeEntry = IDL.Record({
-  'id' : TimeEntryId,
-  'bis' : IDL.Opt(IDL.Text),
-  'von' : IDL.Opt(IDL.Text),
-  'hours' : IDL.Float64,
-  'date' : IDL.Text,
-  'createdAt' : Timestamp,
-  'description' : IDL.Text,
-  'employeeId' : EmployeeId,
-  'billable' : IDL.Bool,
-  'projectId' : ProjectId,
-  'serviceTypeId' : ServiceTypeId,
-  'companyId' : CompanyId,
-});
-export const Result_2 = IDL.Variant({ 'ok' : TimeEntry, 'err' : IDL.Text });
 export const CreateVacationBalanceInput = IDL.Record({
   'verfallsdatum' : IDL.Opt(IDL.Int),
   'kalenderjahr' : IDL.Int,
@@ -377,13 +705,74 @@ export const VacationBalance = IDL.Record({
   'dauer' : IDL.Int,
   'companyId' : CompanyId,
 });
-export const Result = IDL.Variant({ 'ok' : VacationBalance, 'err' : IDL.Text });
-export const Result_16 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
-export const Result_25 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
+export const Result_1 = IDL.Variant({
+  'ok' : VacationBalance,
+  'err' : IDL.Text,
+});
+export const TimeEntryStatus = IDL.Variant({
+  'submitted' : IDL.Null,
+  'approved' : IDL.Null,
+  'rejected' : IDL.Null,
+  'draft' : IDL.Null,
+});
+export const PaymentProvider = IDL.Variant({
+  'stripe' : IDL.Null,
+  'none' : IDL.Null,
+  'manual' : IDL.Null,
+});
+export const SubscriptionPlan = IDL.Record({
+  'id' : IDL.Text,
+  'features' : IDL.Vec(IDL.Text),
+  'requiresPayment' : IDL.Bool,
+  'sortOrder' : IDL.Nat,
+  'name' : IDL.Text,
+  'stripeLookupKey' : IDL.Opt(IDL.Text),
+  'description' : IDL.Text,
+  'isActive' : IDL.Bool,
+  'stripeProductId' : IDL.Opt(IDL.Text),
+  'updatedAt' : IDL.Int,
+  'pricePerYearCHF' : IDL.Float64,
+  'stripePriceId' : IDL.Opt(IDL.Text),
+  'pricePerMonthCHF' : IDL.Float64,
+  'stripeMode' : IDL.Opt(IDL.Text),
+  'stripePriceIdYearly' : IDL.Opt(IDL.Text),
+  'minActiveDaysPerMonth' : IDL.Nat,
+  'maxEmployees' : IDL.Opt(IDL.Nat),
+  'paymentProvider' : PaymentProvider,
+});
 export const CalendarData = IDL.Record({
   'absences' : IDL.Vec(Absence),
   'expenses' : IDL.Vec(Expense),
   'timeEntries' : IDL.Vec(TimeEntry),
+});
+export const CanisterStatusInfo = IDL.Record({
+  'backendStatus' : IDL.Text,
+  'dataSource' : IDL.Text,
+  'frontendCanisterId' : IDL.Text,
+  'backendCycles' : IDL.Nat,
+  'backendMemorySize' : IDL.Nat,
+  'backendCanisterId' : IDL.Text,
+  'timestamp' : IDL.Int,
+});
+export const Result_36 = IDL.Variant({
+  'ok' : IDL.Record({
+    'nextDueDate' : IDL.Opt(IDL.Int),
+    'billingModel' : BillingModel,
+    'subscriptionStartDate' : IDL.Opt(IDL.Int),
+  }),
+  'err' : IDL.Text,
+});
+export const MaskedCalendarAbsence = IDL.Record({
+  'id' : IDL.Text,
+  'status' : IDL.Text,
+  'displayTitle' : IDL.Text,
+  'employeeName' : IDL.Opt(IDL.Text),
+  'visibilityMode' : IDL.Text,
+  'displayColor' : IDL.Opt(IDL.Text),
+  'toDate' : IDL.Text,
+  'employeeId' : IDL.Opt(IDL.Text),
+  'isOwnEntry' : IDL.Bool,
+  'fromDate' : IDL.Text,
 });
 export const CompanySettings = IDL.Record({
   'timezone' : IDL.Text,
@@ -395,9 +784,108 @@ export const CompanySettings = IDL.Record({
   'maxVacationDays' : IDL.Nat,
   'companyId' : CompanyId,
 });
-export const Result_12 = IDL.Variant({
+export const Result_16 = IDL.Variant({
   'ok' : CompanySettings,
   'err' : IDL.Text,
+});
+export const ComplianceCockpitKPI = IDL.Record({
+  'mitarbeiterMitGesetzlicherUeberzeit' : IDL.Nat,
+  'ferienRisiken' : IDL.Nat,
+  'pausenVerstoesse' : IDL.Nat,
+  'ruhezeitVerstoesse' : IDL.Nat,
+  'mitarbeiterMitVerstoessen' : IDL.Nat,
+});
+export const ComplianceStatus = IDL.Variant({
+  'CRITICAL' : IDL.Null,
+  'FREIGEGEBEN' : IDL.Null,
+  'INFO' : IDL.Null,
+  'COMPLIANT' : IDL.Null,
+  'WARNING' : IDL.Null,
+  'BREACH' : IDL.Null,
+});
+export const ComplianceCockpitRow = IDL.Record({
+  'vertraglicheUeberstundenH' : IDL.Float64,
+  'offeneMassnahmen' : IDL.Nat,
+  'employee' : IDL.Record({
+    'id' : IDL.Nat,
+    'lastName' : IDL.Text,
+    'firstName' : IDL.Text,
+  }),
+  'ferienstatus' : IDL.Text,
+  'pausenVerstoesse' : IDL.Nat,
+  'gesamtstatus' : ComplianceStatus,
+  'gesetzlicheUeberzeitH' : IDL.Float64,
+  'ruhezeitVerstoesse' : IDL.Nat,
+});
+export const CompliancePeriodeTyp = IDL.Variant({
+  'DAY' : IDL.Null,
+  'SERVICE_YEAR' : IDL.Null,
+  'WEEK' : IDL.Null,
+});
+export const ComplianceResolutionType = IDL.Variant({
+  'FREIGEGEBEN' : IDL.Null,
+  'IGNORED' : IDL.Null,
+  'CORRECTED' : IDL.Null,
+});
+export const ComplianceFinding = IDL.Record({
+  'id' : IDL.Nat,
+  'status' : ComplianceStatus,
+  'istWert' : IDL.Float64,
+  'resolutionType' : IDL.Opt(ComplianceResolutionType),
+  'periodeKey' : IDL.Text,
+  'periodeTyp' : CompliancePeriodeTyp,
+  'rechtlicheReferenz' : IDL.Opt(IDL.Text),
+  'auditHash' : IDL.Opt(IDL.Text),
+  'createdAt' : IDL.Int,
+  'sollWert' : IDL.Float64,
+  'resolutionReason' : IDL.Opt(IDL.Text),
+  'sourceEntryIds' : IDL.Vec(IDL.Nat),
+  'meldung' : IDL.Text,
+  'employeeId' : IDL.Nat,
+  'resolvedAt' : IDL.Opt(IDL.Int),
+  'resolvedBy' : IDL.Opt(IDL.Nat),
+  'ruleCode' : IDL.Text,
+  'einheit' : IDL.Text,
+  'companyId' : IDL.Nat,
+});
+export const EmployeeComplianceProfile = IDL.Record({
+  'id' : IDL.Nat,
+  'aktiv' : IDL.Bool,
+  'createdAt' : IDL.Int,
+  'updatedAt' : IDL.Int,
+  'employeeId' : IDL.Nat,
+  'ausnahmeprofil' : IDL.Opt(IDL.Text),
+  'vertraglicheWochenstunden' : IDL.Float64,
+  'erfassungsModus' : IDL.Text,
+  'vertraglicheZusatzferienTage' : IDL.Float64,
+  'gesetzlicheWochenhochstarbeitszeit' : IDL.Float64,
+  'gesetzlicherFerienanspruchWochen' : IDL.Float64,
+  'companyId' : IDL.Nat,
+});
+export const CycleSnapshot = IDL.Record({
+  'frontendCycles' : IDL.Nat,
+  'backendCycles' : IDL.Nat,
+  'timestamp' : IDL.Int,
+});
+export const CostSettings = IDL.Record({
+  'backendAlertThreshold' : IDL.Nat,
+  'icpPriceUsd' : IDL.Float64,
+  'alertEnabled' : IDL.Bool,
+  'usdChfRate' : IDL.Float64,
+  'frontendAlertThreshold' : IDL.Nat,
+});
+export const CostDashboardData = IDL.Record({
+  'dataSource' : IDL.Text,
+  'frontendCanisterId' : IDL.Text,
+  'snapshots' : IDL.Vec(CycleSnapshot),
+  'settings' : CostSettings,
+  'backendCanisterId' : IDL.Text,
+  'backendCyclesBalance' : IDL.Opt(IDL.Nat),
+});
+export const CycleStatus = IDL.Record({
+  'dataSource' : IDL.Text,
+  'frontendCycles' : IDL.Opt(IDL.Nat),
+  'backendCycles' : IDL.Nat,
 });
 export const DashboardStats = IDL.Record({
   'hoursTarget' : IDL.Float64,
@@ -406,6 +894,16 @@ export const DashboardStats = IDL.Record({
   'remainingVacationMinutes' : IDL.Int,
   'approvedVacationDays' : IDL.Nat,
   'pendingVacations' : IDL.Nat,
+});
+export const DefaultWorkHours = IDL.Record({
+  'stundenDi' : IDL.Nat,
+  'stundenDo' : IDL.Nat,
+  'stundenFr' : IDL.Nat,
+  'stundenMi' : IDL.Nat,
+  'stundenMo' : IDL.Nat,
+  'stundenSa' : IDL.Nat,
+  'stundenSo' : IDL.Nat,
+  'companyId' : CompanyId,
 });
 export const WorkTimeBalance = IDL.Record({
   'istStunden' : IDL.Int,
@@ -416,12 +914,20 @@ export const WorkTimeBalance = IDL.Record({
   'sollStunden' : IDL.Int,
   'korrektionen' : IDL.Int,
 });
-export const Result_24 = IDL.Variant({
+export const Result_35 = IDL.Variant({
   'ok' : WorkTimeBalance,
   'err' : IDL.Text,
 });
-export const Result_23 = IDL.Variant({
+export const Result_34 = IDL.Variant({
   'ok' : IDL.Opt(Employment),
+  'err' : IDL.Text,
+});
+export const Result_33 = IDL.Variant({
+  'ok' : IDL.Opt(InvoiceTemplate),
+  'err' : IDL.Text,
+});
+export const Result_32 = IDL.Variant({
+  'ok' : IDL.Vec(Invoice),
   'err' : IDL.Text,
 });
 export const Company = IDL.Record({
@@ -429,13 +935,19 @@ export const Company = IDL.Record({
   'taxId' : IDL.Opt(IDL.Text),
   'name' : IDL.Text,
   'createdAt' : Timestamp,
+  'mwstNummer' : IDL.Opt(IDL.Text),
+  'kontoInhaber' : IDL.Opt(IDL.Text),
+  'isActive' : IDL.Bool,
   'logoUrl' : IDL.Opt(IDL.Text),
   'address' : IDL.Opt(IDL.Text),
+  'kontoAdresse' : IDL.Opt(IDL.Text),
 });
-export const Result_13 = IDL.Variant({ 'ok' : Company, 'err' : IDL.Text });
+export const Result_17 = IDL.Variant({ 'ok' : Company, 'err' : IDL.Text });
 export const StandardTimeBlock = IDL.Record({
   'bis' : IDL.Text,
   'von' : IDL.Text,
+  'leistungsartId' : IDL.Opt(IDL.Nat),
+  'projektId' : IDL.Opt(IDL.Nat),
 });
 export const Standardarbeitszeiten = IDL.Record({
   'tuesday' : IDL.Vec(StandardTimeBlock),
@@ -446,16 +958,89 @@ export const Standardarbeitszeiten = IDL.Record({
   'friday' : IDL.Vec(StandardTimeBlock),
   'monday' : IDL.Vec(StandardTimeBlock),
 });
-export const Result_21 = IDL.Variant({
+export const Result_28 = IDL.Variant({
   'ok' : Standardarbeitszeiten,
+  'err' : IDL.Text,
+});
+export const VacationLedger = IDL.Record({
+  'id' : IDL.Nat,
+  'serviceYearStart' : IDL.Int,
+  'verbleibendeFerientage' : IDL.Float64,
+  'laengsterZusammenhangenderBlock' : IDL.Int,
+  'lastUpdatedAt' : IDL.Int,
+  'bezogeneFerientage' : IDL.Float64,
+  'employeeId' : IDL.Nat,
+  'calendarYearKey' : IDL.Text,
+  'serviceYearEnd' : IDL.Int,
+  'serviceYearKey' : IDL.Text,
+  'gesetzlicheFerientage' : IDL.Float64,
+  'twoWeekBlockSatisfied' : IDL.Bool,
+  'geplanteFerientage' : IDL.Float64,
+  'vertraglicheZusatzferienTage' : IDL.Float64,
+  'companyId' : IDL.Nat,
+});
+export const DetectedPause = IDL.Record({
+  'pauseEnd' : IDL.Int,
+  'source' : IDL.Text,
+  'date' : IDL.Text,
+  'pauseStart' : IDL.Int,
+  'durationMinutes' : IDL.Int,
+  'complianceRelevant' : IDL.Bool,
+  'ignored' : IDL.Bool,
+});
+export const DayPauseComplianceResult = IDL.Record({
+  'status' : IDL.Text,
+  'isCompliant' : IDL.Bool,
+  'date' : IDL.Text,
+  'detectedPauseMinutes' : IDL.Int,
+  'requiredPauseMinutes' : IDL.Int,
+  'meldung' : IDL.Text,
+  'employeeId' : IDL.Nat,
+  'workDurationMinutes' : IDL.Int,
+  'pausen' : IDL.Vec(DetectedPause),
+  'companyId' : IDL.Nat,
+});
+export const PlatformAdminConfigPublic = IDL.Record({
+  'frontendCanisterId' : IDL.Text,
+  'stripeWebhookEndpointUrl' : IDL.Text,
+  'stripePublishableKey' : IDL.Text,
+});
+export const Result_31 = IDL.Variant({ 'ok' : IDL.Float64, 'err' : IDL.Text });
+export const ServiceTypeBudgetReport = IDL.Record({
+  'serviceTypeName' : IDL.Text,
+  'aufgewendetCHF' : IDL.Float64,
+  'aufgewendeteStunden' : IDL.Float64,
+  'kostendachCHF' : IDL.Float64,
+  'serviceTypeId' : ServiceTypeId,
+});
+export const EmployeeBudgetReport = IDL.Record({
+  'employeeName' : IDL.Text,
+  'aufgewendetCHF' : IDL.Float64,
+  'aufgewendeteStunden' : IDL.Float64,
+  'employeeId' : EmployeeId,
+  'serviceTypeReports' : IDL.Vec(ServiceTypeBudgetReport),
+  'kostendachCHF' : IDL.Float64,
+});
+export const ProjectBudgetReport = IDL.Record({
+  'totalKostendachCHF' : IDL.Float64,
+  'customerName' : IDL.Text,
+  'totalAufgewendetCHF' : IDL.Float64,
+  'projectName' : IDL.Text,
+  'totalStunden' : IDL.Float64,
+  'projectId' : ProjectId,
+  'employeeReports' : IDL.Vec(EmployeeBudgetReport),
+});
+export const Result_30 = IDL.Variant({
+  'ok' : ProjectBudgetReport,
   'err' : IDL.Text,
 });
 export const ProjectMemberAssignment = IDL.Record({
   'stundensatz' : IDL.Float64,
   'employeeId' : EmployeeId,
+  'kostendachCHF' : IDL.Opt(IDL.Float64),
   'serviceTypeId' : ServiceTypeId,
 });
-export const Result_22 = IDL.Variant({
+export const Result_29 = IDL.Variant({
   'ok' : IDL.Vec(ProjectMemberAssignment),
   'err' : IDL.Text,
 });
@@ -472,16 +1057,101 @@ export const ReportData = IDL.Record({
   'billableHours' : IDL.Float64,
   'expenseItems' : IDL.Vec(Expense),
 });
-export const Result_20 = IDL.Variant({ 'ok' : IDL.Int, 'err' : IDL.Text });
+export const StripeEventStatus = IDL.Variant({
+  'processed' : IDL.Null,
+  'ignored' : IDL.Null,
+  'received' : IDL.Null,
+  'failed' : IDL.Null,
+});
+export const StripeEvent = IDL.Record({
+  'id' : IDL.Text,
+  'stripeEventId' : IDL.Text,
+  'processingStatus' : StripeEventStatus,
+  'stripeSubscriptionId' : IDL.Opt(IDL.Text),
+  'errorMessage' : IDL.Opt(IDL.Text),
+  'tenantId' : IDL.Opt(IDL.Nat),
+  'processedAt' : IDL.Opt(IDL.Int),
+  'subscriptionId' : IDL.Opt(IDL.Text),
+  'receivedAt' : IDL.Int,
+  'stripeCustomerId' : IDL.Opt(IDL.Text),
+  'rawPayload' : IDL.Opt(IDL.Text),
+  'eventType' : IDL.Text,
+});
+export const StripeInvoice = IDL.Record({
+  'id' : IDL.Text,
+  'status' : IDL.Text,
+  'stripeSubscriptionId' : IDL.Opt(IDL.Text),
+  'dueDate' : IDL.Opt(IDL.Int),
+  'stripeInvoiceId' : IDL.Text,
+  'amountPaid' : IDL.Float64,
+  'invoicePdfUrl' : IDL.Opt(IDL.Text),
+  'invoiceNumber' : IDL.Opt(IDL.Text),
+  'periodEnd' : IDL.Opt(IDL.Int),
+  'stripeCustomerId' : IDL.Text,
+  'currency' : IDL.Text,
+  'amountDue' : IDL.Float64,
+  'periodStart' : IDL.Opt(IDL.Int),
+  'issuedAt' : IDL.Int,
+  'paidAt' : IDL.Opt(IDL.Int),
+  'hostedInvoiceUrl' : IDL.Opt(IDL.Text),
+  'companyId' : IDL.Nat,
+});
+export const TenantCostEntry = IDL.Record({
+  'employeeCount' : IDL.Nat,
+  'estimatedCycles' : IDL.Nat,
+  'companyName' : IDL.Text,
+  'companyId' : IDL.Nat,
+});
+export const Result_27 = IDL.Variant({ 'ok' : IDL.Int, 'err' : IDL.Text });
+export const Result_26 = IDL.Variant({
+  'ok' : IDL.Record({
+    'spesen' : IDL.Vec(Expense),
+    'zeiteintraege' : IDL.Vec(TimeEntry),
+  }),
+  'err' : IDL.Text,
+});
+export const UnbilledTimeEntry = IDL.Record({
+  'id' : IDL.Nat,
+  'bis' : IDL.Opt(IDL.Text),
+  'von' : IDL.Opt(IDL.Text),
+  'hours' : IDL.Float64,
+  'date' : IDL.Text,
+  'stundensatz' : IDL.Float64,
+  'createdAt' : IDL.Int,
+  'description' : IDL.Text,
+  'totalCHF' : IDL.Float64,
+  'employeeId' : IDL.Nat,
+  'billable' : IDL.Bool,
+  'projectId' : IDL.Nat,
+  'serviceTypeId' : IDL.Nat,
+  'companyId' : IDL.Nat,
+});
+export const Result_25 = IDL.Variant({
+  'ok' : IDL.Record({
+    'spesen' : IDL.Vec(Expense),
+    'zeiteintraege' : IDL.Vec(UnbilledTimeEntry),
+  }),
+  'err' : IDL.Text,
+});
 export const UserNotificationSettings = IDL.Record({
   'emailNewVacationRequest' : IDL.Bool,
   'emailOnApproval' : IDL.Bool,
   'principalId' : IDL.Principal,
   'companyId' : CompanyId,
 });
-export const Result_1 = IDL.Variant({
+export const Result_2 = IDL.Variant({
   'ok' : UserNotificationSettings,
   'err' : IDL.Text,
+});
+export const PlatformAdminUserEntry = IDL.Record({
+  'id' : EmployeeId,
+  'activatedAt' : IDL.Opt(IDL.Int),
+  'role' : Role,
+  'deactivatedAt' : IDL.Opt(IDL.Int),
+  'isActive' : IDL.Bool,
+  'email' : IDL.Text,
+  'lastName' : IDL.Text,
+  'firstName' : IDL.Text,
 });
 export const AbsenceFilter = IDL.Record({
   'status' : IDL.Opt(AbsenceStatus),
@@ -489,6 +1159,18 @@ export const AbsenceFilter = IDL.Record({
   'dateTo' : IDL.Opt(IDL.Text),
   'employeeId' : IDL.Opt(EmployeeId),
   'dateFrom' : IDL.Opt(IDL.Text),
+});
+export const TimeEntryApprovalAuditEntry = IDL.Record({
+  'id' : IDL.Nat,
+  'oldStatus' : IDL.Text,
+  'action' : IDL.Text,
+  'changedBy' : IDL.Principal,
+  'timestamp' : IDL.Int,
+  'targetType' : IDL.Text,
+  'newStatus' : IDL.Text,
+  'targetId' : IDL.Nat,
+  'previousApprovedBy' : IDL.Opt(IDL.Principal),
+  'reason' : IDL.Opt(IDL.Text),
 });
 export const Time = IDL.Int;
 export const AuditEntry = IDL.Record({
@@ -503,7 +1185,56 @@ export const AuditEntry = IDL.Record({
   'previousApprovedBy' : IDL.Opt(IDL.Principal),
   'reason' : IDL.Opt(IDL.Text),
 });
-export const Result_19 = IDL.Variant({
+export const AuditOperation = IDL.Variant({
+  'reject' : IDL.Null,
+  'remove' : IDL.Null,
+  'approve' : IDL.Null,
+  'delete' : IDL.Null,
+  'create' : IDL.Null,
+  'update' : IDL.Null,
+});
+export const AuditEntityType = IDL.Variant({
+  'expenseType' : IDL.Null,
+  'serviceType' : IDL.Null,
+  'expense' : IDL.Null,
+  'timeEntry' : IDL.Null,
+  'customer' : IDL.Null,
+  'ferien' : IDL.Null,
+  'invoiceTemplate' : IDL.Null,
+  'absence' : IDL.Null,
+  'company' : IDL.Null,
+  'employee' : IDL.Null,
+  'approval' : IDL.Null,
+  'absenceType' : IDL.Null,
+  'holiday' : IDL.Null,
+  'project' : IDL.Null,
+});
+export const AuditLogFilter = IDL.Record({
+  'dateTo' : IDL.Opt(IDL.Int),
+  'actorPrincipalFilter' : IDL.Opt(IDL.Text),
+  'operation' : IDL.Opt(AuditOperation),
+  'entityType' : IDL.Opt(AuditEntityType),
+  'dateFrom' : IDL.Opt(IDL.Int),
+});
+export const AuditFieldChange = IDL.Record({
+  'after' : IDL.Text,
+  'before' : IDL.Text,
+  'fieldName' : IDL.Text,
+});
+export const AuditLogEntry = IDL.Record({
+  'id' : IDL.Text,
+  'beforeState' : IDL.Opt(IDL.Text),
+  'actorName' : IDL.Text,
+  'entityId' : IDL.Text,
+  'operation' : AuditOperation,
+  'timestamp' : IDL.Int,
+  'actorPrincipal' : IDL.Text,
+  'entityType' : AuditEntityType,
+  'fieldChanges' : IDL.Opt(IDL.Vec(AuditFieldChange)),
+  'afterState' : IDL.Opt(IDL.Text),
+  'companyId' : CompanyId,
+});
+export const Result_24 = IDL.Variant({
   'ok' : IDL.Vec(Employment),
   'err' : IDL.Text,
 });
@@ -513,7 +1244,13 @@ export const ExpenseFilter = IDL.Record({
   'employeeId' : IDL.Opt(EmployeeId),
   'dateFrom' : IDL.Opt(IDL.Text),
 });
-export const Result_18 = IDL.Variant({
+export const UserNotification = IDL.Record({
+  'isDeleted' : IDL.Bool,
+  'notification' : Notification,
+  'isRead' : IDL.Bool,
+  'readAt' : IDL.Opt(IDL.Int),
+});
+export const Result_23 = IDL.Variant({
   'ok' : IDL.Vec(TimeBalanceCorrection),
   'err' : IDL.Text,
 });
@@ -523,9 +1260,31 @@ export const TimeEntryFilter = IDL.Record({
   'projectId' : IDL.Opt(ProjectId),
   'dateFrom' : IDL.Opt(IDL.Text),
 });
-export const Result_17 = IDL.Variant({
+export const Result_22 = IDL.Variant({
   'ok' : IDL.Vec(VacationBalance),
   'err' : IDL.Text,
+});
+export const ResolveFindingInput = IDL.Record({
+  'resolutionType' : ComplianceResolutionType,
+  'findingId' : IDL.Nat,
+  'resolutionReason' : IDL.Text,
+});
+export const PlatformAdminConfig = IDL.Record({
+  'frontendCanisterId' : IDL.Text,
+  'stripeWebhookEndpointUrl' : IDL.Text,
+  'stripeSecretKey' : IDL.Text,
+  'stripePublishableKey' : IDL.Text,
+  'stripeWebhookSecret' : IDL.Text,
+});
+export const HttpHeader = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
+export const HttpRequestResult = IDL.Record({
+  'status' : IDL.Nat,
+  'body' : IDL.Vec(IDL.Nat8),
+  'headers' : IDL.Vec(HttpHeader),
+});
+export const HttpTransformArgs = IDL.Record({
+  'context' : IDL.Vec(IDL.Nat8),
+  'response' : HttpRequestResult,
 });
 export const UpdateAbsenceInput = IDL.Record({
   'dateTo' : IDL.Opt(IDL.Text),
@@ -538,13 +1297,27 @@ export const UpdateAbsenceTypeInput = IDL.Record({
   'aktiv' : IDL.Opt(IDL.Bool),
   'name' : IDL.Opt(IDL.Text),
   'requiresApproval' : IDL.Opt(IDL.Bool),
+  'visibility' : IDL.Opt(AbsenceTypeVisibility),
   'compensated' : IDL.Opt(IDL.Bool),
 });
 export const UpdateCompanyInput = IDL.Record({
   'taxId' : IDL.Opt(IDL.Text),
   'name' : IDL.Opt(IDL.Text),
+  'mwstNummer' : IDL.Opt(IDL.Text),
+  'kontoInhaber' : IDL.Opt(IDL.Text),
   'logoUrl' : IDL.Opt(IDL.Text),
   'address' : IDL.Opt(IDL.Text),
+  'kontoAdresse' : IDL.Opt(IDL.Text),
+});
+export const UpdateComplianceProfileInput = IDL.Record({
+  'id' : IDL.Nat,
+  'aktiv' : IDL.Bool,
+  'ausnahmeprofil' : IDL.Opt(IDL.Text),
+  'vertraglicheWochenstunden' : IDL.Float64,
+  'erfassungsModus' : IDL.Text,
+  'vertraglicheZusatzferienTage' : IDL.Float64,
+  'gesetzlicheWochenhochstarbeitszeit' : IDL.Float64,
+  'gesetzlicherFerienanspruchWochen' : IDL.Float64,
 });
 export const UpdateCustomerInput = IDL.Record({
   'rechnungsadresse' : IDL.Opt(Rechnungsadresse),
@@ -556,6 +1329,10 @@ export const UpdateCustomerInput = IDL.Record({
   'notes' : IDL.Opt(IDL.Text),
   'beschreibung' : IDL.Opt(IDL.Text),
   'waehrung' : IDL.Opt(IDL.Text),
+});
+export const Result_14 = IDL.Variant({
+  'ok' : DefaultWorkHours,
+  'err' : IDL.Text,
 });
 export const UpdateEmployeeInput = IDL.Record({
   'ort' : IDL.Opt(IDL.Text),
@@ -592,7 +1369,9 @@ export const UpdateEmploymentInput = IDL.Record({
 export const UpdateExpenseInput = IDL.Record({
   'date' : IDL.Opt(IDL.Text),
   'description' : IDL.Opt(IDL.Text),
+  'projektId' : IDL.Opt(IDL.Nat),
   'billableCHF' : IDL.Opt(IDL.Float64),
+  'kundeId' : IDL.Opt(IDL.Nat),
   'reimbursementCHF' : IDL.Opt(IDL.Float64),
   'expenseTypeId' : IDL.Opt(ExpenseTypeId),
   'receiptBlobId' : IDL.Opt(IDL.Text),
@@ -608,6 +1387,19 @@ export const UpdateHolidayInput = IDL.Record({
   'date' : IDL.Opt(IDL.Text),
   'name' : IDL.Opt(IDL.Text),
 });
+export const UpdateInvoiceInput = IDL.Record({
+  'status' : IDL.Opt(InvoiceStatus),
+  'fusstext' : IDL.Opt(IDL.Text),
+  'positionen' : IDL.Opt(IDL.Vec(InvoicePositionInput)),
+  'faelligkeitsdatum' : IDL.Opt(IDL.Text),
+  'qrAktiv' : IDL.Opt(IDL.Bool),
+  'mwstSatz' : IDL.Opt(IDL.Float64),
+  'rabatt' : IDL.Opt(IDL.Float64),
+  'kopftext' : IDL.Opt(IDL.Text),
+  'kundeId' : IDL.Opt(CustomerId),
+  'datum' : IDL.Opt(IDL.Text),
+  'skonto' : IDL.Opt(IDL.Float64),
+});
 export const UpdateProjectInput = IDL.Record({
   'status' : IDL.Opt(ProjectStatus),
   'erfassungsart' : IDL.Opt(Erfassungsart),
@@ -617,6 +1409,7 @@ export const UpdateProjectInput = IDL.Record({
   'name' : IDL.Opt(IDL.Text),
   'customerId' : IDL.Opt(CustomerId),
   'kurzbezeichnung' : IDL.Opt(IDL.Text),
+  'kostendachCHF' : IDL.Opt(IDL.Float64),
   'projektleiter' : IDL.Opt(EmployeeId),
 });
 export const UpdateServiceTypeInput = IDL.Record({
@@ -649,6 +1442,10 @@ export const UpdateVacationBalanceInput = IDL.Record({
   'kalenderjahr' : IDL.Opt(IDL.Int),
   'dauer' : IDL.Opt(IDL.Int),
 });
+export const Result = IDL.Variant({
+  'ok' : SubscriptionPlan,
+  'err' : IDL.Text,
+});
 
 export const idlService = IDL.Service({
   '_immutableObjectStorageBlobsAreLive' : IDL.Func(
@@ -678,107 +1475,462 @@ export const idlService = IDL.Service({
     ),
   '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initializeAccessControl' : IDL.Func([], [], []),
-  'approveAbsence' : IDL.Func([AbsenceId], [Result_15], []),
-  'approveExpense' : IDL.Func([ExpenseId], [Result_8], []),
-  'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-  'assignEmployeeToProject' : IDL.Func(
-      [EmployeeId, ProjectId],
-      [Result_26],
+  'applyPlanChange' : IDL.Func(
+      [IDL.Nat, IDL.Text, BillingModel],
+      [Result_21],
       [],
     ),
-  'createAbsence' : IDL.Func([CreateAbsenceInput], [Result_15], []),
-  'createAbsenceType' : IDL.Func([CreateAbsenceTypeInput], [Result_14], []),
-  'createCustomer' : IDL.Func([CreateCustomerInput], [Result_11], []),
-  'createEmployee' : IDL.Func([CreateEmployeeInput], [Result_10], []),
-  'createEmployment' : IDL.Func(
-      [EmployeeId, CreateEmploymentInput],
-      [Result_9],
+  'approveAbsence' : IDL.Func([AbsenceId], [Result_19], []),
+  'approveAbsenceApproval' : IDL.Func(
+      [AbsenceId, AbsenceApprovalInput],
+      [Result_5],
       [],
     ),
-  'createExpense' : IDL.Func([CreateExpenseInput], [Result_8], []),
-  'createExpenseType' : IDL.Func([CreateExpenseTypeInput], [Result_7], []),
-  'createHoliday' : IDL.Func([CreateHolidayInput], [Result_6], []),
-  'createProject' : IDL.Func([CreateProjectInput], [Result_5], []),
-  'createServiceType' : IDL.Func([CreateServiceTypeInput], [Result_4], []),
-  'createTimeBalanceCorrection' : IDL.Func(
-      [EmployeeId, CreateTimeBalanceCorrectionInput],
+  'approveExpense' : IDL.Func([ExpenseId], [Result_11], []),
+  'approveTimeEntry' : IDL.Func(
+      [TimeEntryId, TimeEntryApprovalInput],
       [Result_3],
       [],
     ),
-  'createTimeEntry' : IDL.Func([CreateTimeEntryInput], [Result_2], []),
+  'archiveNotification' : IDL.Func(
+      [IDL.Text],
+      [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+      [],
+    ),
+  'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'assignEmployeeToProject' : IDL.Func(
+      [EmployeeId, ProjectId],
+      [Result_46],
+      [],
+    ),
+  'assignSubscriptionPlan' : IDL.Func([IDL.Text, IDL.Text], [Result_5], []),
+  'calculateMonthlyBilling' : IDL.Func(
+      [IDL.Nat, IDL.Nat],
+      [IDL.Vec(MonthlyBillingEntry)],
+      ['query'],
+    ),
+  'calculateProRataAdjustment' : IDL.Func(
+      [IDL.Nat, IDL.Text],
+      [Result_45],
+      ['query'],
+    ),
+  'cancelInvoice' : IDL.Func([IDL.Nat], [Result_8], []),
+  'cancelStripeSubscription' : IDL.Func([IDL.Nat], [Result_20], []),
+  'checkFeatureAccess' : IDL.Func(
+      [FeatureKey],
+      [FeatureAccessResult],
+      ['query'],
+    ),
+  'checkPlanChangeNeeded' : IDL.Func([IDL.Nat], [Result_44], ['query']),
+  'compareStripeSubscriptionStatus' : IDL.Func([IDL.Nat], [Result_43], []),
+  'createAbsence' : IDL.Func([CreateAbsenceInput], [Result_19], []),
+  'createAbsenceType' : IDL.Func([CreateAbsenceTypeInput], [Result_18], []),
+  'createCustomer' : IDL.Func([CreateCustomerInput], [Result_15], []),
+  'createEmployee' : IDL.Func([CreateEmployeeInput], [Result_13], []),
+  'createEmployment' : IDL.Func(
+      [EmployeeId, CreateEmploymentInput],
+      [Result_12],
+      [],
+    ),
+  'createExpense' : IDL.Func([CreateExpenseInput], [Result_11], []),
+  'createExpenseType' : IDL.Func([CreateExpenseTypeInput], [Result_10], []),
+  'createHoliday' : IDL.Func([CreateHolidayInput], [Result_9], []),
+  'createInvoice' : IDL.Func([CreateInvoiceInput], [Result_8], []),
+  'createNotificationDraft' : IDL.Func(
+      [
+        IDL.Text,
+        IDL.Text,
+        NotificationFormat,
+        NotificationPriority,
+        IDL.Int,
+        IDL.Opt(IDL.Int),
+        NotificationTargetType,
+        IDL.Vec(IDL.Text),
+        IDL.Vec(IDL.Text),
+        IDL.Vec(IDL.Text),
+      ],
+      [IDL.Variant({ 'ok' : Notification, 'err' : IDL.Text })],
+      [],
+    ),
+  'createOrUpdateInvoiceTemplate' : IDL.Func(
+      [InvoiceTemplateInput],
+      [Result_42],
+      [],
+    ),
+  'createPauseOverride' : IDL.Func(
+      [CreatePauseOverrideInput],
+      [IDL.Variant({ 'ok' : PauseOverride, 'err' : IDL.Text })],
+      [],
+    ),
+  'createProject' : IDL.Func([CreateProjectInput], [Result_7], []),
+  'createServiceType' : IDL.Func([CreateServiceTypeInput], [Result_6], []),
+  'createStripeCheckoutLinkForCompany' : IDL.Func(
+      [IDL.Nat, IDL.Text, BillingModel],
+      [Result_38],
+      [],
+    ),
+  'createStripeCheckoutLinkForCompanyWithPrice' : IDL.Func(
+      [IDL.Nat, IDL.Text, BillingModel, IDL.Text],
+      [Result_38],
+      [],
+    ),
+  'createStripeCheckoutSession' : IDL.Func(
+      [IDL.Nat, IDL.Text, BillingModel],
+      [Result_38],
+      [],
+    ),
+  'createStripeCheckoutSessionWithPrice' : IDL.Func(
+      [IDL.Nat, IDL.Text, BillingModel, IDL.Text],
+      [Result_38],
+      [],
+    ),
+  'createStripeCustomerPortalSession' : IDL.Func([IDL.Nat], [Result_37], []),
+  'createTimeBalanceCorrection' : IDL.Func(
+      [EmployeeId, CreateTimeBalanceCorrectionInput],
+      [Result_4],
+      [],
+    ),
+  'createTimeEntry' : IDL.Func([CreateTimeEntryInput], [Result_3], []),
   'createVacationBalance' : IDL.Func(
       [EmployeeId, CreateVacationBalanceInput],
-      [Result],
+      [Result_1],
       [],
     ),
-  'deleteAbsence' : IDL.Func([AbsenceId], [Result_16], []),
-  'deleteAbsenceType' : IDL.Func([AbsenceTypeId], [Result_16], []),
-  'deleteCustomer' : IDL.Func([CustomerId], [Result_16], []),
-  'deleteEmployee' : IDL.Func([EmployeeId], [Result_16], []),
-  'deleteEmployment' : IDL.Func([EmployeeId, IDL.Text], [Result_16], []),
-  'deleteExpense' : IDL.Func([ExpenseId], [Result_16], []),
-  'deleteExpenseType' : IDL.Func([ExpenseTypeId], [Result_16], []),
-  'deleteHoliday' : IDL.Func([HolidayId], [Result_16], []),
-  'deleteProject' : IDL.Func([ProjectId], [Result_16], []),
-  'deleteServiceType' : IDL.Func([ServiceTypeId], [Result_16], []),
+  'deleteAbsence' : IDL.Func([AbsenceId], [Result_5], []),
+  'deleteAbsenceType' : IDL.Func([AbsenceTypeId], [Result_5], []),
+  'deleteCustomer' : IDL.Func([CustomerId], [Result_5], []),
+  'deleteEmployee' : IDL.Func([EmployeeId], [Result_5], []),
+  'deleteEmployment' : IDL.Func([EmployeeId, IDL.Text], [Result_5], []),
+  'deleteExpense' : IDL.Func([ExpenseId], [Result_5], []),
+  'deleteExpenseType' : IDL.Func([ExpenseTypeId], [Result_5], []),
+  'deleteHoliday' : IDL.Func([HolidayId], [Result_5], []),
+  'deleteInvoice' : IDL.Func([IDL.Nat], [Result_5], []),
+  'deleteMyNotification' : IDL.Func(
+      [IDL.Text],
+      [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+      [],
+    ),
+  'deletePauseOverride' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+      [],
+    ),
+  'deleteProject' : IDL.Func([ProjectId], [Result_5], []),
+  'deleteServiceType' : IDL.Func([ServiceTypeId], [Result_5], []),
+  'deleteSubscriptionPlan' : IDL.Func([IDL.Text], [Result_5], []),
   'deleteTimeBalanceCorrection' : IDL.Func(
       [EmployeeId, IDL.Text],
-      [Result_16],
+      [Result_5],
       [],
     ),
-  'deleteTimeEntry' : IDL.Func([TimeEntryId], [Result_16], []),
-  'deleteVacationBalance' : IDL.Func([EmployeeId, IDL.Text], [Result_16], []),
-  'generateInviteCode' : IDL.Func([EmployeeId], [Result_25], []),
+  'deleteTimeEntry' : IDL.Func([TimeEntryId], [Result_5], []),
+  'deleteVacationBalance' : IDL.Func([EmployeeId, IDL.Text], [Result_5], []),
+  'duplicateNotification' : IDL.Func(
+      [IDL.Text],
+      [IDL.Variant({ 'ok' : Notification, 'err' : IDL.Text })],
+      [],
+    ),
+  'generateInviteCode' : IDL.Func([EmployeeId], [Result_21], []),
+  'getAbsenceApprovalStatus' : IDL.Func(
+      [AbsenceId],
+      [
+        IDL.Opt(
+          IDL.Record({
+            'status' : TimeEntryStatus,
+            'approvedBy' : IDL.Opt(IDL.Principal),
+            'reason' : IDL.Opt(IDL.Text),
+          })
+        ),
+      ],
+      ['query'],
+    ),
+  'getAllCompanySubscriptions' : IDL.Func(
+      [],
+      [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text))],
+      ['query'],
+    ),
+  'getAllSubscriptionPlans' : IDL.Func(
+      [],
+      [IDL.Vec(SubscriptionPlan)],
+      ['query'],
+    ),
+  'getApprovalRecord' : IDL.Func(
+      [TimeEntryId],
+      [
+        IDL.Opt(
+          IDL.Record({
+            'status' : TimeEntryStatus,
+            'approvedBy' : IDL.Opt(IDL.Principal),
+            'reason' : IDL.Opt(IDL.Text),
+          })
+        ),
+      ],
+      ['query'],
+    ),
+  'getBackendCanisterId' : IDL.Func([], [IDL.Text], []),
   'getCalendarEntries' : IDL.Func(
       [IDL.Text, IDL.Nat],
       [CalendarData],
       ['query'],
     ),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
-  'getCompanySettings' : IDL.Func([], [Result_12], ['query']),
+  'getCanisterStatusInfo' : IDL.Func([], [CanisterStatusInfo], ['query']),
+  'getCompanyBillingModel' : IDL.Func([IDL.Nat], [Result_36], ['query']),
+  'getCompanyCalendarAbsences' : IDL.Func(
+      [CompanyId, IDL.Int, IDL.Int],
+      [IDL.Vec(MaskedCalendarAbsence)],
+      ['query'],
+    ),
+  'getCompanyEmployeesForBilling' : IDL.Func(
+      [CompanyId],
+      [IDL.Vec(Employee)],
+      ['query'],
+    ),
+  'getCompanySettings' : IDL.Func([], [Result_16], ['query']),
+  'getCompanySubscription' : IDL.Func(
+      [IDL.Text],
+      [IDL.Opt(IDL.Text)],
+      ['query'],
+    ),
+  'getCompanySubscriptionPlan' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Opt(SubscriptionPlan)],
+      ['query'],
+    ),
+  'getComplianceCockpitKPI' : IDL.Func(
+      [IDL.Nat],
+      [ComplianceCockpitKPI],
+      ['query'],
+    ),
+  'getComplianceCockpitRows' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Vec(ComplianceCockpitRow)],
+      ['query'],
+    ),
+  'getComplianceFindings' : IDL.Func(
+      [
+        IDL.Nat,
+        IDL.Opt(CompliancePeriodeTyp),
+        IDL.Opt(IDL.Vec(ComplianceStatus)),
+      ],
+      [IDL.Vec(ComplianceFinding)],
+      ['query'],
+    ),
+  'getComplianceProfile' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Opt(EmployeeComplianceProfile)],
+      ['query'],
+    ),
+  'getCostDashboardData' : IDL.Func(
+      [IDL.Opt(IDL.Int), IDL.Opt(IDL.Int)],
+      [CostDashboardData],
+      ['query'],
+    ),
+  'getCostSettings' : IDL.Func([], [CostSettings], ['query']),
+  'getCycleSnapshots' : IDL.Func(
+      [IDL.Opt(IDL.Int), IDL.Opt(IDL.Int)],
+      [IDL.Vec(CycleSnapshot)],
+      ['query'],
+    ),
+  'getCycleStatus' : IDL.Func([], [CycleStatus], ['query']),
   'getDashboardStats' : IDL.Func([], [DashboardStats], ['query']),
+  'getDefaultWorkHours' : IDL.Func([], [DefaultWorkHours], ['query']),
   'getEmployeeWorkTimeBalance' : IDL.Func(
       [EmployeeId, IDL.Text, IDL.Text],
-      [Result_24],
+      [Result_35],
       ['query'],
     ),
   'getEmployeeWorkTimeBalanceFromStart' : IDL.Func(
       [EmployeeId],
-      [Result_24],
+      [Result_35],
       ['query'],
     ),
   'getEmploymentForDate' : IDL.Func(
       [EmployeeId, IDL.Text],
-      [Result_23],
+      [Result_34],
       ['query'],
     ),
-  'getMyCompany' : IDL.Func([], [Result_13], ['query']),
-  'getMyEmployee' : IDL.Func([], [Result_10], ['query']),
-  'getMyStandardarbeitszeiten' : IDL.Func([], [Result_21], ['query']),
-  'getProjectMembers' : IDL.Func([ProjectId], [Result_22], ['query']),
+  'getFrontendCyclesManual' : IDL.Func([], [IDL.Nat], ['query']),
+  'getInvoiceById' : IDL.Func([IDL.Nat], [Result_8], ['query']),
+  'getInvoiceTemplate' : IDL.Func([], [Result_33], ['query']),
+  'getInvoices' : IDL.Func([], [Result_32], []),
+  'getMonthlyBillingOverview' : IDL.Func(
+      [IDL.Nat, IDL.Nat],
+      [IDL.Vec(MonthlyBillingEntry)],
+      ['query'],
+    ),
+  'getMyCompany' : IDL.Func([], [Result_17], ['query']),
+  'getMyComplianceFindings' : IDL.Func(
+      [IDL.Opt(CompliancePeriodeTyp)],
+      [IDL.Vec(ComplianceFinding)],
+      ['query'],
+    ),
+  'getMyComplianceProfile' : IDL.Func(
+      [],
+      [IDL.Opt(EmployeeComplianceProfile)],
+      ['query'],
+    ),
+  'getMyEmployee' : IDL.Func([], [Result_13], ['query']),
+  'getMyPlanFeatures' : IDL.Func([], [IDL.Vec(FeatureKey)], ['query']),
+  'getMyStandardarbeitszeiten' : IDL.Func([], [Result_28], ['query']),
+  'getMyVacationLedger' : IDL.Func(
+      [IDL.Text],
+      [IDL.Opt(VacationLedger)],
+      ['query'],
+    ),
+  'getPauseComplianceForDay' : IDL.Func(
+      [IDL.Nat, IDL.Text],
+      [DayPauseComplianceResult],
+      ['query'],
+    ),
+  'getPauseOverridesForDay' : IDL.Func(
+      [IDL.Nat, IDL.Text],
+      [IDL.Vec(PauseOverride)],
+      ['query'],
+    ),
+  'getPausesForDay' : IDL.Func(
+      [IDL.Nat, IDL.Text],
+      [IDL.Vec(DetectedPause)],
+      ['query'],
+    ),
+  'getPlatformAdminConfig' : IDL.Func(
+      [],
+      [PlatformAdminConfigPublic],
+      ['query'],
+    ),
+  'getPlatformAdminInfo' : IDL.Func(
+      [],
+      [IDL.Opt(IDL.Record({ 'principal' : IDL.Text, 'createdAt' : IDL.Int }))],
+      ['query'],
+    ),
+  'getProjectAufwendungen' : IDL.Func([ProjectId], [Result_31], ['query']),
+  'getProjectBudgetReport' : IDL.Func(
+      [ProjectId, IDL.Text, IDL.Text],
+      [Result_30],
+      ['query'],
+    ),
+  'getProjectMembers' : IDL.Func([ProjectId], [Result_29], ['query']),
   'getReportData' : IDL.Func([ReportFilter], [ReportData], ['query']),
+  'getServiceYears' : IDL.Func([IDL.Nat], [IDL.Vec(IDL.Text)], ['query']),
+  'getSnapshotInterval' : IDL.Func([], [IDL.Nat], ['query']),
   'getStandardarbeitszeitenForEmployee' : IDL.Func(
       [EmployeeId],
-      [Result_21],
+      [Result_28],
       ['query'],
     ),
-  'getTimeBalance' : IDL.Func([EmployeeId], [Result_20], ['query']),
-  'getUserNotificationSettings' : IDL.Func([], [Result_1], ['query']),
+  'getStripeConfigStatus' : IDL.Func(
+      [],
+      [
+        IDL.Record({
+          'hasPublishableKey' : IDL.Bool,
+          'testMode' : IDL.Bool,
+          'configured' : IDL.Bool,
+        }),
+      ],
+      ['query'],
+    ),
+  'getStripeEvents' : IDL.Func(
+      [IDL.Opt(IDL.Nat), IDL.Nat],
+      [IDL.Vec(StripeEvent)],
+      ['query'],
+    ),
+  'getStripeInvoicesForCompany' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Vec(StripeInvoice)],
+      ['query'],
+    ),
+  'getStripePublishableKey' : IDL.Func([], [IDL.Opt(IDL.Text)], ['query']),
+  'getSubscriptionPlans' : IDL.Func([], [IDL.Vec(SubscriptionPlan)], ['query']),
+  'getSystemStats' : IDL.Func(
+      [],
+      [IDL.Record({ 'totalEmployees' : IDL.Nat, 'totalCompanies' : IDL.Nat })],
+      ['query'],
+    ),
+  'getTenantCostBreakdown' : IDL.Func(
+      [],
+      [IDL.Vec(TenantCostEntry)],
+      ['query'],
+    ),
+  'getTimeBalance' : IDL.Func([EmployeeId], [Result_27], ['query']),
+  'getTimeEntryApprovalStatus' : IDL.Func(
+      [TimeEntryId],
+      [IDL.Opt(TimeEntryStatus)],
+      ['query'],
+    ),
+  'getUnbilledEntries' : IDL.Func([IDL.Opt(IDL.Nat)], [Result_26], ['query']),
+  'getUnbilledEntriesWithRates' : IDL.Func(
+      [IDL.Opt(IDL.Nat)],
+      [Result_25],
+      ['query'],
+    ),
+  'getUnreadCount' : IDL.Func([], [IDL.Nat], ['query']),
+  'getUserNotificationSettings' : IDL.Func([], [Result_2], ['query']),
+  'getUsersForCompany' : IDL.Func(
+      [CompanyId],
+      [IDL.Vec(PlatformAdminUserEntry)],
+      ['query'],
+    ),
+  'getVacationLedger' : IDL.Func(
+      [IDL.Nat, IDL.Text],
+      [IDL.Opt(VacationLedger)],
+      ['query'],
+    ),
+  'getVacationLedgerAll' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Vec(VacationLedger)],
+      ['query'],
+    ),
+  'handleStripeWebhook' : IDL.Func([IDL.Text, IDL.Text], [Result_21], []),
+  'initAllVacationLedgers' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Variant({ 'ok' : IDL.Nat, 'err' : IDL.Text })],
+      [],
+    ),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'isPlatformAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'isRegistered' : IDL.Func([], [IDL.Bool], ['query']),
   'listAbsenceTypes' : IDL.Func([], [IDL.Vec(AbsenceType)], ['query']),
   'listAbsences' : IDL.Func([AbsenceFilter], [IDL.Vec(Absence)], ['query']),
+  'listAllCompaniesForPlatformAdmin' : IDL.Func(
+      [],
+      [
+        IDL.Vec(
+          IDL.Record({
+            'id' : IDL.Text,
+            'name' : IDL.Text,
+            'createdAt' : IDL.Int,
+            'inactiveEmployeeCount' : IDL.Nat,
+            'isActive' : IDL.Bool,
+            'address' : IDL.Opt(IDL.Text),
+            'activeEmployeeCount' : IDL.Nat,
+          })
+        ),
+      ],
+      ['query'],
+    ),
+  'listAllNotifications' : IDL.Func([], [IDL.Vec(Notification)], []),
+  'listApprovalAuditLog' : IDL.Func(
+      [],
+      [IDL.Vec(TimeEntryApprovalAuditEntry)],
+      ['query'],
+    ),
   'listAuditLog' : IDL.Func(
       [IDL.Opt(IDL.Text), IDL.Opt(IDL.Nat)],
       [IDL.Vec(AuditEntry)],
       ['query'],
     ),
+  'listAuditLogs' : IDL.Func(
+      [AuditLogFilter],
+      [IDL.Vec(AuditLogEntry)],
+      ['query'],
+    ),
   'listCustomers' : IDL.Func([], [IDL.Vec(Customer)], ['query']),
   'listEmployees' : IDL.Func([], [IDL.Vec(Employee)], ['query']),
-  'listEmployments' : IDL.Func([EmployeeId], [Result_19], ['query']),
+  'listEmployments' : IDL.Func([EmployeeId], [Result_24], ['query']),
   'listExpenseTypes' : IDL.Func([], [IDL.Vec(ExpenseType)], ['query']),
   'listExpenses' : IDL.Func([ExpenseFilter], [IDL.Vec(Expense)], ['query']),
   'listHolidays' : IDL.Func([], [IDL.Vec(Holiday)], ['query']),
+  'listMyNotifications' : IDL.Func([], [IDL.Vec(UserNotification)], []),
   'listProjectAssignments' : IDL.Func(
       [],
       [IDL.Vec(ProjectAssignment)],
@@ -786,100 +1938,232 @@ export const idlService = IDL.Service({
     ),
   'listProjects' : IDL.Func([], [IDL.Vec(Project)], ['query']),
   'listServiceTypes' : IDL.Func([], [IDL.Vec(ServiceType)], ['query']),
-  'listTimeBalanceCorrections' : IDL.Func([EmployeeId], [Result_18], ['query']),
+  'listSubmittedTimeEntries' : IDL.Func([], [IDL.Vec(TimeEntry)], ['query']),
+  'listTimeBalanceCorrections' : IDL.Func([EmployeeId], [Result_23], ['query']),
   'listTimeEntries' : IDL.Func(
       [TimeEntryFilter],
       [IDL.Vec(TimeEntry)],
       ['query'],
     ),
-  'listVacationBalances' : IDL.Func([EmployeeId], [Result_17], ['query']),
-  'redeemInviteCode' : IDL.Func([IDL.Text], [Result_10], []),
+  'listVacationBalances' : IDL.Func([EmployeeId], [Result_22], ['query']),
+  'manuallyTriggerStripeSync' : IDL.Func([IDL.Nat], [Result_21], []),
+  'markAllNotificationsRead' : IDL.Func(
+      [],
+      [IDL.Variant({ 'ok' : IDL.Nat, 'err' : IDL.Text })],
+      [],
+    ),
+  'markFakturiert' : IDL.Func(
+      [IDL.Nat, IDL.Vec(IDL.Nat), IDL.Vec(IDL.Nat)],
+      [Result_5],
+      [],
+    ),
+  'markNotificationRead' : IDL.Func(
+      [IDL.Text],
+      [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+      [],
+    ),
+  'purgeEmployee' : IDL.Func([EmployeeId], [Result_5], []),
+  'reactivateStripeSubscription' : IDL.Func([IDL.Nat], [Result_20], []),
+  'recordCycleSnapshot' : IDL.Func([IDL.Nat, IDL.Nat], [], []),
+  'recoverSubscriptionPlans' : IDL.Func([], [Result_21], []),
+  'redeemInviteCode' : IDL.Func([IDL.Text], [Result_13], []),
   'registerCompany' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
-      [Result_13],
+      [Result_17],
       [],
     ),
-  'rejectAbsence' : IDL.Func([AbsenceId, IDL.Text], [Result_15], []),
-  'rejectExpense' : IDL.Func([ExpenseId, IDL.Opt(IDL.Text)], [Result_8], []),
+  'rejectAbsence' : IDL.Func([AbsenceId, IDL.Text], [Result_19], []),
+  'rejectAbsenceApproval' : IDL.Func(
+      [AbsenceId, AbsenceApprovalInput],
+      [Result_5],
+      [],
+    ),
+  'rejectExpense' : IDL.Func([ExpenseId, IDL.Opt(IDL.Text)], [Result_11], []),
+  'rejectTimeEntry' : IDL.Func(
+      [TimeEntryId, TimeEntryApprovalInput],
+      [Result_3],
+      [],
+    ),
+  'relinkStripeCustomer' : IDL.Func([IDL.Nat, IDL.Text], [Result_21], []),
   'removeEmployeeFromProject' : IDL.Func(
       [EmployeeId, ProjectId],
-      [Result_16],
+      [Result_5],
       [],
     ),
-  'resetAbsenceToAusstehend' : IDL.Func([AbsenceId, IDL.Text], [Result_15], []),
-  'resetExpenseToAusstehend' : IDL.Func([ExpenseId, IDL.Text], [Result_8], []),
-  'revokeInviteCode' : IDL.Func([IDL.Text], [Result_16], []),
+  'reprocessStripeEvent' : IDL.Func([IDL.Text], [Result_21], []),
+  'resetAbsenceApprovalToDraft' : IDL.Func(
+      [AbsenceId, IDL.Opt(IDL.Text)],
+      [Result_5],
+      [],
+    ),
+  'resetAbsenceToAusstehend' : IDL.Func([AbsenceId, IDL.Text], [Result_19], []),
+  'resetExpenseToAusstehend' : IDL.Func([ExpenseId, IDL.Text], [Result_11], []),
+  'resetTimeEntryToDraft' : IDL.Func(
+      [TimeEntryId, IDL.Opt(IDL.Text)],
+      [Result_3],
+      [],
+    ),
+  'resolveFinding' : IDL.Func(
+      [ResolveFindingInput],
+      [IDL.Variant({ 'ok' : ComplianceFinding, 'err' : IDL.Text })],
+      [],
+    ),
+  'restoreDefaultPlansIfMissing' : IDL.Func([], [Result_21], []),
+  'revokeInviteCode' : IDL.Func([IDL.Text], [Result_5], []),
+  'runWeeklyComplianceCheck' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Variant({ 'ok' : IDL.Nat, 'err' : IDL.Text })],
+      [],
+    ),
+  'saveAndSendNotification' : IDL.Func(
+      [
+        IDL.Text,
+        IDL.Text,
+        NotificationFormat,
+        NotificationPriority,
+        IDL.Int,
+        IDL.Opt(IDL.Int),
+        NotificationTargetType,
+        IDL.Vec(IDL.Text),
+        IDL.Vec(IDL.Text),
+        IDL.Vec(IDL.Text),
+      ],
+      [IDL.Variant({ 'ok' : Notification, 'err' : IDL.Text })],
+      [],
+    ),
+  'sendNotification' : IDL.Func(
+      [IDL.Text],
+      [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+      [],
+    ),
+  'setCompanyActive' : IDL.Func(
+      [IDL.Nat, IDL.Bool],
+      [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+      [],
+    ),
+  'setCompanyBillingModel' : IDL.Func([IDL.Nat, BillingModel], [Result_5], []),
+  'setEmployeeActive' : IDL.Func([EmployeeId, IDL.Bool], [Result_13], []),
+  'setFrontendCanisterId' : IDL.Func([IDL.Text], [], []),
+  'setFrontendCyclesManual' : IDL.Func([IDL.Nat], [], []),
   'setMyStandardarbeitszeiten' : IDL.Func(
       [Standardarbeitszeiten],
-      [Result_16],
+      [Result_5],
       [],
     ),
+  'setPlatformAdminConfig' : IDL.Func([PlatformAdminConfig], [Result_5], []),
   'setProjectMembers' : IDL.Func(
       [ProjectId, IDL.Vec(ProjectMemberAssignment)],
-      [Result_16],
+      [Result_5],
       [],
     ),
+  'setSnapshotInterval' : IDL.Func([IDL.Nat], [], []),
   'setStandardarbeitszeitenForEmployee' : IDL.Func(
       [EmployeeId, Standardarbeitszeiten],
-      [Result_16],
+      [Result_5],
       [],
     ),
-  'updateAbsence' : IDL.Func([AbsenceId, UpdateAbsenceInput], [Result_15], []),
+  'setStripeConfig' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [Result_21], []),
+  'setUserActiveForCompany' : IDL.Func(
+      [CompanyId, EmployeeId, IDL.Bool],
+      [Result_5],
+      [],
+    ),
+  'setUserRoleForCompany' : IDL.Func(
+      [CompanyId, EmployeeId, Role],
+      [Result_5],
+      [],
+    ),
+  'startSnapshotTimer' : IDL.Func([], [], []),
+  'submitAbsenceForApproval' : IDL.Func([AbsenceId], [Result_5], []),
+  'submitTimeEntryForApproval' : IDL.Func([TimeEntryId], [Result_3], []),
+  'syncStripeSubscription' : IDL.Func([IDL.Nat], [Result_20], []),
+  'testStripeConnection' : IDL.Func(
+      [],
+      [
+        IDL.Record({
+          'apiConnectionOk' : IDL.Bool,
+          'apiConnectionMessage' : IDL.Text,
+          'customerPortalOk' : IDL.Bool,
+          'customerPortalMessage' : IDL.Text,
+        }),
+      ],
+      [],
+    ),
+  'transformStripeResponse' : IDL.Func(
+      [HttpTransformArgs],
+      [HttpRequestResult],
+      ['query'],
+    ),
+  'updateAbsence' : IDL.Func([AbsenceId, UpdateAbsenceInput], [Result_19], []),
   'updateAbsenceType' : IDL.Func(
       [AbsenceTypeId, UpdateAbsenceTypeInput],
-      [Result_14],
+      [Result_18],
       [],
     ),
-  'updateCompany' : IDL.Func([UpdateCompanyInput], [Result_13], []),
-  'updateCompanySettings' : IDL.Func([CompanySettings], [Result_12], []),
+  'updateCompany' : IDL.Func([UpdateCompanyInput], [Result_17], []),
+  'updateCompanySettings' : IDL.Func([CompanySettings], [Result_16], []),
+  'updateComplianceProfile' : IDL.Func(
+      [UpdateComplianceProfileInput],
+      [IDL.Variant({ 'ok' : EmployeeComplianceProfile, 'err' : IDL.Text })],
+      [],
+    ),
+  'updateCostSettings' : IDL.Func([CostSettings], [], []),
   'updateCustomer' : IDL.Func(
       [CustomerId, UpdateCustomerInput],
-      [Result_11],
+      [Result_15],
       [],
     ),
+  'updateDefaultWorkHours' : IDL.Func([DefaultWorkHours], [Result_14], []),
   'updateEmployee' : IDL.Func(
       [EmployeeId, UpdateEmployeeInput],
-      [Result_10],
+      [Result_13],
       [],
     ),
   'updateEmployment' : IDL.Func(
       [EmployeeId, IDL.Text, UpdateEmploymentInput],
-      [Result_9],
+      [Result_12],
       [],
     ),
-  'updateExpense' : IDL.Func([ExpenseId, UpdateExpenseInput], [Result_8], []),
+  'updateExpense' : IDL.Func([ExpenseId, UpdateExpenseInput], [Result_11], []),
   'updateExpenseType' : IDL.Func(
       [ExpenseTypeId, UpdateExpenseTypeInput],
-      [Result_7],
+      [Result_10],
       [],
     ),
-  'updateHoliday' : IDL.Func([HolidayId, UpdateHolidayInput], [Result_6], []),
-  'updateProject' : IDL.Func([ProjectId, UpdateProjectInput], [Result_5], []),
+  'updateHoliday' : IDL.Func([HolidayId, UpdateHolidayInput], [Result_9], []),
+  'updateInvoice' : IDL.Func([IDL.Nat, UpdateInvoiceInput], [Result_8], []),
+  'updateProject' : IDL.Func([ProjectId, UpdateProjectInput], [Result_7], []),
   'updateServiceType' : IDL.Func(
       [ServiceTypeId, UpdateServiceTypeInput],
-      [Result_4],
+      [Result_6],
+      [],
+    ),
+  'updateStripeSubscriptionQuantity' : IDL.Func(
+      [IDL.Nat, IDL.Nat],
+      [Result_5],
       [],
     ),
   'updateTimeBalanceCorrection' : IDL.Func(
       [EmployeeId, IDL.Text, UpdateTimeBalanceCorrectionInput],
-      [Result_3],
+      [Result_4],
       [],
     ),
   'updateTimeEntry' : IDL.Func(
       [TimeEntryId, UpdateTimeEntryInput],
-      [Result_2],
+      [Result_3],
       [],
     ),
   'updateUserNotificationSettings' : IDL.Func(
       [UserNotificationSettings],
-      [Result_1],
+      [Result_2],
       [],
     ),
   'updateVacationBalance' : IDL.Func(
       [EmployeeId, IDL.Text, UpdateVacationBalanceInput],
-      [Result],
+      [Result_1],
       [],
     ),
+  'upsertSubscriptionPlan' : IDL.Func([SubscriptionPlan], [Result], []),
 });
 
 export const idlInitArgs = [];
@@ -896,6 +2180,11 @@ export const idlFactory = ({ IDL }) => {
     'success' : IDL.Opt(IDL.Bool),
     'topped_up_amount' : IDL.Opt(IDL.Nat),
   });
+  const BillingModel = IDL.Variant({
+    'monthly' : IDL.Null,
+    'yearly' : IDL.Null,
+  });
+  const Result_21 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
   const AbsenceId = IDL.Nat;
   const AbsenceStatus = IDL.Variant({
     'submitted' : IDL.Null,
@@ -922,7 +2211,9 @@ export const idlFactory = ({ IDL }) => {
     'dauer' : IDL.Nat,
     'companyId' : CompanyId,
   });
-  const Result_15 = IDL.Variant({ 'ok' : Absence, 'err' : IDL.Text });
+  const Result_19 = IDL.Variant({ 'ok' : Absence, 'err' : IDL.Text });
+  const AbsenceApprovalInput = IDL.Record({ 'reason' : IDL.Opt(IDL.Text) });
+  const Result_5 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
   const ExpenseId = IDL.Nat;
   const ExpenseStatus = IDL.Variant({
     'pending' : IDL.Null,
@@ -933,29 +2224,176 @@ export const idlFactory = ({ IDL }) => {
   const Expense = IDL.Record({
     'id' : ExpenseId,
     'status' : ExpenseStatus,
+    'fakturiertInRechnungId' : IDL.Opt(IDL.Nat),
     'date' : IDL.Text,
     'description' : IDL.Text,
     'employeeId' : EmployeeId,
+    'projektId' : IDL.Opt(IDL.Nat),
     'resetReason' : IDL.Opt(IDL.Text),
     'billableCHF' : IDL.Float64,
+    'kundeId' : IDL.Opt(IDL.Nat),
     'reimbursementCHF' : IDL.Float64,
     'expenseTypeId' : ExpenseTypeId,
     'receiptBlobId' : IDL.Opt(IDL.Text),
     'companyId' : CompanyId,
   });
-  const Result_8 = IDL.Variant({ 'ok' : Expense, 'err' : IDL.Text });
+  const Result_11 = IDL.Variant({ 'ok' : Expense, 'err' : IDL.Text });
+  const TimeEntryId = IDL.Nat;
+  const TimeEntryApprovalInput = IDL.Record({ 'reason' : IDL.Opt(IDL.Text) });
+  const ProjectId = IDL.Nat;
+  const ServiceTypeId = IDL.Nat;
+  const TimeEntry = IDL.Record({
+    'id' : TimeEntryId,
+    'bis' : IDL.Opt(IDL.Text),
+    'von' : IDL.Opt(IDL.Text),
+    'hours' : IDL.Float64,
+    'fakturiertInRechnungId' : IDL.Opt(IDL.Nat),
+    'date' : IDL.Text,
+    'createdAt' : Timestamp,
+    'description' : IDL.Text,
+    'employeeId' : EmployeeId,
+    'billable' : IDL.Bool,
+    'projectId' : ProjectId,
+    'serviceTypeId' : ServiceTypeId,
+    'companyId' : CompanyId,
+  });
+  const Result_3 = IDL.Variant({ 'ok' : TimeEntry, 'err' : IDL.Text });
   const UserRole = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
     'guest' : IDL.Null,
   });
-  const ProjectId = IDL.Nat;
   const ProjectAssignment = IDL.Record({
     'employeeId' : EmployeeId,
     'projectId' : ProjectId,
     'companyId' : CompanyId,
   });
-  const Result_26 = IDL.Variant({ 'ok' : ProjectAssignment, 'err' : IDL.Text });
+  const Result_46 = IDL.Variant({ 'ok' : ProjectAssignment, 'err' : IDL.Text });
+  const MonthlyBillingEntry = IDL.Record({
+    'month' : IDL.Text,
+    'activeUserCount' : IDL.Nat,
+    'planId' : IDL.Text,
+    'billableUserCount' : IDL.Nat,
+    'billingModel' : IDL.Opt(IDL.Text),
+    'year' : IDL.Nat,
+    'creditAmount' : IDL.Opt(IDL.Float64),
+    'totalCHF' : IDL.Float64,
+    'companyName' : IDL.Text,
+    'nextDueDateTimestamp' : IDL.Opt(IDL.Int),
+    'planName' : IDL.Text,
+    'proRataAmount' : IDL.Opt(IDL.Float64),
+    'proRataNote' : IDL.Opt(IDL.Text),
+    'companyId' : IDL.Nat,
+  });
+  const Result_45 = IDL.Variant({
+    'ok' : IDL.Record({
+      'note' : IDL.Text,
+      'remainingDays' : IDL.Nat,
+      'isUpgrade' : IDL.Bool,
+      'proRataAmount' : IDL.Float64,
+    }),
+    'err' : IDL.Text,
+  });
+  const InvoiceStatus = IDL.Variant({
+    'entwurf' : IDL.Null,
+    'versendet' : IDL.Null,
+    'bezahlt' : IDL.Null,
+    'storniert' : IDL.Null,
+    'ueberfaellig' : IDL.Null,
+  });
+  const InvoicePositionTyp = IDL.Variant({
+    'leistung' : IDL.Null,
+    'freitext' : IDL.Null,
+    'spese' : IDL.Null,
+  });
+  const InvoicePosition = IDL.Record({
+    'id' : IDL.Nat,
+    'typ' : InvoicePositionTyp,
+    'menge' : IDL.Float64,
+    'referenzId' : IDL.Opt(IDL.Nat),
+    'total' : IDL.Float64,
+    'bezeichnung' : IDL.Text,
+    'invoiceId' : IDL.Nat,
+    'preis' : IDL.Float64,
+    'einheit' : IDL.Text,
+  });
+  const CustomerId = IDL.Nat;
+  const Invoice = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : InvoiceStatus,
+    'rechnungsnummer' : IDL.Text,
+    'total' : IDL.Float64,
+    'createdAt' : Timestamp,
+    'createdBy' : IDL.Principal,
+    'fusstext' : IDL.Text,
+    'mwstBetrag' : IDL.Float64,
+    'positionen' : IDL.Vec(InvoicePosition),
+    'faelligkeitsdatum' : IDL.Text,
+    'qrAktiv' : IDL.Bool,
+    'mwstSatz' : IDL.Float64,
+    'rabatt' : IDL.Float64,
+    'kopftext' : IDL.Text,
+    'kundeId' : CustomerId,
+    'zwischensumme' : IDL.Float64,
+    'datum' : IDL.Text,
+    'skonto' : IDL.Float64,
+    'waehrung' : IDL.Text,
+    'companyId' : CompanyId,
+  });
+  const Result_8 = IDL.Variant({ 'ok' : Invoice, 'err' : IDL.Text });
+  const CompanySubscription = IDL.Record({
+    'stripeCurrentPeriodEnd' : IDL.Opt(IDL.Int),
+    'latestStripePaymentStatus' : IDL.Opt(IDL.Text),
+    'latestStripeInvoiceId' : IDL.Opt(IDL.Text),
+    'nextDueDate' : IDL.Opt(IDL.Int),
+    'planId' : IDL.Text,
+    'stripeSubscriptionId' : IDL.Opt(IDL.Text),
+    'billingModel' : BillingModel,
+    'proRataCalculatedAt' : IDL.Opt(IDL.Int),
+    'scheduledPlanChangePriceId' : IDL.Opt(IDL.Text),
+    'stripeCancelAtPeriodEnd' : IDL.Bool,
+    'stripeProductId' : IDL.Opt(IDL.Text),
+    'stripeCustomerId' : IDL.Opt(IDL.Text),
+    'subscriptionStartDate' : IDL.Opt(IDL.Int),
+    'scheduledPlanChangeEffectiveAt' : IDL.Opt(IDL.Int),
+    'stripeStatus' : IDL.Opt(IDL.Text),
+    'proRataAmount' : IDL.Opt(IDL.Float64),
+    'stripeCurrentPeriodStart' : IDL.Opt(IDL.Int),
+    'lastStripeSyncAt' : IDL.Opt(IDL.Int),
+    'scheduledPlanChangeId' : IDL.Opt(IDL.Text),
+    'proRataNote' : IDL.Opt(IDL.Text),
+    'companyId' : IDL.Nat,
+  });
+  const Result_20 = IDL.Variant({
+    'ok' : CompanySubscription,
+    'err' : IDL.Text,
+  });
+  const FeatureKey = IDL.Text;
+  const FeatureAccessResult = IDL.Record({
+    'featureKey' : FeatureKey,
+    'hasAccess' : IDL.Bool,
+    'companyId' : CompanyId,
+  });
+  const Result_44 = IDL.Variant({
+    'ok' : IDL.Record({
+      'estimatedMonthlyCost' : IDL.Float64,
+      'currentPlanId' : IDL.Opt(IDL.Text),
+      'activeUserCount' : IDL.Nat,
+      'changeNeeded' : IDL.Bool,
+      'suggestedPlanId' : IDL.Opt(IDL.Text),
+      'suggestedPlanName' : IDL.Text,
+      'currentPlanName' : IDL.Text,
+    }),
+    'err' : IDL.Text,
+  });
+  const Result_43 = IDL.Variant({
+    'ok' : IDL.Record({
+      'internalStatus' : IDL.Text,
+      'inSync' : IDL.Bool,
+      'stripeStatus' : IDL.Text,
+    }),
+    'err' : IDL.Text,
+  });
   const CreateAbsenceInput = IDL.Record({
     'absenceTypeId' : AbsenceTypeId,
     'dateTo' : IDL.Text,
@@ -964,10 +2402,27 @@ export const idlFactory = ({ IDL }) => {
     'dateFrom' : IDL.Text,
     'dauer' : IDL.Nat,
   });
+  const CalendarVisibilityMode = IDL.Variant({
+    'full' : IDL.Null,
+    'hidden' : IDL.Null,
+    'anonymized' : IDL.Null,
+    'masked_reason' : IDL.Null,
+  });
+  const AbsenceTypeVisibility = IDL.Record({
+    'visibleForRoles' : IDL.Vec(IDL.Text),
+    'showAbsenceTypeName' : IDL.Bool,
+    'visibilityMode' : CalendarVisibilityMode,
+    'showComment' : IDL.Bool,
+    'companyCalendarDisplayName' : IDL.Opt(IDL.Text),
+    'showEmployeeName' : IDL.Bool,
+    'visibleInCompanyCalendar' : IDL.Bool,
+    'companyCalendarColor' : IDL.Opt(IDL.Text),
+  });
   const CreateAbsenceTypeInput = IDL.Record({
     'aktiv' : IDL.Opt(IDL.Bool),
     'name' : IDL.Text,
     'requiresApproval' : IDL.Bool,
+    'visibility' : IDL.Opt(AbsenceTypeVisibility),
     'compensated' : IDL.Bool,
   });
   const AbsenceType = IDL.Record({
@@ -975,10 +2430,11 @@ export const idlFactory = ({ IDL }) => {
     'aktiv' : IDL.Bool,
     'name' : IDL.Text,
     'requiresApproval' : IDL.Bool,
+    'visibility' : IDL.Opt(AbsenceTypeVisibility),
     'compensated' : IDL.Bool,
     'companyId' : CompanyId,
   });
-  const Result_14 = IDL.Variant({ 'ok' : AbsenceType, 'err' : IDL.Text });
+  const Result_18 = IDL.Variant({ 'ok' : AbsenceType, 'err' : IDL.Text });
   const Rechnungsadresse = IDL.Record({
     'ort' : IDL.Opt(IDL.Text),
     'plz' : IDL.Opt(IDL.Text),
@@ -1003,7 +2459,6 @@ export const idlFactory = ({ IDL }) => {
     'beschreibung' : IDL.Opt(IDL.Text),
     'waehrung' : IDL.Opt(IDL.Text),
   });
-  const CustomerId = IDL.Nat;
   const Customer = IDL.Record({
     'id' : CustomerId,
     'rechnungsadresse' : IDL.Opt(Rechnungsadresse),
@@ -1017,7 +2472,7 @@ export const idlFactory = ({ IDL }) => {
     'waehrung' : IDL.Text,
     'companyId' : CompanyId,
   });
-  const Result_11 = IDL.Variant({ 'ok' : Customer, 'err' : IDL.Text });
+  const Result_15 = IDL.Variant({ 'ok' : Customer, 'err' : IDL.Text });
   const Role = IDL.Variant({
     'manager' : IDL.Null,
     'admin' : IDL.Null,
@@ -1052,8 +2507,10 @@ export const idlFactory = ({ IDL }) => {
     'weeklyHoursTarget' : IDL.Float64,
     'active' : IDL.Bool,
     'postfach' : IDL.Opt(IDL.Text),
+    'activatedAt' : IDL.Opt(IDL.Int),
     'land' : IDL.Opt(IDL.Text),
     'role' : Role,
+    'deactivatedAt' : IDL.Opt(IDL.Int),
     'email' : IDL.Text,
     'geburtsdatum' : IDL.Opt(IDL.Int),
     'employmentType' : EmploymentType,
@@ -1066,12 +2523,11 @@ export const idlFactory = ({ IDL }) => {
     'companyId' : CompanyId,
     'firstName' : IDL.Text,
   });
-  const Result_10 = IDL.Variant({ 'ok' : Employee, 'err' : IDL.Text });
+  const Result_13 = IDL.Variant({ 'ok' : Employee, 'err' : IDL.Text });
   const FeiertagsberechnungsartType = IDL.Variant({
-    'exaktWochentag' : IDL.Null,
-    'entschaedigt' : IDL.Null,
-    'exakt' : IDL.Null,
-    'prozentual' : IDL.Null,
+    'wochentag_sollzeit' : IDL.Null,
+    'durchschnittssoll' : IDL.Null,
+    'keineGutschrift' : IDL.Null,
   });
   const CreateEmploymentInput = IDL.Record({
     'bis' : IDL.Opt(IDL.Int),
@@ -1104,11 +2560,13 @@ export const idlFactory = ({ IDL }) => {
     'funktion' : IDL.Text,
     'companyId' : CompanyId,
   });
-  const Result_9 = IDL.Variant({ 'ok' : Employment, 'err' : IDL.Text });
+  const Result_12 = IDL.Variant({ 'ok' : Employment, 'err' : IDL.Text });
   const CreateExpenseInput = IDL.Record({
     'date' : IDL.Text,
     'description' : IDL.Text,
+    'projektId' : IDL.Opt(IDL.Nat),
     'billableCHF' : IDL.Float64,
+    'kundeId' : IDL.Opt(IDL.Nat),
     'reimbursementCHF' : IDL.Float64,
     'expenseTypeId' : ExpenseTypeId,
     'receiptBlobId' : IDL.Opt(IDL.Text),
@@ -1127,7 +2585,7 @@ export const idlFactory = ({ IDL }) => {
     'reimbursable' : IDL.Bool,
     'companyId' : CompanyId,
   });
-  const Result_7 = IDL.Variant({ 'ok' : ExpenseType, 'err' : IDL.Text });
+  const Result_10 = IDL.Variant({ 'ok' : ExpenseType, 'err' : IDL.Text });
   const CreateHolidayInput = IDL.Record({
     'ganztaegig' : IDL.Opt(IDL.Bool),
     'date' : IDL.Text,
@@ -1141,7 +2599,160 @@ export const idlFactory = ({ IDL }) => {
     'name' : IDL.Text,
     'companyId' : CompanyId,
   });
-  const Result_6 = IDL.Variant({ 'ok' : Holiday, 'err' : IDL.Text });
+  const Result_9 = IDL.Variant({ 'ok' : Holiday, 'err' : IDL.Text });
+  const InvoicePositionInput = IDL.Record({
+    'typ' : InvoicePositionTyp,
+    'menge' : IDL.Float64,
+    'referenzId' : IDL.Opt(IDL.Nat),
+    'bezeichnung' : IDL.Text,
+    'preis' : IDL.Float64,
+    'einheit' : IDL.Text,
+  });
+  const CreateInvoiceInput = IDL.Record({
+    'fusstext' : IDL.Text,
+    'positionen' : IDL.Vec(InvoicePositionInput),
+    'qrAktiv' : IDL.Opt(IDL.Bool),
+    'mwstSatz' : IDL.Float64,
+    'rabatt' : IDL.Float64,
+    'kopftext' : IDL.Text,
+    'kundeId' : CustomerId,
+    'skonto' : IDL.Float64,
+  });
+  const NotificationFormat = IDL.Variant({
+    'html' : IDL.Null,
+    'markdown' : IDL.Null,
+  });
+  const NotificationPriority = IDL.Variant({
+    'normal' : IDL.Null,
+    'important' : IDL.Null,
+    'critical' : IDL.Null,
+  });
+  const NotificationTargetType = IDL.Variant({
+    'mixed' : IDL.Null,
+    'role' : IDL.Null,
+    'user' : IDL.Null,
+    'tenant' : IDL.Null,
+  });
+  const NotificationStatus = IDL.Variant({
+    'sent' : IDL.Null,
+    'draft' : IDL.Null,
+    'archived' : IDL.Null,
+  });
+  const Notification = IDL.Record({
+    'id' : IDL.Text,
+    'status' : NotificationStatus,
+    'title' : IDL.Text,
+    'validFrom' : IDL.Int,
+    'createdAt' : IDL.Int,
+    'senderDisplayName' : IDL.Text,
+    'messageFormat' : NotificationFormat,
+    'messageBody' : IDL.Text,
+    'targetRoleIds' : IDL.Vec(IDL.Text),
+    'targetUserIds' : IDL.Vec(IDL.Text),
+    'targetType' : NotificationTargetType,
+    'priority' : NotificationPriority,
+    'targetTenantIds' : IDL.Vec(IDL.Text),
+    'senderUserId' : IDL.Text,
+    'validUntil' : IDL.Opt(IDL.Int),
+  });
+  const InvoiceTemplateInput = IDL.Record({
+    'qrIban' : IDL.Opt(IDL.Text),
+    'fusszeileLayout' : IDL.Opt(IDL.Text),
+    'qrKontoinhaberAdresse' : IDL.Opt(IDL.Text),
+    'bank' : IDL.Text,
+    'iban' : IDL.Text,
+    'kopfzeileLayout' : IDL.Opt(IDL.Text),
+    'fusstext' : IDL.Text,
+    'mwstNummer' : IDL.Text,
+    'qrKontoinhaber' : IDL.Opt(IDL.Text),
+    'kopfzeileLogoQuelle' : IDL.Opt(IDL.Text),
+    'qrReferenztyp' : IDL.Opt(IDL.Text),
+    'kopfzeileBildPosition' : IDL.Opt(IDL.Text),
+    'kopfzeileAdressePosition' : IDL.Opt(IDL.Text),
+    'zahlungszielTage' : IDL.Nat,
+    'kopfzeileBildUrl' : IDL.Opt(IDL.Text),
+    'qrWaehrung' : IDL.Opt(IDL.Text),
+    'spalten' : IDL.Vec(IDL.Text),
+    'qrReferenzPraefix' : IDL.Opt(IDL.Text),
+    'fusszeilePosition' : IDL.Opt(IDL.Text),
+    'mwstSatz' : IDL.Opt(IDL.Float64),
+    'kopfzeileLogoGroesse' : IDL.Opt(IDL.Text),
+    'kopftext' : IDL.Text,
+    'kundenadresseAbstandNach' : IDL.Opt(IDL.Nat),
+    'kundenadresseAbstandOben' : IDL.Opt(IDL.Float64),
+    'kundenadresseEinrueckungZeichen' : IDL.Opt(IDL.Nat),
+    'fusszeileBildPosition' : IDL.Opt(IDL.Text),
+    'kopfzeileAdresse' : IDL.Opt(IDL.Text),
+    'kopfzeilePosition' : IDL.Opt(IDL.Text),
+    'praefix' : IDL.Text,
+    'naechsteNummer' : IDL.Nat,
+    'qrAktivStandard' : IDL.Opt(IDL.Bool),
+    'farbe' : IDL.Text,
+    'fusszeileBildUrl' : IDL.Opt(IDL.Text),
+    'kundenadresseLinks' : IDL.Opt(IDL.Bool),
+  });
+  const InvoiceTemplate = IDL.Record({
+    'id' : IDL.Nat,
+    'qrIban' : IDL.Opt(IDL.Text),
+    'fusszeileLayout' : IDL.Opt(IDL.Text),
+    'qrKontoinhaberAdresse' : IDL.Opt(IDL.Text),
+    'bank' : IDL.Text,
+    'iban' : IDL.Text,
+    'kopfzeileLayout' : IDL.Opt(IDL.Text),
+    'createdAt' : Timestamp,
+    'fusstext' : IDL.Text,
+    'mwstNummer' : IDL.Text,
+    'qrKontoinhaber' : IDL.Opt(IDL.Text),
+    'kopfzeileLogoQuelle' : IDL.Opt(IDL.Text),
+    'qrReferenztyp' : IDL.Opt(IDL.Text),
+    'kopfzeileBildPosition' : IDL.Opt(IDL.Text),
+    'kopfzeileAdressePosition' : IDL.Opt(IDL.Text),
+    'zahlungszielTage' : IDL.Nat,
+    'kopfzeileBildUrl' : IDL.Opt(IDL.Text),
+    'qrWaehrung' : IDL.Opt(IDL.Text),
+    'spalten' : IDL.Vec(IDL.Text),
+    'qrReferenzPraefix' : IDL.Opt(IDL.Text),
+    'fusszeilePosition' : IDL.Opt(IDL.Text),
+    'mwstSatz' : IDL.Float64,
+    'kopfzeileLogoGroesse' : IDL.Opt(IDL.Text),
+    'kopftext' : IDL.Text,
+    'kundenadresseAbstandNach' : IDL.Opt(IDL.Nat),
+    'kundenadresseAbstandOben' : IDL.Opt(IDL.Float64),
+    'kundenadresseEinrueckungZeichen' : IDL.Opt(IDL.Nat),
+    'fusszeileBildPosition' : IDL.Opt(IDL.Text),
+    'kopfzeileAdresse' : IDL.Opt(IDL.Text),
+    'kopfzeilePosition' : IDL.Opt(IDL.Text),
+    'praefix' : IDL.Text,
+    'naechsteNummer' : IDL.Nat,
+    'qrAktivStandard' : IDL.Bool,
+    'farbe' : IDL.Text,
+    'fusszeileBildUrl' : IDL.Opt(IDL.Text),
+    'kundenadresseLinks' : IDL.Opt(IDL.Bool),
+    'companyId' : CompanyId,
+  });
+  const Result_42 = IDL.Variant({ 'ok' : InvoiceTemplate, 'err' : IDL.Text });
+  const CreatePauseOverrideInput = IDL.Record({
+    'action' : IDL.Text,
+    'userId' : IDL.Nat,
+    'date' : IDL.Text,
+    'gapEnd' : IDL.Int,
+    'gapStart' : IDL.Int,
+    'reason' : IDL.Opt(IDL.Text),
+    'companyId' : IDL.Nat,
+  });
+  const PauseOverride = IDL.Record({
+    'id' : IDL.Nat,
+    'action' : IDL.Text,
+    'userId' : IDL.Nat,
+    'date' : IDL.Text,
+    'createdByUserId' : IDL.Nat,
+    'createdAt' : IDL.Int,
+    'gapEnd' : IDL.Int,
+    'updatedAt' : IDL.Int,
+    'gapStart' : IDL.Int,
+    'reason' : IDL.Opt(IDL.Text),
+    'companyId' : IDL.Nat,
+  });
   const ProjectStatus = IDL.Variant({
     'aktiv' : IDL.Null,
     'inaktiv' : IDL.Null,
@@ -1159,6 +2770,7 @@ export const idlFactory = ({ IDL }) => {
     'name' : IDL.Text,
     'customerId' : CustomerId,
     'kurzbezeichnung' : IDL.Text,
+    'kostendachCHF' : IDL.Opt(IDL.Float64),
     'projektleiter' : IDL.Opt(EmployeeId),
   });
   const Project = IDL.Record({
@@ -1171,17 +2783,17 @@ export const idlFactory = ({ IDL }) => {
     'name' : IDL.Text,
     'customerId' : CustomerId,
     'kurzbezeichnung' : IDL.Text,
+    'kostendachCHF' : IDL.Opt(IDL.Float64),
     'projektleiter' : IDL.Opt(EmployeeId),
     'companyId' : CompanyId,
   });
-  const Result_5 = IDL.Variant({ 'ok' : Project, 'err' : IDL.Text });
+  const Result_7 = IDL.Variant({ 'ok' : Project, 'err' : IDL.Text });
   const CreateServiceTypeInput = IDL.Record({
     'defaultRate' : IDL.Float64,
     'aktiv' : IDL.Opt(IDL.Bool),
     'name' : IDL.Text,
     'billable' : IDL.Bool,
   });
-  const ServiceTypeId = IDL.Nat;
   const ServiceType = IDL.Record({
     'id' : ServiceTypeId,
     'defaultRate' : IDL.Float64,
@@ -1190,7 +2802,15 @@ export const idlFactory = ({ IDL }) => {
     'billable' : IDL.Bool,
     'companyId' : CompanyId,
   });
-  const Result_4 = IDL.Variant({ 'ok' : ServiceType, 'err' : IDL.Text });
+  const Result_6 = IDL.Variant({ 'ok' : ServiceType, 'err' : IDL.Text });
+  const Result_38 = IDL.Variant({
+    'ok' : IDL.Record({ 'url' : IDL.Text, 'sessionId' : IDL.Text }),
+    'err' : IDL.Text,
+  });
+  const Result_37 = IDL.Variant({
+    'ok' : IDL.Record({ 'url' : IDL.Text }),
+    'err' : IDL.Text,
+  });
   const CreateTimeBalanceCorrectionInput = IDL.Record({
     'typ' : IDL.Variant({ 'gutschrift' : IDL.Null, 'reduktion' : IDL.Null }),
     'ueberzeit' : IDL.Int,
@@ -1208,7 +2828,7 @@ export const idlFactory = ({ IDL }) => {
     'dauer' : IDL.Int,
     'companyId' : CompanyId,
   });
-  const Result_3 = IDL.Variant({
+  const Result_4 = IDL.Variant({
     'ok' : TimeBalanceCorrection,
     'err' : IDL.Text,
   });
@@ -1220,24 +2840,9 @@ export const idlFactory = ({ IDL }) => {
     'description' : IDL.Text,
     'billable' : IDL.Bool,
     'projectId' : ProjectId,
+    'requiresApproval' : IDL.Opt(IDL.Bool),
     'serviceTypeId' : ServiceTypeId,
   });
-  const TimeEntryId = IDL.Nat;
-  const TimeEntry = IDL.Record({
-    'id' : TimeEntryId,
-    'bis' : IDL.Opt(IDL.Text),
-    'von' : IDL.Opt(IDL.Text),
-    'hours' : IDL.Float64,
-    'date' : IDL.Text,
-    'createdAt' : Timestamp,
-    'description' : IDL.Text,
-    'employeeId' : EmployeeId,
-    'billable' : IDL.Bool,
-    'projectId' : ProjectId,
-    'serviceTypeId' : ServiceTypeId,
-    'companyId' : CompanyId,
-  });
-  const Result_2 = IDL.Variant({ 'ok' : TimeEntry, 'err' : IDL.Text });
   const CreateVacationBalanceInput = IDL.Record({
     'verfallsdatum' : IDL.Opt(IDL.Int),
     'kalenderjahr' : IDL.Int,
@@ -1251,13 +2856,71 @@ export const idlFactory = ({ IDL }) => {
     'dauer' : IDL.Int,
     'companyId' : CompanyId,
   });
-  const Result = IDL.Variant({ 'ok' : VacationBalance, 'err' : IDL.Text });
-  const Result_16 = IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text });
-  const Result_25 = IDL.Variant({ 'ok' : IDL.Text, 'err' : IDL.Text });
+  const Result_1 = IDL.Variant({ 'ok' : VacationBalance, 'err' : IDL.Text });
+  const TimeEntryStatus = IDL.Variant({
+    'submitted' : IDL.Null,
+    'approved' : IDL.Null,
+    'rejected' : IDL.Null,
+    'draft' : IDL.Null,
+  });
+  const PaymentProvider = IDL.Variant({
+    'stripe' : IDL.Null,
+    'none' : IDL.Null,
+    'manual' : IDL.Null,
+  });
+  const SubscriptionPlan = IDL.Record({
+    'id' : IDL.Text,
+    'features' : IDL.Vec(IDL.Text),
+    'requiresPayment' : IDL.Bool,
+    'sortOrder' : IDL.Nat,
+    'name' : IDL.Text,
+    'stripeLookupKey' : IDL.Opt(IDL.Text),
+    'description' : IDL.Text,
+    'isActive' : IDL.Bool,
+    'stripeProductId' : IDL.Opt(IDL.Text),
+    'updatedAt' : IDL.Int,
+    'pricePerYearCHF' : IDL.Float64,
+    'stripePriceId' : IDL.Opt(IDL.Text),
+    'pricePerMonthCHF' : IDL.Float64,
+    'stripeMode' : IDL.Opt(IDL.Text),
+    'stripePriceIdYearly' : IDL.Opt(IDL.Text),
+    'minActiveDaysPerMonth' : IDL.Nat,
+    'maxEmployees' : IDL.Opt(IDL.Nat),
+    'paymentProvider' : PaymentProvider,
+  });
   const CalendarData = IDL.Record({
     'absences' : IDL.Vec(Absence),
     'expenses' : IDL.Vec(Expense),
     'timeEntries' : IDL.Vec(TimeEntry),
+  });
+  const CanisterStatusInfo = IDL.Record({
+    'backendStatus' : IDL.Text,
+    'dataSource' : IDL.Text,
+    'frontendCanisterId' : IDL.Text,
+    'backendCycles' : IDL.Nat,
+    'backendMemorySize' : IDL.Nat,
+    'backendCanisterId' : IDL.Text,
+    'timestamp' : IDL.Int,
+  });
+  const Result_36 = IDL.Variant({
+    'ok' : IDL.Record({
+      'nextDueDate' : IDL.Opt(IDL.Int),
+      'billingModel' : BillingModel,
+      'subscriptionStartDate' : IDL.Opt(IDL.Int),
+    }),
+    'err' : IDL.Text,
+  });
+  const MaskedCalendarAbsence = IDL.Record({
+    'id' : IDL.Text,
+    'status' : IDL.Text,
+    'displayTitle' : IDL.Text,
+    'employeeName' : IDL.Opt(IDL.Text),
+    'visibilityMode' : IDL.Text,
+    'displayColor' : IDL.Opt(IDL.Text),
+    'toDate' : IDL.Text,
+    'employeeId' : IDL.Opt(IDL.Text),
+    'isOwnEntry' : IDL.Bool,
+    'fromDate' : IDL.Text,
   });
   const CompanySettings = IDL.Record({
     'timezone' : IDL.Text,
@@ -1269,7 +2932,106 @@ export const idlFactory = ({ IDL }) => {
     'maxVacationDays' : IDL.Nat,
     'companyId' : CompanyId,
   });
-  const Result_12 = IDL.Variant({ 'ok' : CompanySettings, 'err' : IDL.Text });
+  const Result_16 = IDL.Variant({ 'ok' : CompanySettings, 'err' : IDL.Text });
+  const ComplianceCockpitKPI = IDL.Record({
+    'mitarbeiterMitGesetzlicherUeberzeit' : IDL.Nat,
+    'ferienRisiken' : IDL.Nat,
+    'pausenVerstoesse' : IDL.Nat,
+    'ruhezeitVerstoesse' : IDL.Nat,
+    'mitarbeiterMitVerstoessen' : IDL.Nat,
+  });
+  const ComplianceStatus = IDL.Variant({
+    'CRITICAL' : IDL.Null,
+    'FREIGEGEBEN' : IDL.Null,
+    'INFO' : IDL.Null,
+    'COMPLIANT' : IDL.Null,
+    'WARNING' : IDL.Null,
+    'BREACH' : IDL.Null,
+  });
+  const ComplianceCockpitRow = IDL.Record({
+    'vertraglicheUeberstundenH' : IDL.Float64,
+    'offeneMassnahmen' : IDL.Nat,
+    'employee' : IDL.Record({
+      'id' : IDL.Nat,
+      'lastName' : IDL.Text,
+      'firstName' : IDL.Text,
+    }),
+    'ferienstatus' : IDL.Text,
+    'pausenVerstoesse' : IDL.Nat,
+    'gesamtstatus' : ComplianceStatus,
+    'gesetzlicheUeberzeitH' : IDL.Float64,
+    'ruhezeitVerstoesse' : IDL.Nat,
+  });
+  const CompliancePeriodeTyp = IDL.Variant({
+    'DAY' : IDL.Null,
+    'SERVICE_YEAR' : IDL.Null,
+    'WEEK' : IDL.Null,
+  });
+  const ComplianceResolutionType = IDL.Variant({
+    'FREIGEGEBEN' : IDL.Null,
+    'IGNORED' : IDL.Null,
+    'CORRECTED' : IDL.Null,
+  });
+  const ComplianceFinding = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : ComplianceStatus,
+    'istWert' : IDL.Float64,
+    'resolutionType' : IDL.Opt(ComplianceResolutionType),
+    'periodeKey' : IDL.Text,
+    'periodeTyp' : CompliancePeriodeTyp,
+    'rechtlicheReferenz' : IDL.Opt(IDL.Text),
+    'auditHash' : IDL.Opt(IDL.Text),
+    'createdAt' : IDL.Int,
+    'sollWert' : IDL.Float64,
+    'resolutionReason' : IDL.Opt(IDL.Text),
+    'sourceEntryIds' : IDL.Vec(IDL.Nat),
+    'meldung' : IDL.Text,
+    'employeeId' : IDL.Nat,
+    'resolvedAt' : IDL.Opt(IDL.Int),
+    'resolvedBy' : IDL.Opt(IDL.Nat),
+    'ruleCode' : IDL.Text,
+    'einheit' : IDL.Text,
+    'companyId' : IDL.Nat,
+  });
+  const EmployeeComplianceProfile = IDL.Record({
+    'id' : IDL.Nat,
+    'aktiv' : IDL.Bool,
+    'createdAt' : IDL.Int,
+    'updatedAt' : IDL.Int,
+    'employeeId' : IDL.Nat,
+    'ausnahmeprofil' : IDL.Opt(IDL.Text),
+    'vertraglicheWochenstunden' : IDL.Float64,
+    'erfassungsModus' : IDL.Text,
+    'vertraglicheZusatzferienTage' : IDL.Float64,
+    'gesetzlicheWochenhochstarbeitszeit' : IDL.Float64,
+    'gesetzlicherFerienanspruchWochen' : IDL.Float64,
+    'companyId' : IDL.Nat,
+  });
+  const CycleSnapshot = IDL.Record({
+    'frontendCycles' : IDL.Nat,
+    'backendCycles' : IDL.Nat,
+    'timestamp' : IDL.Int,
+  });
+  const CostSettings = IDL.Record({
+    'backendAlertThreshold' : IDL.Nat,
+    'icpPriceUsd' : IDL.Float64,
+    'alertEnabled' : IDL.Bool,
+    'usdChfRate' : IDL.Float64,
+    'frontendAlertThreshold' : IDL.Nat,
+  });
+  const CostDashboardData = IDL.Record({
+    'dataSource' : IDL.Text,
+    'frontendCanisterId' : IDL.Text,
+    'snapshots' : IDL.Vec(CycleSnapshot),
+    'settings' : CostSettings,
+    'backendCanisterId' : IDL.Text,
+    'backendCyclesBalance' : IDL.Opt(IDL.Nat),
+  });
+  const CycleStatus = IDL.Record({
+    'dataSource' : IDL.Text,
+    'frontendCycles' : IDL.Opt(IDL.Nat),
+    'backendCycles' : IDL.Nat,
+  });
   const DashboardStats = IDL.Record({
     'hoursTarget' : IDL.Float64,
     'pendingExpenses' : IDL.Nat,
@@ -1277,6 +3039,16 @@ export const idlFactory = ({ IDL }) => {
     'remainingVacationMinutes' : IDL.Int,
     'approvedVacationDays' : IDL.Nat,
     'pendingVacations' : IDL.Nat,
+  });
+  const DefaultWorkHours = IDL.Record({
+    'stundenDi' : IDL.Nat,
+    'stundenDo' : IDL.Nat,
+    'stundenFr' : IDL.Nat,
+    'stundenMi' : IDL.Nat,
+    'stundenMo' : IDL.Nat,
+    'stundenSa' : IDL.Nat,
+    'stundenSo' : IDL.Nat,
+    'companyId' : CompanyId,
   });
   const WorkTimeBalance = IDL.Record({
     'istStunden' : IDL.Int,
@@ -1287,21 +3059,35 @@ export const idlFactory = ({ IDL }) => {
     'sollStunden' : IDL.Int,
     'korrektionen' : IDL.Int,
   });
-  const Result_24 = IDL.Variant({ 'ok' : WorkTimeBalance, 'err' : IDL.Text });
-  const Result_23 = IDL.Variant({
+  const Result_35 = IDL.Variant({ 'ok' : WorkTimeBalance, 'err' : IDL.Text });
+  const Result_34 = IDL.Variant({
     'ok' : IDL.Opt(Employment),
     'err' : IDL.Text,
   });
+  const Result_33 = IDL.Variant({
+    'ok' : IDL.Opt(InvoiceTemplate),
+    'err' : IDL.Text,
+  });
+  const Result_32 = IDL.Variant({ 'ok' : IDL.Vec(Invoice), 'err' : IDL.Text });
   const Company = IDL.Record({
     'id' : CompanyId,
     'taxId' : IDL.Opt(IDL.Text),
     'name' : IDL.Text,
     'createdAt' : Timestamp,
+    'mwstNummer' : IDL.Opt(IDL.Text),
+    'kontoInhaber' : IDL.Opt(IDL.Text),
+    'isActive' : IDL.Bool,
     'logoUrl' : IDL.Opt(IDL.Text),
     'address' : IDL.Opt(IDL.Text),
+    'kontoAdresse' : IDL.Opt(IDL.Text),
   });
-  const Result_13 = IDL.Variant({ 'ok' : Company, 'err' : IDL.Text });
-  const StandardTimeBlock = IDL.Record({ 'bis' : IDL.Text, 'von' : IDL.Text });
+  const Result_17 = IDL.Variant({ 'ok' : Company, 'err' : IDL.Text });
+  const StandardTimeBlock = IDL.Record({
+    'bis' : IDL.Text,
+    'von' : IDL.Text,
+    'leistungsartId' : IDL.Opt(IDL.Nat),
+    'projektId' : IDL.Opt(IDL.Nat),
+  });
   const Standardarbeitszeiten = IDL.Record({
     'tuesday' : IDL.Vec(StandardTimeBlock),
     'wednesday' : IDL.Vec(StandardTimeBlock),
@@ -1311,16 +3097,89 @@ export const idlFactory = ({ IDL }) => {
     'friday' : IDL.Vec(StandardTimeBlock),
     'monday' : IDL.Vec(StandardTimeBlock),
   });
-  const Result_21 = IDL.Variant({
+  const Result_28 = IDL.Variant({
     'ok' : Standardarbeitszeiten,
+    'err' : IDL.Text,
+  });
+  const VacationLedger = IDL.Record({
+    'id' : IDL.Nat,
+    'serviceYearStart' : IDL.Int,
+    'verbleibendeFerientage' : IDL.Float64,
+    'laengsterZusammenhangenderBlock' : IDL.Int,
+    'lastUpdatedAt' : IDL.Int,
+    'bezogeneFerientage' : IDL.Float64,
+    'employeeId' : IDL.Nat,
+    'calendarYearKey' : IDL.Text,
+    'serviceYearEnd' : IDL.Int,
+    'serviceYearKey' : IDL.Text,
+    'gesetzlicheFerientage' : IDL.Float64,
+    'twoWeekBlockSatisfied' : IDL.Bool,
+    'geplanteFerientage' : IDL.Float64,
+    'vertraglicheZusatzferienTage' : IDL.Float64,
+    'companyId' : IDL.Nat,
+  });
+  const DetectedPause = IDL.Record({
+    'pauseEnd' : IDL.Int,
+    'source' : IDL.Text,
+    'date' : IDL.Text,
+    'pauseStart' : IDL.Int,
+    'durationMinutes' : IDL.Int,
+    'complianceRelevant' : IDL.Bool,
+    'ignored' : IDL.Bool,
+  });
+  const DayPauseComplianceResult = IDL.Record({
+    'status' : IDL.Text,
+    'isCompliant' : IDL.Bool,
+    'date' : IDL.Text,
+    'detectedPauseMinutes' : IDL.Int,
+    'requiredPauseMinutes' : IDL.Int,
+    'meldung' : IDL.Text,
+    'employeeId' : IDL.Nat,
+    'workDurationMinutes' : IDL.Int,
+    'pausen' : IDL.Vec(DetectedPause),
+    'companyId' : IDL.Nat,
+  });
+  const PlatformAdminConfigPublic = IDL.Record({
+    'frontendCanisterId' : IDL.Text,
+    'stripeWebhookEndpointUrl' : IDL.Text,
+    'stripePublishableKey' : IDL.Text,
+  });
+  const Result_31 = IDL.Variant({ 'ok' : IDL.Float64, 'err' : IDL.Text });
+  const ServiceTypeBudgetReport = IDL.Record({
+    'serviceTypeName' : IDL.Text,
+    'aufgewendetCHF' : IDL.Float64,
+    'aufgewendeteStunden' : IDL.Float64,
+    'kostendachCHF' : IDL.Float64,
+    'serviceTypeId' : ServiceTypeId,
+  });
+  const EmployeeBudgetReport = IDL.Record({
+    'employeeName' : IDL.Text,
+    'aufgewendetCHF' : IDL.Float64,
+    'aufgewendeteStunden' : IDL.Float64,
+    'employeeId' : EmployeeId,
+    'serviceTypeReports' : IDL.Vec(ServiceTypeBudgetReport),
+    'kostendachCHF' : IDL.Float64,
+  });
+  const ProjectBudgetReport = IDL.Record({
+    'totalKostendachCHF' : IDL.Float64,
+    'customerName' : IDL.Text,
+    'totalAufgewendetCHF' : IDL.Float64,
+    'projectName' : IDL.Text,
+    'totalStunden' : IDL.Float64,
+    'projectId' : ProjectId,
+    'employeeReports' : IDL.Vec(EmployeeBudgetReport),
+  });
+  const Result_30 = IDL.Variant({
+    'ok' : ProjectBudgetReport,
     'err' : IDL.Text,
   });
   const ProjectMemberAssignment = IDL.Record({
     'stundensatz' : IDL.Float64,
     'employeeId' : EmployeeId,
+    'kostendachCHF' : IDL.Opt(IDL.Float64),
     'serviceTypeId' : ServiceTypeId,
   });
-  const Result_22 = IDL.Variant({
+  const Result_29 = IDL.Variant({
     'ok' : IDL.Vec(ProjectMemberAssignment),
     'err' : IDL.Text,
   });
@@ -1337,16 +3196,101 @@ export const idlFactory = ({ IDL }) => {
     'billableHours' : IDL.Float64,
     'expenseItems' : IDL.Vec(Expense),
   });
-  const Result_20 = IDL.Variant({ 'ok' : IDL.Int, 'err' : IDL.Text });
+  const StripeEventStatus = IDL.Variant({
+    'processed' : IDL.Null,
+    'ignored' : IDL.Null,
+    'received' : IDL.Null,
+    'failed' : IDL.Null,
+  });
+  const StripeEvent = IDL.Record({
+    'id' : IDL.Text,
+    'stripeEventId' : IDL.Text,
+    'processingStatus' : StripeEventStatus,
+    'stripeSubscriptionId' : IDL.Opt(IDL.Text),
+    'errorMessage' : IDL.Opt(IDL.Text),
+    'tenantId' : IDL.Opt(IDL.Nat),
+    'processedAt' : IDL.Opt(IDL.Int),
+    'subscriptionId' : IDL.Opt(IDL.Text),
+    'receivedAt' : IDL.Int,
+    'stripeCustomerId' : IDL.Opt(IDL.Text),
+    'rawPayload' : IDL.Opt(IDL.Text),
+    'eventType' : IDL.Text,
+  });
+  const StripeInvoice = IDL.Record({
+    'id' : IDL.Text,
+    'status' : IDL.Text,
+    'stripeSubscriptionId' : IDL.Opt(IDL.Text),
+    'dueDate' : IDL.Opt(IDL.Int),
+    'stripeInvoiceId' : IDL.Text,
+    'amountPaid' : IDL.Float64,
+    'invoicePdfUrl' : IDL.Opt(IDL.Text),
+    'invoiceNumber' : IDL.Opt(IDL.Text),
+    'periodEnd' : IDL.Opt(IDL.Int),
+    'stripeCustomerId' : IDL.Text,
+    'currency' : IDL.Text,
+    'amountDue' : IDL.Float64,
+    'periodStart' : IDL.Opt(IDL.Int),
+    'issuedAt' : IDL.Int,
+    'paidAt' : IDL.Opt(IDL.Int),
+    'hostedInvoiceUrl' : IDL.Opt(IDL.Text),
+    'companyId' : IDL.Nat,
+  });
+  const TenantCostEntry = IDL.Record({
+    'employeeCount' : IDL.Nat,
+    'estimatedCycles' : IDL.Nat,
+    'companyName' : IDL.Text,
+    'companyId' : IDL.Nat,
+  });
+  const Result_27 = IDL.Variant({ 'ok' : IDL.Int, 'err' : IDL.Text });
+  const Result_26 = IDL.Variant({
+    'ok' : IDL.Record({
+      'spesen' : IDL.Vec(Expense),
+      'zeiteintraege' : IDL.Vec(TimeEntry),
+    }),
+    'err' : IDL.Text,
+  });
+  const UnbilledTimeEntry = IDL.Record({
+    'id' : IDL.Nat,
+    'bis' : IDL.Opt(IDL.Text),
+    'von' : IDL.Opt(IDL.Text),
+    'hours' : IDL.Float64,
+    'date' : IDL.Text,
+    'stundensatz' : IDL.Float64,
+    'createdAt' : IDL.Int,
+    'description' : IDL.Text,
+    'totalCHF' : IDL.Float64,
+    'employeeId' : IDL.Nat,
+    'billable' : IDL.Bool,
+    'projectId' : IDL.Nat,
+    'serviceTypeId' : IDL.Nat,
+    'companyId' : IDL.Nat,
+  });
+  const Result_25 = IDL.Variant({
+    'ok' : IDL.Record({
+      'spesen' : IDL.Vec(Expense),
+      'zeiteintraege' : IDL.Vec(UnbilledTimeEntry),
+    }),
+    'err' : IDL.Text,
+  });
   const UserNotificationSettings = IDL.Record({
     'emailNewVacationRequest' : IDL.Bool,
     'emailOnApproval' : IDL.Bool,
     'principalId' : IDL.Principal,
     'companyId' : CompanyId,
   });
-  const Result_1 = IDL.Variant({
+  const Result_2 = IDL.Variant({
     'ok' : UserNotificationSettings,
     'err' : IDL.Text,
+  });
+  const PlatformAdminUserEntry = IDL.Record({
+    'id' : EmployeeId,
+    'activatedAt' : IDL.Opt(IDL.Int),
+    'role' : Role,
+    'deactivatedAt' : IDL.Opt(IDL.Int),
+    'isActive' : IDL.Bool,
+    'email' : IDL.Text,
+    'lastName' : IDL.Text,
+    'firstName' : IDL.Text,
   });
   const AbsenceFilter = IDL.Record({
     'status' : IDL.Opt(AbsenceStatus),
@@ -1354,6 +3298,18 @@ export const idlFactory = ({ IDL }) => {
     'dateTo' : IDL.Opt(IDL.Text),
     'employeeId' : IDL.Opt(EmployeeId),
     'dateFrom' : IDL.Opt(IDL.Text),
+  });
+  const TimeEntryApprovalAuditEntry = IDL.Record({
+    'id' : IDL.Nat,
+    'oldStatus' : IDL.Text,
+    'action' : IDL.Text,
+    'changedBy' : IDL.Principal,
+    'timestamp' : IDL.Int,
+    'targetType' : IDL.Text,
+    'newStatus' : IDL.Text,
+    'targetId' : IDL.Nat,
+    'previousApprovedBy' : IDL.Opt(IDL.Principal),
+    'reason' : IDL.Opt(IDL.Text),
   });
   const Time = IDL.Int;
   const AuditEntry = IDL.Record({
@@ -1368,7 +3324,56 @@ export const idlFactory = ({ IDL }) => {
     'previousApprovedBy' : IDL.Opt(IDL.Principal),
     'reason' : IDL.Opt(IDL.Text),
   });
-  const Result_19 = IDL.Variant({
+  const AuditOperation = IDL.Variant({
+    'reject' : IDL.Null,
+    'remove' : IDL.Null,
+    'approve' : IDL.Null,
+    'delete' : IDL.Null,
+    'create' : IDL.Null,
+    'update' : IDL.Null,
+  });
+  const AuditEntityType = IDL.Variant({
+    'expenseType' : IDL.Null,
+    'serviceType' : IDL.Null,
+    'expense' : IDL.Null,
+    'timeEntry' : IDL.Null,
+    'customer' : IDL.Null,
+    'ferien' : IDL.Null,
+    'invoiceTemplate' : IDL.Null,
+    'absence' : IDL.Null,
+    'company' : IDL.Null,
+    'employee' : IDL.Null,
+    'approval' : IDL.Null,
+    'absenceType' : IDL.Null,
+    'holiday' : IDL.Null,
+    'project' : IDL.Null,
+  });
+  const AuditLogFilter = IDL.Record({
+    'dateTo' : IDL.Opt(IDL.Int),
+    'actorPrincipalFilter' : IDL.Opt(IDL.Text),
+    'operation' : IDL.Opt(AuditOperation),
+    'entityType' : IDL.Opt(AuditEntityType),
+    'dateFrom' : IDL.Opt(IDL.Int),
+  });
+  const AuditFieldChange = IDL.Record({
+    'after' : IDL.Text,
+    'before' : IDL.Text,
+    'fieldName' : IDL.Text,
+  });
+  const AuditLogEntry = IDL.Record({
+    'id' : IDL.Text,
+    'beforeState' : IDL.Opt(IDL.Text),
+    'actorName' : IDL.Text,
+    'entityId' : IDL.Text,
+    'operation' : AuditOperation,
+    'timestamp' : IDL.Int,
+    'actorPrincipal' : IDL.Text,
+    'entityType' : AuditEntityType,
+    'fieldChanges' : IDL.Opt(IDL.Vec(AuditFieldChange)),
+    'afterState' : IDL.Opt(IDL.Text),
+    'companyId' : CompanyId,
+  });
+  const Result_24 = IDL.Variant({
     'ok' : IDL.Vec(Employment),
     'err' : IDL.Text,
   });
@@ -1378,7 +3383,13 @@ export const idlFactory = ({ IDL }) => {
     'employeeId' : IDL.Opt(EmployeeId),
     'dateFrom' : IDL.Opt(IDL.Text),
   });
-  const Result_18 = IDL.Variant({
+  const UserNotification = IDL.Record({
+    'isDeleted' : IDL.Bool,
+    'notification' : Notification,
+    'isRead' : IDL.Bool,
+    'readAt' : IDL.Opt(IDL.Int),
+  });
+  const Result_23 = IDL.Variant({
     'ok' : IDL.Vec(TimeBalanceCorrection),
     'err' : IDL.Text,
   });
@@ -1388,9 +3399,31 @@ export const idlFactory = ({ IDL }) => {
     'projectId' : IDL.Opt(ProjectId),
     'dateFrom' : IDL.Opt(IDL.Text),
   });
-  const Result_17 = IDL.Variant({
+  const Result_22 = IDL.Variant({
     'ok' : IDL.Vec(VacationBalance),
     'err' : IDL.Text,
+  });
+  const ResolveFindingInput = IDL.Record({
+    'resolutionType' : ComplianceResolutionType,
+    'findingId' : IDL.Nat,
+    'resolutionReason' : IDL.Text,
+  });
+  const PlatformAdminConfig = IDL.Record({
+    'frontendCanisterId' : IDL.Text,
+    'stripeWebhookEndpointUrl' : IDL.Text,
+    'stripeSecretKey' : IDL.Text,
+    'stripePublishableKey' : IDL.Text,
+    'stripeWebhookSecret' : IDL.Text,
+  });
+  const HttpHeader = IDL.Record({ 'value' : IDL.Text, 'name' : IDL.Text });
+  const HttpRequestResult = IDL.Record({
+    'status' : IDL.Nat,
+    'body' : IDL.Vec(IDL.Nat8),
+    'headers' : IDL.Vec(HttpHeader),
+  });
+  const HttpTransformArgs = IDL.Record({
+    'context' : IDL.Vec(IDL.Nat8),
+    'response' : HttpRequestResult,
   });
   const UpdateAbsenceInput = IDL.Record({
     'dateTo' : IDL.Opt(IDL.Text),
@@ -1403,13 +3436,27 @@ export const idlFactory = ({ IDL }) => {
     'aktiv' : IDL.Opt(IDL.Bool),
     'name' : IDL.Opt(IDL.Text),
     'requiresApproval' : IDL.Opt(IDL.Bool),
+    'visibility' : IDL.Opt(AbsenceTypeVisibility),
     'compensated' : IDL.Opt(IDL.Bool),
   });
   const UpdateCompanyInput = IDL.Record({
     'taxId' : IDL.Opt(IDL.Text),
     'name' : IDL.Opt(IDL.Text),
+    'mwstNummer' : IDL.Opt(IDL.Text),
+    'kontoInhaber' : IDL.Opt(IDL.Text),
     'logoUrl' : IDL.Opt(IDL.Text),
     'address' : IDL.Opt(IDL.Text),
+    'kontoAdresse' : IDL.Opt(IDL.Text),
+  });
+  const UpdateComplianceProfileInput = IDL.Record({
+    'id' : IDL.Nat,
+    'aktiv' : IDL.Bool,
+    'ausnahmeprofil' : IDL.Opt(IDL.Text),
+    'vertraglicheWochenstunden' : IDL.Float64,
+    'erfassungsModus' : IDL.Text,
+    'vertraglicheZusatzferienTage' : IDL.Float64,
+    'gesetzlicheWochenhochstarbeitszeit' : IDL.Float64,
+    'gesetzlicherFerienanspruchWochen' : IDL.Float64,
   });
   const UpdateCustomerInput = IDL.Record({
     'rechnungsadresse' : IDL.Opt(Rechnungsadresse),
@@ -1422,6 +3469,7 @@ export const idlFactory = ({ IDL }) => {
     'beschreibung' : IDL.Opt(IDL.Text),
     'waehrung' : IDL.Opt(IDL.Text),
   });
+  const Result_14 = IDL.Variant({ 'ok' : DefaultWorkHours, 'err' : IDL.Text });
   const UpdateEmployeeInput = IDL.Record({
     'ort' : IDL.Opt(IDL.Text),
     'plz' : IDL.Opt(IDL.Text),
@@ -1457,7 +3505,9 @@ export const idlFactory = ({ IDL }) => {
   const UpdateExpenseInput = IDL.Record({
     'date' : IDL.Opt(IDL.Text),
     'description' : IDL.Opt(IDL.Text),
+    'projektId' : IDL.Opt(IDL.Nat),
     'billableCHF' : IDL.Opt(IDL.Float64),
+    'kundeId' : IDL.Opt(IDL.Nat),
     'reimbursementCHF' : IDL.Opt(IDL.Float64),
     'expenseTypeId' : IDL.Opt(ExpenseTypeId),
     'receiptBlobId' : IDL.Opt(IDL.Text),
@@ -1473,6 +3523,19 @@ export const idlFactory = ({ IDL }) => {
     'date' : IDL.Opt(IDL.Text),
     'name' : IDL.Opt(IDL.Text),
   });
+  const UpdateInvoiceInput = IDL.Record({
+    'status' : IDL.Opt(InvoiceStatus),
+    'fusstext' : IDL.Opt(IDL.Text),
+    'positionen' : IDL.Opt(IDL.Vec(InvoicePositionInput)),
+    'faelligkeitsdatum' : IDL.Opt(IDL.Text),
+    'qrAktiv' : IDL.Opt(IDL.Bool),
+    'mwstSatz' : IDL.Opt(IDL.Float64),
+    'rabatt' : IDL.Opt(IDL.Float64),
+    'kopftext' : IDL.Opt(IDL.Text),
+    'kundeId' : IDL.Opt(CustomerId),
+    'datum' : IDL.Opt(IDL.Text),
+    'skonto' : IDL.Opt(IDL.Float64),
+  });
   const UpdateProjectInput = IDL.Record({
     'status' : IDL.Opt(ProjectStatus),
     'erfassungsart' : IDL.Opt(Erfassungsart),
@@ -1482,6 +3545,7 @@ export const idlFactory = ({ IDL }) => {
     'name' : IDL.Opt(IDL.Text),
     'customerId' : IDL.Opt(CustomerId),
     'kurzbezeichnung' : IDL.Opt(IDL.Text),
+    'kostendachCHF' : IDL.Opt(IDL.Float64),
     'projektleiter' : IDL.Opt(EmployeeId),
   });
   const UpdateServiceTypeInput = IDL.Record({
@@ -1514,6 +3578,7 @@ export const idlFactory = ({ IDL }) => {
     'kalenderjahr' : IDL.Opt(IDL.Int),
     'dauer' : IDL.Opt(IDL.Int),
   });
+  const Result = IDL.Variant({ 'ok' : SubscriptionPlan, 'err' : IDL.Text });
   
   return IDL.Service({
     '_immutableObjectStorageBlobsAreLive' : IDL.Func(
@@ -1543,107 +3608,475 @@ export const idlFactory = ({ IDL }) => {
       ),
     '_immutableObjectStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initializeAccessControl' : IDL.Func([], [], []),
-    'approveAbsence' : IDL.Func([AbsenceId], [Result_15], []),
-    'approveExpense' : IDL.Func([ExpenseId], [Result_8], []),
-    'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-    'assignEmployeeToProject' : IDL.Func(
-        [EmployeeId, ProjectId],
-        [Result_26],
+    'applyPlanChange' : IDL.Func(
+        [IDL.Nat, IDL.Text, BillingModel],
+        [Result_21],
         [],
       ),
-    'createAbsence' : IDL.Func([CreateAbsenceInput], [Result_15], []),
-    'createAbsenceType' : IDL.Func([CreateAbsenceTypeInput], [Result_14], []),
-    'createCustomer' : IDL.Func([CreateCustomerInput], [Result_11], []),
-    'createEmployee' : IDL.Func([CreateEmployeeInput], [Result_10], []),
-    'createEmployment' : IDL.Func(
-        [EmployeeId, CreateEmploymentInput],
-        [Result_9],
+    'approveAbsence' : IDL.Func([AbsenceId], [Result_19], []),
+    'approveAbsenceApproval' : IDL.Func(
+        [AbsenceId, AbsenceApprovalInput],
+        [Result_5],
         [],
       ),
-    'createExpense' : IDL.Func([CreateExpenseInput], [Result_8], []),
-    'createExpenseType' : IDL.Func([CreateExpenseTypeInput], [Result_7], []),
-    'createHoliday' : IDL.Func([CreateHolidayInput], [Result_6], []),
-    'createProject' : IDL.Func([CreateProjectInput], [Result_5], []),
-    'createServiceType' : IDL.Func([CreateServiceTypeInput], [Result_4], []),
-    'createTimeBalanceCorrection' : IDL.Func(
-        [EmployeeId, CreateTimeBalanceCorrectionInput],
+    'approveExpense' : IDL.Func([ExpenseId], [Result_11], []),
+    'approveTimeEntry' : IDL.Func(
+        [TimeEntryId, TimeEntryApprovalInput],
         [Result_3],
         [],
       ),
-    'createTimeEntry' : IDL.Func([CreateTimeEntryInput], [Result_2], []),
+    'archiveNotification' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+        [],
+      ),
+    'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'assignEmployeeToProject' : IDL.Func(
+        [EmployeeId, ProjectId],
+        [Result_46],
+        [],
+      ),
+    'assignSubscriptionPlan' : IDL.Func([IDL.Text, IDL.Text], [Result_5], []),
+    'calculateMonthlyBilling' : IDL.Func(
+        [IDL.Nat, IDL.Nat],
+        [IDL.Vec(MonthlyBillingEntry)],
+        ['query'],
+      ),
+    'calculateProRataAdjustment' : IDL.Func(
+        [IDL.Nat, IDL.Text],
+        [Result_45],
+        ['query'],
+      ),
+    'cancelInvoice' : IDL.Func([IDL.Nat], [Result_8], []),
+    'cancelStripeSubscription' : IDL.Func([IDL.Nat], [Result_20], []),
+    'checkFeatureAccess' : IDL.Func(
+        [FeatureKey],
+        [FeatureAccessResult],
+        ['query'],
+      ),
+    'checkPlanChangeNeeded' : IDL.Func([IDL.Nat], [Result_44], ['query']),
+    'compareStripeSubscriptionStatus' : IDL.Func([IDL.Nat], [Result_43], []),
+    'createAbsence' : IDL.Func([CreateAbsenceInput], [Result_19], []),
+    'createAbsenceType' : IDL.Func([CreateAbsenceTypeInput], [Result_18], []),
+    'createCustomer' : IDL.Func([CreateCustomerInput], [Result_15], []),
+    'createEmployee' : IDL.Func([CreateEmployeeInput], [Result_13], []),
+    'createEmployment' : IDL.Func(
+        [EmployeeId, CreateEmploymentInput],
+        [Result_12],
+        [],
+      ),
+    'createExpense' : IDL.Func([CreateExpenseInput], [Result_11], []),
+    'createExpenseType' : IDL.Func([CreateExpenseTypeInput], [Result_10], []),
+    'createHoliday' : IDL.Func([CreateHolidayInput], [Result_9], []),
+    'createInvoice' : IDL.Func([CreateInvoiceInput], [Result_8], []),
+    'createNotificationDraft' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Text,
+          NotificationFormat,
+          NotificationPriority,
+          IDL.Int,
+          IDL.Opt(IDL.Int),
+          NotificationTargetType,
+          IDL.Vec(IDL.Text),
+          IDL.Vec(IDL.Text),
+          IDL.Vec(IDL.Text),
+        ],
+        [IDL.Variant({ 'ok' : Notification, 'err' : IDL.Text })],
+        [],
+      ),
+    'createOrUpdateInvoiceTemplate' : IDL.Func(
+        [InvoiceTemplateInput],
+        [Result_42],
+        [],
+      ),
+    'createPauseOverride' : IDL.Func(
+        [CreatePauseOverrideInput],
+        [IDL.Variant({ 'ok' : PauseOverride, 'err' : IDL.Text })],
+        [],
+      ),
+    'createProject' : IDL.Func([CreateProjectInput], [Result_7], []),
+    'createServiceType' : IDL.Func([CreateServiceTypeInput], [Result_6], []),
+    'createStripeCheckoutLinkForCompany' : IDL.Func(
+        [IDL.Nat, IDL.Text, BillingModel],
+        [Result_38],
+        [],
+      ),
+    'createStripeCheckoutLinkForCompanyWithPrice' : IDL.Func(
+        [IDL.Nat, IDL.Text, BillingModel, IDL.Text],
+        [Result_38],
+        [],
+      ),
+    'createStripeCheckoutSession' : IDL.Func(
+        [IDL.Nat, IDL.Text, BillingModel],
+        [Result_38],
+        [],
+      ),
+    'createStripeCheckoutSessionWithPrice' : IDL.Func(
+        [IDL.Nat, IDL.Text, BillingModel, IDL.Text],
+        [Result_38],
+        [],
+      ),
+    'createStripeCustomerPortalSession' : IDL.Func([IDL.Nat], [Result_37], []),
+    'createTimeBalanceCorrection' : IDL.Func(
+        [EmployeeId, CreateTimeBalanceCorrectionInput],
+        [Result_4],
+        [],
+      ),
+    'createTimeEntry' : IDL.Func([CreateTimeEntryInput], [Result_3], []),
     'createVacationBalance' : IDL.Func(
         [EmployeeId, CreateVacationBalanceInput],
-        [Result],
+        [Result_1],
         [],
       ),
-    'deleteAbsence' : IDL.Func([AbsenceId], [Result_16], []),
-    'deleteAbsenceType' : IDL.Func([AbsenceTypeId], [Result_16], []),
-    'deleteCustomer' : IDL.Func([CustomerId], [Result_16], []),
-    'deleteEmployee' : IDL.Func([EmployeeId], [Result_16], []),
-    'deleteEmployment' : IDL.Func([EmployeeId, IDL.Text], [Result_16], []),
-    'deleteExpense' : IDL.Func([ExpenseId], [Result_16], []),
-    'deleteExpenseType' : IDL.Func([ExpenseTypeId], [Result_16], []),
-    'deleteHoliday' : IDL.Func([HolidayId], [Result_16], []),
-    'deleteProject' : IDL.Func([ProjectId], [Result_16], []),
-    'deleteServiceType' : IDL.Func([ServiceTypeId], [Result_16], []),
+    'deleteAbsence' : IDL.Func([AbsenceId], [Result_5], []),
+    'deleteAbsenceType' : IDL.Func([AbsenceTypeId], [Result_5], []),
+    'deleteCustomer' : IDL.Func([CustomerId], [Result_5], []),
+    'deleteEmployee' : IDL.Func([EmployeeId], [Result_5], []),
+    'deleteEmployment' : IDL.Func([EmployeeId, IDL.Text], [Result_5], []),
+    'deleteExpense' : IDL.Func([ExpenseId], [Result_5], []),
+    'deleteExpenseType' : IDL.Func([ExpenseTypeId], [Result_5], []),
+    'deleteHoliday' : IDL.Func([HolidayId], [Result_5], []),
+    'deleteInvoice' : IDL.Func([IDL.Nat], [Result_5], []),
+    'deleteMyNotification' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+        [],
+      ),
+    'deletePauseOverride' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+        [],
+      ),
+    'deleteProject' : IDL.Func([ProjectId], [Result_5], []),
+    'deleteServiceType' : IDL.Func([ServiceTypeId], [Result_5], []),
+    'deleteSubscriptionPlan' : IDL.Func([IDL.Text], [Result_5], []),
     'deleteTimeBalanceCorrection' : IDL.Func(
         [EmployeeId, IDL.Text],
-        [Result_16],
+        [Result_5],
         [],
       ),
-    'deleteTimeEntry' : IDL.Func([TimeEntryId], [Result_16], []),
-    'deleteVacationBalance' : IDL.Func([EmployeeId, IDL.Text], [Result_16], []),
-    'generateInviteCode' : IDL.Func([EmployeeId], [Result_25], []),
+    'deleteTimeEntry' : IDL.Func([TimeEntryId], [Result_5], []),
+    'deleteVacationBalance' : IDL.Func([EmployeeId, IDL.Text], [Result_5], []),
+    'duplicateNotification' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'ok' : Notification, 'err' : IDL.Text })],
+        [],
+      ),
+    'generateInviteCode' : IDL.Func([EmployeeId], [Result_21], []),
+    'getAbsenceApprovalStatus' : IDL.Func(
+        [AbsenceId],
+        [
+          IDL.Opt(
+            IDL.Record({
+              'status' : TimeEntryStatus,
+              'approvedBy' : IDL.Opt(IDL.Principal),
+              'reason' : IDL.Opt(IDL.Text),
+            })
+          ),
+        ],
+        ['query'],
+      ),
+    'getAllCompanySubscriptions' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Text))],
+        ['query'],
+      ),
+    'getAllSubscriptionPlans' : IDL.Func(
+        [],
+        [IDL.Vec(SubscriptionPlan)],
+        ['query'],
+      ),
+    'getApprovalRecord' : IDL.Func(
+        [TimeEntryId],
+        [
+          IDL.Opt(
+            IDL.Record({
+              'status' : TimeEntryStatus,
+              'approvedBy' : IDL.Opt(IDL.Principal),
+              'reason' : IDL.Opt(IDL.Text),
+            })
+          ),
+        ],
+        ['query'],
+      ),
+    'getBackendCanisterId' : IDL.Func([], [IDL.Text], []),
     'getCalendarEntries' : IDL.Func(
         [IDL.Text, IDL.Nat],
         [CalendarData],
         ['query'],
       ),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
-    'getCompanySettings' : IDL.Func([], [Result_12], ['query']),
+    'getCanisterStatusInfo' : IDL.Func([], [CanisterStatusInfo], ['query']),
+    'getCompanyBillingModel' : IDL.Func([IDL.Nat], [Result_36], ['query']),
+    'getCompanyCalendarAbsences' : IDL.Func(
+        [CompanyId, IDL.Int, IDL.Int],
+        [IDL.Vec(MaskedCalendarAbsence)],
+        ['query'],
+      ),
+    'getCompanyEmployeesForBilling' : IDL.Func(
+        [CompanyId],
+        [IDL.Vec(Employee)],
+        ['query'],
+      ),
+    'getCompanySettings' : IDL.Func([], [Result_16], ['query']),
+    'getCompanySubscription' : IDL.Func(
+        [IDL.Text],
+        [IDL.Opt(IDL.Text)],
+        ['query'],
+      ),
+    'getCompanySubscriptionPlan' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Opt(SubscriptionPlan)],
+        ['query'],
+      ),
+    'getComplianceCockpitKPI' : IDL.Func(
+        [IDL.Nat],
+        [ComplianceCockpitKPI],
+        ['query'],
+      ),
+    'getComplianceCockpitRows' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(ComplianceCockpitRow)],
+        ['query'],
+      ),
+    'getComplianceFindings' : IDL.Func(
+        [
+          IDL.Nat,
+          IDL.Opt(CompliancePeriodeTyp),
+          IDL.Opt(IDL.Vec(ComplianceStatus)),
+        ],
+        [IDL.Vec(ComplianceFinding)],
+        ['query'],
+      ),
+    'getComplianceProfile' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Opt(EmployeeComplianceProfile)],
+        ['query'],
+      ),
+    'getCostDashboardData' : IDL.Func(
+        [IDL.Opt(IDL.Int), IDL.Opt(IDL.Int)],
+        [CostDashboardData],
+        ['query'],
+      ),
+    'getCostSettings' : IDL.Func([], [CostSettings], ['query']),
+    'getCycleSnapshots' : IDL.Func(
+        [IDL.Opt(IDL.Int), IDL.Opt(IDL.Int)],
+        [IDL.Vec(CycleSnapshot)],
+        ['query'],
+      ),
+    'getCycleStatus' : IDL.Func([], [CycleStatus], ['query']),
     'getDashboardStats' : IDL.Func([], [DashboardStats], ['query']),
+    'getDefaultWorkHours' : IDL.Func([], [DefaultWorkHours], ['query']),
     'getEmployeeWorkTimeBalance' : IDL.Func(
         [EmployeeId, IDL.Text, IDL.Text],
-        [Result_24],
+        [Result_35],
         ['query'],
       ),
     'getEmployeeWorkTimeBalanceFromStart' : IDL.Func(
         [EmployeeId],
-        [Result_24],
+        [Result_35],
         ['query'],
       ),
     'getEmploymentForDate' : IDL.Func(
         [EmployeeId, IDL.Text],
-        [Result_23],
+        [Result_34],
         ['query'],
       ),
-    'getMyCompany' : IDL.Func([], [Result_13], ['query']),
-    'getMyEmployee' : IDL.Func([], [Result_10], ['query']),
-    'getMyStandardarbeitszeiten' : IDL.Func([], [Result_21], ['query']),
-    'getProjectMembers' : IDL.Func([ProjectId], [Result_22], ['query']),
+    'getFrontendCyclesManual' : IDL.Func([], [IDL.Nat], ['query']),
+    'getInvoiceById' : IDL.Func([IDL.Nat], [Result_8], ['query']),
+    'getInvoiceTemplate' : IDL.Func([], [Result_33], ['query']),
+    'getInvoices' : IDL.Func([], [Result_32], []),
+    'getMonthlyBillingOverview' : IDL.Func(
+        [IDL.Nat, IDL.Nat],
+        [IDL.Vec(MonthlyBillingEntry)],
+        ['query'],
+      ),
+    'getMyCompany' : IDL.Func([], [Result_17], ['query']),
+    'getMyComplianceFindings' : IDL.Func(
+        [IDL.Opt(CompliancePeriodeTyp)],
+        [IDL.Vec(ComplianceFinding)],
+        ['query'],
+      ),
+    'getMyComplianceProfile' : IDL.Func(
+        [],
+        [IDL.Opt(EmployeeComplianceProfile)],
+        ['query'],
+      ),
+    'getMyEmployee' : IDL.Func([], [Result_13], ['query']),
+    'getMyPlanFeatures' : IDL.Func([], [IDL.Vec(FeatureKey)], ['query']),
+    'getMyStandardarbeitszeiten' : IDL.Func([], [Result_28], ['query']),
+    'getMyVacationLedger' : IDL.Func(
+        [IDL.Text],
+        [IDL.Opt(VacationLedger)],
+        ['query'],
+      ),
+    'getPauseComplianceForDay' : IDL.Func(
+        [IDL.Nat, IDL.Text],
+        [DayPauseComplianceResult],
+        ['query'],
+      ),
+    'getPauseOverridesForDay' : IDL.Func(
+        [IDL.Nat, IDL.Text],
+        [IDL.Vec(PauseOverride)],
+        ['query'],
+      ),
+    'getPausesForDay' : IDL.Func(
+        [IDL.Nat, IDL.Text],
+        [IDL.Vec(DetectedPause)],
+        ['query'],
+      ),
+    'getPlatformAdminConfig' : IDL.Func(
+        [],
+        [PlatformAdminConfigPublic],
+        ['query'],
+      ),
+    'getPlatformAdminInfo' : IDL.Func(
+        [],
+        [
+          IDL.Opt(
+            IDL.Record({ 'principal' : IDL.Text, 'createdAt' : IDL.Int })
+          ),
+        ],
+        ['query'],
+      ),
+    'getProjectAufwendungen' : IDL.Func([ProjectId], [Result_31], ['query']),
+    'getProjectBudgetReport' : IDL.Func(
+        [ProjectId, IDL.Text, IDL.Text],
+        [Result_30],
+        ['query'],
+      ),
+    'getProjectMembers' : IDL.Func([ProjectId], [Result_29], ['query']),
     'getReportData' : IDL.Func([ReportFilter], [ReportData], ['query']),
+    'getServiceYears' : IDL.Func([IDL.Nat], [IDL.Vec(IDL.Text)], ['query']),
+    'getSnapshotInterval' : IDL.Func([], [IDL.Nat], ['query']),
     'getStandardarbeitszeitenForEmployee' : IDL.Func(
         [EmployeeId],
-        [Result_21],
+        [Result_28],
         ['query'],
       ),
-    'getTimeBalance' : IDL.Func([EmployeeId], [Result_20], ['query']),
-    'getUserNotificationSettings' : IDL.Func([], [Result_1], ['query']),
+    'getStripeConfigStatus' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'hasPublishableKey' : IDL.Bool,
+            'testMode' : IDL.Bool,
+            'configured' : IDL.Bool,
+          }),
+        ],
+        ['query'],
+      ),
+    'getStripeEvents' : IDL.Func(
+        [IDL.Opt(IDL.Nat), IDL.Nat],
+        [IDL.Vec(StripeEvent)],
+        ['query'],
+      ),
+    'getStripeInvoicesForCompany' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(StripeInvoice)],
+        ['query'],
+      ),
+    'getStripePublishableKey' : IDL.Func([], [IDL.Opt(IDL.Text)], ['query']),
+    'getSubscriptionPlans' : IDL.Func(
+        [],
+        [IDL.Vec(SubscriptionPlan)],
+        ['query'],
+      ),
+    'getSystemStats' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'totalEmployees' : IDL.Nat,
+            'totalCompanies' : IDL.Nat,
+          }),
+        ],
+        ['query'],
+      ),
+    'getTenantCostBreakdown' : IDL.Func(
+        [],
+        [IDL.Vec(TenantCostEntry)],
+        ['query'],
+      ),
+    'getTimeBalance' : IDL.Func([EmployeeId], [Result_27], ['query']),
+    'getTimeEntryApprovalStatus' : IDL.Func(
+        [TimeEntryId],
+        [IDL.Opt(TimeEntryStatus)],
+        ['query'],
+      ),
+    'getUnbilledEntries' : IDL.Func([IDL.Opt(IDL.Nat)], [Result_26], ['query']),
+    'getUnbilledEntriesWithRates' : IDL.Func(
+        [IDL.Opt(IDL.Nat)],
+        [Result_25],
+        ['query'],
+      ),
+    'getUnreadCount' : IDL.Func([], [IDL.Nat], ['query']),
+    'getUserNotificationSettings' : IDL.Func([], [Result_2], ['query']),
+    'getUsersForCompany' : IDL.Func(
+        [CompanyId],
+        [IDL.Vec(PlatformAdminUserEntry)],
+        ['query'],
+      ),
+    'getVacationLedger' : IDL.Func(
+        [IDL.Nat, IDL.Text],
+        [IDL.Opt(VacationLedger)],
+        ['query'],
+      ),
+    'getVacationLedgerAll' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(VacationLedger)],
+        ['query'],
+      ),
+    'handleStripeWebhook' : IDL.Func([IDL.Text, IDL.Text], [Result_21], []),
+    'initAllVacationLedgers' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Variant({ 'ok' : IDL.Nat, 'err' : IDL.Text })],
+        [],
+      ),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'isPlatformAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'isRegistered' : IDL.Func([], [IDL.Bool], ['query']),
     'listAbsenceTypes' : IDL.Func([], [IDL.Vec(AbsenceType)], ['query']),
     'listAbsences' : IDL.Func([AbsenceFilter], [IDL.Vec(Absence)], ['query']),
+    'listAllCompaniesForPlatformAdmin' : IDL.Func(
+        [],
+        [
+          IDL.Vec(
+            IDL.Record({
+              'id' : IDL.Text,
+              'name' : IDL.Text,
+              'createdAt' : IDL.Int,
+              'inactiveEmployeeCount' : IDL.Nat,
+              'isActive' : IDL.Bool,
+              'address' : IDL.Opt(IDL.Text),
+              'activeEmployeeCount' : IDL.Nat,
+            })
+          ),
+        ],
+        ['query'],
+      ),
+    'listAllNotifications' : IDL.Func([], [IDL.Vec(Notification)], []),
+    'listApprovalAuditLog' : IDL.Func(
+        [],
+        [IDL.Vec(TimeEntryApprovalAuditEntry)],
+        ['query'],
+      ),
     'listAuditLog' : IDL.Func(
         [IDL.Opt(IDL.Text), IDL.Opt(IDL.Nat)],
         [IDL.Vec(AuditEntry)],
         ['query'],
       ),
+    'listAuditLogs' : IDL.Func(
+        [AuditLogFilter],
+        [IDL.Vec(AuditLogEntry)],
+        ['query'],
+      ),
     'listCustomers' : IDL.Func([], [IDL.Vec(Customer)], ['query']),
     'listEmployees' : IDL.Func([], [IDL.Vec(Employee)], ['query']),
-    'listEmployments' : IDL.Func([EmployeeId], [Result_19], ['query']),
+    'listEmployments' : IDL.Func([EmployeeId], [Result_24], ['query']),
     'listExpenseTypes' : IDL.Func([], [IDL.Vec(ExpenseType)], ['query']),
     'listExpenses' : IDL.Func([ExpenseFilter], [IDL.Vec(Expense)], ['query']),
     'listHolidays' : IDL.Func([], [IDL.Vec(Holiday)], ['query']),
+    'listMyNotifications' : IDL.Func([], [IDL.Vec(UserNotification)], []),
     'listProjectAssignments' : IDL.Func(
         [],
         [IDL.Vec(ProjectAssignment)],
@@ -1651,9 +4084,10 @@ export const idlFactory = ({ IDL }) => {
       ),
     'listProjects' : IDL.Func([], [IDL.Vec(Project)], ['query']),
     'listServiceTypes' : IDL.Func([], [IDL.Vec(ServiceType)], ['query']),
+    'listSubmittedTimeEntries' : IDL.Func([], [IDL.Vec(TimeEntry)], ['query']),
     'listTimeBalanceCorrections' : IDL.Func(
         [EmployeeId],
-        [Result_18],
+        [Result_23],
         ['query'],
       ),
     'listTimeEntries' : IDL.Func(
@@ -1661,106 +4095,249 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(TimeEntry)],
         ['query'],
       ),
-    'listVacationBalances' : IDL.Func([EmployeeId], [Result_17], ['query']),
-    'redeemInviteCode' : IDL.Func([IDL.Text], [Result_10], []),
-    'registerCompany' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
-        [Result_13],
+    'listVacationBalances' : IDL.Func([EmployeeId], [Result_22], ['query']),
+    'manuallyTriggerStripeSync' : IDL.Func([IDL.Nat], [Result_21], []),
+    'markAllNotificationsRead' : IDL.Func(
+        [],
+        [IDL.Variant({ 'ok' : IDL.Nat, 'err' : IDL.Text })],
         [],
       ),
-    'rejectAbsence' : IDL.Func([AbsenceId, IDL.Text], [Result_15], []),
-    'rejectExpense' : IDL.Func([ExpenseId, IDL.Opt(IDL.Text)], [Result_8], []),
+    'markFakturiert' : IDL.Func(
+        [IDL.Nat, IDL.Vec(IDL.Nat), IDL.Vec(IDL.Nat)],
+        [Result_5],
+        [],
+      ),
+    'markNotificationRead' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+        [],
+      ),
+    'purgeEmployee' : IDL.Func([EmployeeId], [Result_5], []),
+    'reactivateStripeSubscription' : IDL.Func([IDL.Nat], [Result_20], []),
+    'recordCycleSnapshot' : IDL.Func([IDL.Nat, IDL.Nat], [], []),
+    'recoverSubscriptionPlans' : IDL.Func([], [Result_21], []),
+    'redeemInviteCode' : IDL.Func([IDL.Text], [Result_13], []),
+    'registerCompany' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+        [Result_17],
+        [],
+      ),
+    'rejectAbsence' : IDL.Func([AbsenceId, IDL.Text], [Result_19], []),
+    'rejectAbsenceApproval' : IDL.Func(
+        [AbsenceId, AbsenceApprovalInput],
+        [Result_5],
+        [],
+      ),
+    'rejectExpense' : IDL.Func([ExpenseId, IDL.Opt(IDL.Text)], [Result_11], []),
+    'rejectTimeEntry' : IDL.Func(
+        [TimeEntryId, TimeEntryApprovalInput],
+        [Result_3],
+        [],
+      ),
+    'relinkStripeCustomer' : IDL.Func([IDL.Nat, IDL.Text], [Result_21], []),
     'removeEmployeeFromProject' : IDL.Func(
         [EmployeeId, ProjectId],
-        [Result_16],
+        [Result_5],
+        [],
+      ),
+    'reprocessStripeEvent' : IDL.Func([IDL.Text], [Result_21], []),
+    'resetAbsenceApprovalToDraft' : IDL.Func(
+        [AbsenceId, IDL.Opt(IDL.Text)],
+        [Result_5],
         [],
       ),
     'resetAbsenceToAusstehend' : IDL.Func(
         [AbsenceId, IDL.Text],
-        [Result_15],
+        [Result_19],
         [],
       ),
     'resetExpenseToAusstehend' : IDL.Func(
         [ExpenseId, IDL.Text],
-        [Result_8],
+        [Result_11],
         [],
       ),
-    'revokeInviteCode' : IDL.Func([IDL.Text], [Result_16], []),
+    'resetTimeEntryToDraft' : IDL.Func(
+        [TimeEntryId, IDL.Opt(IDL.Text)],
+        [Result_3],
+        [],
+      ),
+    'resolveFinding' : IDL.Func(
+        [ResolveFindingInput],
+        [IDL.Variant({ 'ok' : ComplianceFinding, 'err' : IDL.Text })],
+        [],
+      ),
+    'restoreDefaultPlansIfMissing' : IDL.Func([], [Result_21], []),
+    'revokeInviteCode' : IDL.Func([IDL.Text], [Result_5], []),
+    'runWeeklyComplianceCheck' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Variant({ 'ok' : IDL.Nat, 'err' : IDL.Text })],
+        [],
+      ),
+    'saveAndSendNotification' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Text,
+          NotificationFormat,
+          NotificationPriority,
+          IDL.Int,
+          IDL.Opt(IDL.Int),
+          NotificationTargetType,
+          IDL.Vec(IDL.Text),
+          IDL.Vec(IDL.Text),
+          IDL.Vec(IDL.Text),
+        ],
+        [IDL.Variant({ 'ok' : Notification, 'err' : IDL.Text })],
+        [],
+      ),
+    'sendNotification' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+        [],
+      ),
+    'setCompanyActive' : IDL.Func(
+        [IDL.Nat, IDL.Bool],
+        [IDL.Variant({ 'ok' : IDL.Null, 'err' : IDL.Text })],
+        [],
+      ),
+    'setCompanyBillingModel' : IDL.Func(
+        [IDL.Nat, BillingModel],
+        [Result_5],
+        [],
+      ),
+    'setEmployeeActive' : IDL.Func([EmployeeId, IDL.Bool], [Result_13], []),
+    'setFrontendCanisterId' : IDL.Func([IDL.Text], [], []),
+    'setFrontendCyclesManual' : IDL.Func([IDL.Nat], [], []),
     'setMyStandardarbeitszeiten' : IDL.Func(
         [Standardarbeitszeiten],
-        [Result_16],
+        [Result_5],
         [],
       ),
+    'setPlatformAdminConfig' : IDL.Func([PlatformAdminConfig], [Result_5], []),
     'setProjectMembers' : IDL.Func(
         [ProjectId, IDL.Vec(ProjectMemberAssignment)],
-        [Result_16],
+        [Result_5],
         [],
       ),
+    'setSnapshotInterval' : IDL.Func([IDL.Nat], [], []),
     'setStandardarbeitszeitenForEmployee' : IDL.Func(
         [EmployeeId, Standardarbeitszeiten],
-        [Result_16],
+        [Result_5],
         [],
+      ),
+    'setStripeConfig' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text],
+        [Result_21],
+        [],
+      ),
+    'setUserActiveForCompany' : IDL.Func(
+        [CompanyId, EmployeeId, IDL.Bool],
+        [Result_5],
+        [],
+      ),
+    'setUserRoleForCompany' : IDL.Func(
+        [CompanyId, EmployeeId, Role],
+        [Result_5],
+        [],
+      ),
+    'startSnapshotTimer' : IDL.Func([], [], []),
+    'submitAbsenceForApproval' : IDL.Func([AbsenceId], [Result_5], []),
+    'submitTimeEntryForApproval' : IDL.Func([TimeEntryId], [Result_3], []),
+    'syncStripeSubscription' : IDL.Func([IDL.Nat], [Result_20], []),
+    'testStripeConnection' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'apiConnectionOk' : IDL.Bool,
+            'apiConnectionMessage' : IDL.Text,
+            'customerPortalOk' : IDL.Bool,
+            'customerPortalMessage' : IDL.Text,
+          }),
+        ],
+        [],
+      ),
+    'transformStripeResponse' : IDL.Func(
+        [HttpTransformArgs],
+        [HttpRequestResult],
+        ['query'],
       ),
     'updateAbsence' : IDL.Func(
         [AbsenceId, UpdateAbsenceInput],
-        [Result_15],
+        [Result_19],
         [],
       ),
     'updateAbsenceType' : IDL.Func(
         [AbsenceTypeId, UpdateAbsenceTypeInput],
-        [Result_14],
+        [Result_18],
         [],
       ),
-    'updateCompany' : IDL.Func([UpdateCompanyInput], [Result_13], []),
-    'updateCompanySettings' : IDL.Func([CompanySettings], [Result_12], []),
+    'updateCompany' : IDL.Func([UpdateCompanyInput], [Result_17], []),
+    'updateCompanySettings' : IDL.Func([CompanySettings], [Result_16], []),
+    'updateComplianceProfile' : IDL.Func(
+        [UpdateComplianceProfileInput],
+        [IDL.Variant({ 'ok' : EmployeeComplianceProfile, 'err' : IDL.Text })],
+        [],
+      ),
+    'updateCostSettings' : IDL.Func([CostSettings], [], []),
     'updateCustomer' : IDL.Func(
         [CustomerId, UpdateCustomerInput],
-        [Result_11],
+        [Result_15],
         [],
       ),
+    'updateDefaultWorkHours' : IDL.Func([DefaultWorkHours], [Result_14], []),
     'updateEmployee' : IDL.Func(
         [EmployeeId, UpdateEmployeeInput],
-        [Result_10],
+        [Result_13],
         [],
       ),
     'updateEmployment' : IDL.Func(
         [EmployeeId, IDL.Text, UpdateEmploymentInput],
-        [Result_9],
+        [Result_12],
         [],
       ),
-    'updateExpense' : IDL.Func([ExpenseId, UpdateExpenseInput], [Result_8], []),
+    'updateExpense' : IDL.Func(
+        [ExpenseId, UpdateExpenseInput],
+        [Result_11],
+        [],
+      ),
     'updateExpenseType' : IDL.Func(
         [ExpenseTypeId, UpdateExpenseTypeInput],
-        [Result_7],
+        [Result_10],
         [],
       ),
-    'updateHoliday' : IDL.Func([HolidayId, UpdateHolidayInput], [Result_6], []),
-    'updateProject' : IDL.Func([ProjectId, UpdateProjectInput], [Result_5], []),
+    'updateHoliday' : IDL.Func([HolidayId, UpdateHolidayInput], [Result_9], []),
+    'updateInvoice' : IDL.Func([IDL.Nat, UpdateInvoiceInput], [Result_8], []),
+    'updateProject' : IDL.Func([ProjectId, UpdateProjectInput], [Result_7], []),
     'updateServiceType' : IDL.Func(
         [ServiceTypeId, UpdateServiceTypeInput],
-        [Result_4],
+        [Result_6],
+        [],
+      ),
+    'updateStripeSubscriptionQuantity' : IDL.Func(
+        [IDL.Nat, IDL.Nat],
+        [Result_5],
         [],
       ),
     'updateTimeBalanceCorrection' : IDL.Func(
         [EmployeeId, IDL.Text, UpdateTimeBalanceCorrectionInput],
-        [Result_3],
+        [Result_4],
         [],
       ),
     'updateTimeEntry' : IDL.Func(
         [TimeEntryId, UpdateTimeEntryInput],
-        [Result_2],
+        [Result_3],
         [],
       ),
     'updateUserNotificationSettings' : IDL.Func(
         [UserNotificationSettings],
-        [Result_1],
+        [Result_2],
         [],
       ),
     'updateVacationBalance' : IDL.Func(
         [EmployeeId, IDL.Text, UpdateVacationBalanceInput],
-        [Result],
+        [Result_1],
         [],
       ),
+    'upsertSubscriptionPlan' : IDL.Func([SubscriptionPlan], [Result], []),
   });
 };
 

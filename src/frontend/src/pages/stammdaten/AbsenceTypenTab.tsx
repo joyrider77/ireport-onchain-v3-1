@@ -26,6 +26,10 @@ import { Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { createActor } from "../../backend";
+import type {
+  AbsenceTypeVisibility,
+  CalendarVisibilityMode,
+} from "../../backend.d";
 import type { AbsenceType, UpdateAbsenceTypeInput } from "../../backend.d";
 import { useMutation, useQuery, useQueryClient } from "./shared";
 
@@ -37,6 +41,11 @@ interface AbsenceTypeForm {
   requiresApproval: boolean;
   compensated: boolean;
   aktiv: boolean;
+  visibleInCompanyCalendar: boolean;
+  visibilityMode: string;
+  visibleForRoles: string;
+  companyCalendarDisplayName: string;
+  companyCalendarColor: string;
 }
 
 const defaultForm: AbsenceTypeForm = {
@@ -44,14 +53,17 @@ const defaultForm: AbsenceTypeForm = {
   requiresApproval: false,
   compensated: false,
   aktiv: true,
+  visibleInCompanyCalendar: true,
+  visibilityMode: "masked_reason",
+  visibleForRoles: "all",
+  companyCalendarDisplayName: "",
+  companyCalendarColor: "",
 };
 
 /** Returns true if this absence type is the system-managed "Ferien" type */
+/** Returns true if this absence type is the system-managed "Ferien" type */
 function isSystemFerien(at: AbsenceType): boolean {
-  return (
-    at.name.toLowerCase() === "ferien" ||
-    (at.requiresApproval === true && at.compensated === true)
-  );
+  return at.name.toLowerCase() === "ferien";
 }
 
 export function AbsenceTypenTab() {
@@ -86,18 +98,31 @@ export function AbsenceTypenTab() {
         // boolean fields set to false as optional — the Candid serializer treats
         // `false` as `candid_none()` (no-change signal). Sending the full current
         // values ensures the update goes through correctly.
+        const visibilityPayload: AbsenceTypeVisibility = {
+          visibleInCompanyCalendar: form.visibleInCompanyCalendar,
+          visibilityMode: form.visibilityMode as CalendarVisibilityMode,
+          visibleForRoles: [form.visibleForRoles],
+          companyCalendarDisplayName:
+            form.companyCalendarDisplayName || undefined,
+          companyCalendarColor: form.companyCalendarColor || undefined,
+          showEmployeeName: true,
+          showAbsenceTypeName: form.visibilityMode === "full",
+          showComment: false,
+        };
         const updatePayload: UpdateAbsenceTypeInput = isEditingFerien
           ? {
               name: editItem.name, // keep locked
-              requiresApproval: form.requiresApproval, // only user-editable field
+              requiresApproval: editItem.requiresApproval, // keep locked (system Ferien value)
               compensated: editItem.compensated, // keep locked
               aktiv: editItem.aktiv, // keep locked
+              visibility: visibilityPayload,
             }
           : {
               name: form.name,
               requiresApproval: form.requiresApproval,
               compensated: form.compensated,
               aktiv: form.aktiv,
+              visibility: visibilityPayload,
             };
         const res = (await toAny(actor).updateAbsenceType(
           editItem.id,
@@ -106,11 +131,23 @@ export function AbsenceTypenTab() {
         if (res.__kind__ === "err") throw new Error(res.err ?? "Fehler");
         return res.ok;
       }
+      const createVisibility: AbsenceTypeVisibility = {
+        visibleInCompanyCalendar: form.visibleInCompanyCalendar,
+        visibilityMode: form.visibilityMode as CalendarVisibilityMode,
+        visibleForRoles: [form.visibleForRoles],
+        companyCalendarDisplayName:
+          form.companyCalendarDisplayName || undefined,
+        companyCalendarColor: form.companyCalendarColor || undefined,
+        showEmployeeName: true,
+        showAbsenceTypeName: form.visibilityMode === "full",
+        showComment: false,
+      };
       const res = (await toAny(actor).createAbsenceType({
         name: form.name,
         requiresApproval: form.requiresApproval,
         compensated: form.compensated,
         aktiv: form.aktiv,
+        visibility: createVisibility,
       })) as { __kind__: string; ok?: AbsenceType; err?: string };
       if (res.__kind__ === "err") throw new Error(res.err ?? "Fehler");
       return res.ok;
@@ -156,6 +193,12 @@ export function AbsenceTypenTab() {
       requiresApproval: at.requiresApproval,
       compensated: at.compensated,
       aktiv: at.aktiv,
+      visibleInCompanyCalendar: at.visibility?.visibleInCompanyCalendar ?? true,
+      visibilityMode: at.visibility?.visibilityMode ?? "masked_reason",
+      visibleForRoles: at.visibility?.visibleForRoles?.[0] ?? "all",
+      companyCalendarDisplayName:
+        at.visibility?.companyCalendarDisplayName ?? "",
+      companyCalendarColor: at.visibility?.companyCalendarColor ?? "",
     });
     setNameError("");
     setDialogOpen(true);
@@ -201,7 +244,6 @@ export function AbsenceTypenTab() {
             <TableHeader>
               <TableRow className="bg-muted/30">
                 <TableHead>Name</TableHead>
-                <TableHead>Genehmigung erforderlich</TableHead>
                 <TableHead>Entschädigt (Arbeitszeit)</TableHead>
                 <TableHead>Status</TableHead>
                 {canWrite && (
@@ -213,7 +255,7 @@ export function AbsenceTypenTab() {
               {absenceTypes.filter((at) => !isSystemFerien(at)).length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={canWrite ? 5 : 4}
+                    colSpan={canWrite ? 4 : 3}
                     className="text-center py-8 text-muted-foreground"
                   >
                     Keine Abwesenheitsarten vorhanden
@@ -228,9 +270,6 @@ export function AbsenceTypenTab() {
                       data-ocid="abwesenheitsarten-row"
                     >
                       <TableCell className="font-medium">{at.name}</TableCell>
-                      <TableCell>
-                        {at.requiresApproval ? "Ja" : "Nein"}
-                      </TableCell>
                       <TableCell>{at.compensated ? "Ja" : "Nein"}</TableCell>
                       <TableCell>
                         {at.aktiv ? (
@@ -318,17 +357,6 @@ export function AbsenceTypenTab() {
             </div>
             <div className="flex items-center gap-2">
               <Checkbox
-                id="atapproval"
-                data-ocid="abwesenheitsarten-approval"
-                checked={form.requiresApproval}
-                onCheckedChange={(v) =>
-                  setForm({ ...form, requiresApproval: !!v })
-                }
-              />
-              <Label htmlFor="atapproval">Genehmigung erforderlich</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
                 id="atcompensated"
                 data-ocid="abwesenheitsarten-compensated"
                 checked={form.compensated}
@@ -352,6 +380,25 @@ export function AbsenceTypenTab() {
                 </span>
               </Label>
             </div>
+            {/* Genehmigung erforderlich — only for non-system (non-Ferien) types */}
+            {!isEditingFerien && (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="atrequiresapproval"
+                  data-ocid="abwesenheitsarten-requires-approval"
+                  checked={form.requiresApproval}
+                  onCheckedChange={(v) =>
+                    setForm({ ...form, requiresApproval: !!v })
+                  }
+                />
+                <Label htmlFor="atrequiresapproval">
+                  Genehmigung erforderlich
+                  <span className="block text-xs font-normal text-muted-foreground mt-0.5">
+                    Erfassung löst Genehmigungsworkflow aus
+                  </span>
+                </Label>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <Checkbox
                 id="ataktiv"
@@ -379,6 +426,192 @@ export function AbsenceTypenTab() {
               </Label>
             </div>
           </div>
+
+          {/* Firmenkalender Sichtbarkeit */}
+          <div
+            style={{
+              marginTop: 12,
+              paddingTop: 12,
+              borderTop: "1px solid var(--border)",
+            }}
+          >
+            <p style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>
+              Firmenkalender Sichtbarkeit
+            </p>
+            <label
+              htmlFor="visibility-company-calendar-checkbox"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 8,
+                fontSize: 13,
+              }}
+            >
+              <input
+                id="visibility-company-calendar-checkbox"
+                type="checkbox"
+                checked={form.visibleInCompanyCalendar}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    visibleInCompanyCalendar: e.target.checked,
+                  }))
+                }
+              />
+              Im Firmenkalender sichtbar
+            </label>
+            {form.visibleInCompanyCalendar && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div>
+                  <label
+                    htmlFor="visibility-mode-select"
+                    style={{ fontSize: 12, display: "block", marginBottom: 2 }}
+                    className="text-muted-foreground"
+                  >
+                    Sichtbarkeitsmodus
+                  </label>
+                  <select
+                    id="visibility-mode-select"
+                    value={form.visibilityMode}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, visibilityMode: e.target.value }))
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "4px 8px",
+                      borderRadius: 4,
+                      border: "1px solid var(--border)",
+                      fontSize: 13,
+                      background: "var(--background)",
+                      color: "var(--foreground)",
+                    }}
+                  >
+                    <option value="full">
+                      Vollständig sichtbar (Name + Grund)
+                    </option>
+                    <option value="masked_reason">
+                      Zeitraum sichtbar (Nicht verfügbar)
+                    </option>
+                    <option value="anonymized">
+                      Anonymisiert (Abwesenheit)
+                    </option>
+                    <option value="hidden">Nicht sichtbar</option>
+                  </select>
+                </div>
+                {form.visibilityMode !== "hidden" && (
+                  <>
+                    <div>
+                      <label
+                        htmlFor="visibility-roles-select"
+                        style={{
+                          fontSize: 12,
+                          display: "block",
+                          marginBottom: 2,
+                        }}
+                        className="text-muted-foreground"
+                      >
+                        Sichtbar für
+                      </label>
+                      <select
+                        id="visibility-roles-select"
+                        value={form.visibleForRoles}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            visibleForRoles: e.target.value,
+                          }))
+                        }
+                        style={{
+                          width: "100%",
+                          padding: "4px 8px",
+                          borderRadius: 4,
+                          border: "1px solid var(--border)",
+                          fontSize: 13,
+                          background: "var(--background)",
+                          color: "var(--foreground)",
+                        }}
+                      >
+                        <option value="all">Alle Mitarbeitenden</option>
+                        <option value="admin_manager">
+                          Nur Admins und Manager
+                        </option>
+                      </select>
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="visibility-display-name-input"
+                        style={{
+                          fontSize: 12,
+                          display: "block",
+                          marginBottom: 2,
+                        }}
+                        className="text-muted-foreground"
+                      >
+                        Anzeigename im Firmenkalender (optional)
+                      </label>
+                      <input
+                        id="visibility-display-name-input"
+                        type="text"
+                        value={form.companyCalendarDisplayName}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            companyCalendarDisplayName: e.target.value,
+                          }))
+                        }
+                        placeholder="z.B. Nicht verfügbar"
+                        style={{
+                          width: "100%",
+                          padding: "4px 8px",
+                          borderRadius: 4,
+                          border: "1px solid var(--border)",
+                          fontSize: 13,
+                          background: "var(--background)",
+                          color: "var(--foreground)",
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="visibility-color-input"
+                        style={{
+                          fontSize: 12,
+                          display: "block",
+                          marginBottom: 2,
+                        }}
+                        className="text-muted-foreground"
+                      >
+                        Farbe im Firmenkalender (z.B. #9ca3af)
+                      </label>
+                      <input
+                        id="visibility-color-input"
+                        type="text"
+                        value={form.companyCalendarColor}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            companyCalendarColor: e.target.value,
+                          }))
+                        }
+                        placeholder="#9ca3af"
+                        style={{
+                          width: "100%",
+                          padding: "4px 8px",
+                          borderRadius: 4,
+                          border: "1px solid var(--border)",
+                          fontSize: 13,
+                          background: "var(--background)",
+                          color: "var(--foreground)",
+                        }}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
           <DialogFooter>
             <Button
               type="button"

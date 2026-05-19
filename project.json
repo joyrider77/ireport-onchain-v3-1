@@ -1,23 +1,29 @@
 {
-  "overview": "iReport Onchain V3.1 – deutschsprachige Multi-Tenant HR- und Zeiterfassungs-App für Schweizer Unternehmen. Vollständig dezentral auf dem Internet Computer betrieben, mit rollenbasiertem Zugriff, Zeiterfassung, Spesenverwaltung und Genehmigungsworkflows.",
+  "overview": "iReport Onchain V3.1 – mandantenfähige HR- und Zeiterfassungs-SaaS für Schweizer Unternehmen mit vollständigem Compliance-Modul, Pausen-Erkennung und Dienstjahr-basierter Ferienanspruchsberechnung nach Schweizer OR.",
   "features": [
-    "Zeiterfassung mit Wochenkalender und Stoppuhr",
-    "Spesenverwaltung mit Beleg-Upload",
-    "Ferienanträge und Genehmigungsworkflow",
-    "Mitarbeiterverwaltung mit Beschäftigungen",
-    "Arbeitszeitsaldo-Berechnung",
-    "Kalenderübersicht mit allen Eintragstypen",
-    "Multi-Tenant Datentrennung pro Firma",
-    "Authentifizierung via Internet Identity"
+    "HR & Compliance-Modul mit Schweizer Standardregeln (Ruhezeit, Überstunden, Ferienminimum)",
+    "Automatische Pausen-Erkennung aus Zeitblock-Lücken mit Mindestpausen-Compliance",
+    "Dienstjahr-Berechnung ab individuellem Eintrittsdatum (nicht Kalenderjahr)",
+    "Anteilsmässige Ferienanspruchsberechnung bei 20. Geburtstag im Dienstjahr",
+    "11h-Ruhezeit-Prüfung zwischen allen effektiven Arbeitseinsätzen (über Wochenenden hinweg)",
+    "Compliance Cockpit mit KPI-Kacheln, Ampellogik und Freigabe-Workflow",
+    "VacationLedger pro Dienstjahr mit 2-Wochen-Block-Prüfung",
+    "PauseOverride-Funktion (Lücken als keine Pause markieren)",
+    "Vollständiger Audit-Trail für alle Compliance-Aktionen",
+    "Mandantenfähige Compliance-Regeln mit Schweizer Defaults"
   ],
   "category": "productivity",
   "tags": [
     "hr",
-    "zeiterfassung",
+    "compliance",
     "schweiz",
-    "saas",
-    "internet-computer",
-    "multi-tenant"
+    "zeiterfassung",
+    "ferien",
+    "pausen",
+    "ruhezeit",
+    "arbeitsrecht",
+    "dienstjahr",
+    "mandantenf-hig"
   ],
-  "last_updated": "2026-04-14T11:56:14.366Z"
+  "last_updated": "2026-05-16T14:47:23.039Z"
 }

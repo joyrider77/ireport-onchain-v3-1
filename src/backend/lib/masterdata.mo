@@ -124,6 +124,7 @@ module {
       projektleiter = input.projektleiter;
       status = switch (input.status) { case (?s) s; case null #aktiv };
       erfassungsart = input.erfassungsart;
+      kostendachCHF = input.kostendachCHF;
     };
     projects.add(project);
     project;
@@ -149,6 +150,7 @@ module {
           projektleiter = switch (input.projektleiter) { case (?v) ?v; case null p.projektleiter };
           status = switch (input.status) { case (?v) v; case null p.status };
           erfassungsart = switch (input.erfassungsart) { case (?v) ?v; case null p.erfassungsart };
+          kostendachCHF = switch (input.kostendachCHF) { case (?v) ?v; case null p.kostendachCHF };
         };
         result := ?updated;
         updated;
@@ -395,6 +397,30 @@ module {
     companyId : CompanyId,
     input : MasterTypes.CreateAbsenceTypeInput,
   ) : MasterTypes.AbsenceType {
+    // Sichtbarkeits-Defaults: Ferien = vollständig sichtbar; alle anderen = masked_reason
+    let defaultVisibility : MasterTypes.AbsenceTypeVisibility = if (input.name == "Ferien") {
+      {
+        visibleInCompanyCalendar = true;
+        visibilityMode = #full;
+        visibleForRoles = ["all"];
+        companyCalendarDisplayName = null;
+        companyCalendarColor = ?"#16a34a"; // grün für Ferien
+        showEmployeeName = true;
+        showAbsenceTypeName = true;
+        showComment = false;
+      }
+    } else {
+      {
+        visibleInCompanyCalendar = true;
+        visibilityMode = #masked_reason;
+        visibleForRoles = ["all"];
+        companyCalendarDisplayName = ?"Nicht verfügbar";
+        companyCalendarColor = null;
+        showEmployeeName = true;
+        showAbsenceTypeName = false;
+        showComment = false;
+      }
+    };
     let at : MasterTypes.AbsenceType = {
       id = nextId;
       companyId;
@@ -402,6 +428,7 @@ module {
       requiresApproval = input.requiresApproval;
       compensated = input.compensated;
       aktiv = switch (input.aktiv) { case (?v) v; case null true };
+      visibility = switch (input.visibility) { case (?v) ?v; case null ?defaultVisibility };
     };
     absenceTypes.add(at);
     at;
@@ -409,7 +436,7 @@ module {
 
   // Prüft ob eine AbsenceType der systemverwaltete 'Ferien'-Typ ist (unveränderlich / undeletable)
   public func isFerienType(at : MasterTypes.AbsenceType) : Bool {
-    at.name == "Ferien" or (at.requiresApproval and at.compensated)
+    at.name == "Ferien"
   };
 
   public func updateAbsenceType(
@@ -422,9 +449,10 @@ module {
     absenceTypes.mapInPlace(func(a) {
       if (a.id == absenceTypeId and a.companyId == companyId) {
         let updated : MasterTypes.AbsenceType = if (isFerienType(a)) {
-          // Ferien-Typ: nur requiresApproval darf geändert werden; alle anderen Werte unveränderlich
+          // Ferien-Typ: nur requiresApproval und visibility dürfen geändert werden
           { a with
             requiresApproval = switch (input.requiresApproval) { case (?v) v; case null a.requiresApproval };
+            visibility = switch (input.visibility) { case (?v) ?v; case null a.visibility };
           }
         } else {
           { a with
@@ -432,6 +460,7 @@ module {
             requiresApproval = switch (input.requiresApproval) { case (?v) v; case null a.requiresApproval };
             compensated = switch (input.compensated) { case (?v) v; case null a.compensated };
             aktiv = switch (input.aktiv) { case (?v) v; case null a.aktiv };
+            visibility = switch (input.visibility) { case (?v) ?v; case null a.visibility };
           }
         };
         result := ?updated;

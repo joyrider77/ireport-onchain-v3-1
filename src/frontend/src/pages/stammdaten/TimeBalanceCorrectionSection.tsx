@@ -27,6 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateDE } from "@/lib/dateFormat";
+import { nanosToLocalIsoDate } from "@/lib/employmentUtils";
 import { useActor as useActorCore } from "@caffeineai/core-infrastructure";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock, Pencil, Plus, Trash2 } from "lucide-react";
@@ -36,8 +37,10 @@ import { createActor } from "../../backend";
 import type {
   CreateTimeBalanceCorrectionInput,
   EmployeeId,
+  Employment,
   TimeBalanceCorrection,
   UpdateTimeBalanceCorrectionInput,
+  WorkTimeBalance,
   backendInterface,
 } from "../../backend.d";
 import { Variant_gutschrift_reduktion } from "../../backend.d";
@@ -49,6 +52,7 @@ import {
 } from "./shared";
 
 type AnyActor = backendInterface;
+type GenericActor = Record<string, (...args: unknown[]) => Promise<unknown>>;
 function useTypedActor() {
   const { actor, isFetching } = useActorCore(createActor);
   return { actor: actor ? (actor as unknown as AnyActor) : null, isFetching };
@@ -87,6 +91,7 @@ interface Props {
 
 export function TimeBalanceCorrectionSection({ employeeId, canWrite }: Props) {
   const { actor, isFetching } = useTypedActor();
+  const genericActor = actor ? (actor as unknown as GenericActor) : null;
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editItem, setEditItem] = useState<TimeBalanceCorrection | null>(null);
@@ -95,7 +100,7 @@ export function TimeBalanceCorrectionSection({ employeeId, canWrite }: Props) {
     useState<TimeBalanceCorrection | null>(null);
 
   const correctionQueryKey = ["timeBalanceCorrections", String(employeeId)];
-  const balanceQueryKey = ["timeBalance", String(employeeId)];
+  const workBalanceQueryKey = ["realWorkTimeBalance", String(employeeId)];
 
   const { data: corrections = [], isLoading } = useQuery<
     TimeBalanceCorrection[]
@@ -110,15 +115,62 @@ export function TimeBalanceCorrectionSection({ employeeId, canWrite }: Props) {
     enabled: !!actor && !isFetching,
   });
 
-  const { data: timeBalance } = useQuery<bigint | null>({
-    queryKey: balanceQueryKey,
+  // Fetch employments to find the earliest start date for work time balance
+  const { data: employments = [] } = useQuery<Employment[]>({
+    queryKey: ["employments-tbc", String(employeeId)],
     queryFn: async () => {
-      if (!actor) return null;
-      const res = await actor.getTimeBalance(employeeId);
-      if (res.__kind__ === "err") return null;
-      return res.ok;
+      if (!genericActor) return [];
+      try {
+        const res = (await genericActor.listEmployments(employeeId)) as {
+          __kind__: string;
+          ok?: Employment[];
+        };
+        return res.__kind__ === "ok" ? (res.ok ?? []) : [];
+      } catch {
+        return [];
+      }
     },
-    enabled: !!actor && !isFetching,
+    enabled: !!genericActor && !isFetching,
+    staleTime: 60_000,
+  });
+
+  // Find earliest employment start date
+  const employmentStartDate = (() => {
+    if (employments.length === 0) return null;
+    const valid = employments.filter((e) => {
+      if (!e.von || e.von <= 0n) return false;
+      const ms = Number(e.von) * 1000;
+      const year = new Date(ms).getFullYear();
+      return year >= 2000 && year <= 2100;
+    });
+    if (valid.length === 0) return null;
+    const earliest = valid.reduce((min, e) => (e.von < min.von ? e : min));
+    return nanosToLocalIsoDate(earliest.von);
+  })();
+
+  // Today as ISO string
+  const todayIso = new Date().toLocaleDateString("en-CA", {
+    timeZone: "Europe/Zurich",
+  });
+
+  // Fetch the real work time balance (saldo includes corrections)
+  const { data: workTimeBalance } = useQuery<WorkTimeBalance | null>({
+    queryKey: [...workBalanceQueryKey, employmentStartDate, todayIso],
+    queryFn: async () => {
+      if (!genericActor || !employmentStartDate) return null;
+      try {
+        const res = (await genericActor.getEmployeeWorkTimeBalance(
+          employeeId,
+          employmentStartDate,
+          todayIso,
+        )) as { __kind__: string; ok?: WorkTimeBalance };
+        return res.__kind__ === "ok" ? (res.ok ?? null) : null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!genericActor && !isFetching && !!employmentStartDate,
+    staleTime: 30_000,
   });
 
   const saveMutation = useMutation({
@@ -159,7 +211,7 @@ export function TimeBalanceCorrectionSection({ employeeId, canWrite }: Props) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: correctionQueryKey });
-      qc.invalidateQueries({ queryKey: balanceQueryKey });
+      qc.invalidateQueries({ queryKey: workBalanceQueryKey });
       toast.success(
         editItem
           ? "Zeitsaldokorrektur aktualisiert"
@@ -178,7 +230,7 @@ export function TimeBalanceCorrectionSection({ employeeId, canWrite }: Props) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: correctionQueryKey });
-      qc.invalidateQueries({ queryKey: balanceQueryKey });
+      qc.invalidateQueries({ queryKey: workBalanceQueryKey });
       toast.success("Zeitsaldokorrektur gelöscht");
       setDeleteTarget(null);
     },
@@ -201,7 +253,13 @@ export function TimeBalanceCorrectionSection({ employeeId, canWrite }: Props) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  const balanceMinutes = timeBalance ? Number(timeBalance) : null;
+  // Compute display balance in minutes from workTimeBalance (saldo = Ist - Soll)
+  // This already includes all corrections since backend incorporates them.
+  const balanceMinutes =
+    workTimeBalance != null ? Number(workTimeBalance.saldo) : null;
+  const balanceIsPositive = balanceMinutes != null && balanceMinutes > 0;
+  const balanceIsNegative = balanceMinutes != null && balanceMinutes < 0;
+  const isLoadingBalance = workTimeBalance === undefined;
 
   return (
     <div className="space-y-4">
@@ -210,13 +268,27 @@ export function TimeBalanceCorrectionSection({ employeeId, canWrite }: Props) {
         <Clock className="w-5 h-5 text-primary shrink-0" />
         <div>
           <p className="text-xs text-muted-foreground">Aktueller Zeitsaldo</p>
-          <p className="text-xl font-semibold font-mono">
-            {balanceMinutes === null ? (
+          <p
+            className={`text-xl font-semibold font-mono ${
+              balanceIsNegative
+                ? "text-red-700"
+                : balanceIsPositive
+                  ? "text-emerald-700"
+                  : "text-foreground"
+            }`}
+          >
+            {isLoadingBalance || balanceMinutes === null ? (
               <Skeleton className="h-7 w-24 inline-block" />
             ) : (
-              minutesToHhhMm(balanceMinutes)
+              `${balanceIsPositive ? "+" : balanceIsNegative ? "−" : ""}${minutesToHhhMm(Math.abs(balanceMinutes))}`
             )}
           </p>
+          {!isLoadingBalance && employmentStartDate && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Kumuliert ab {employmentStartDate.split("-").reverse().join(".")}{" "}
+              bis heute
+            </p>
+          )}
         </div>
       </div>
 

@@ -69,6 +69,10 @@ module {
       taxId = null;
       address = null;
       createdAt = Time.now();
+      mwstNummer = null;
+      kontoInhaber = null;
+      kontoAdresse = null;
+      isActive = true;
     };
     companies.add(company);
     principalToCompany.add(caller, nextId);
@@ -90,6 +94,9 @@ module {
           logoUrl = switch (input.logoUrl) { case (?l) ?l; case null c.logoUrl };
           taxId = switch (input.taxId) { case (?t) ?t; case null c.taxId };
           address = switch (input.address) { case (?a) ?a; case null c.address };
+          mwstNummer = switch (input.mwstNummer) { case (?v) ?v; case null c.mwstNummer };
+          kontoInhaber = switch (input.kontoInhaber) { case (?v) ?v; case null c.kontoInhaber };
+          kontoAdresse = switch (input.kontoAdresse) { case (?v) ?v; case null c.kontoAdresse };
         };
         result := ?updated;
         updated;
@@ -125,6 +132,8 @@ module {
       startDate = input.startDate;
       weeklyHoursTarget = input.weeklyHoursTarget;
       active = true;
+      activatedAt = ?Time.now();
+      deactivatedAt = null;
       geburtsdatum = input.geburtsdatum;
       adresseZusatz1 = input.adresseZusatz1;
       adresseZusatz2 = input.adresseZusatz2;
@@ -148,6 +157,11 @@ module {
     var result : ?Employee = null;
     employees.mapInPlace(func(e) {
       if (e.id == employeeId and e.companyId == companyId) {
+        let newActive = switch (input.active) { case (?v) v; case null e.active };
+        // Timestamps für Aktivierung/Deaktivierung aktualisieren
+        // Bei Reaktivierung (false→true): deactivatedAt löschen (null setzen)
+        let newActivatedAt : ?Int = if (newActive and not e.active) { ?Time.now() } else { e.activatedAt };
+        let newDeactivatedAt : ?Int = if (not newActive and e.active) { ?Time.now() } else if (newActive and not e.active) { null } else { e.deactivatedAt };
         let updated : Employee = {
           e with
           firstName = switch (input.firstName) { case (?v) v; case null e.firstName };
@@ -157,7 +171,9 @@ module {
           employmentType = switch (input.employmentType) { case (?v) v; case null e.employmentType };
           startDate = switch (input.startDate) { case (?v) v; case null e.startDate };
           weeklyHoursTarget = switch (input.weeklyHoursTarget) { case (?v) v; case null e.weeklyHoursTarget };
-          active = switch (input.active) { case (?v) v; case null e.active };
+          active = newActive;
+          activatedAt = newActivatedAt;
+          deactivatedAt = newDeactivatedAt;
           geburtsdatum = switch (input.geburtsdatum) { case (?v) ?v; case null e.geburtsdatum };
           adresseZusatz1 = switch (input.adresseZusatz1) { case (?v) ?v; case null e.adresseZusatz1 };
           adresseZusatz2 = switch (input.adresseZusatz2) { case (?v) ?v; case null e.adresseZusatz2 };
@@ -184,7 +200,7 @@ module {
     employees.mapInPlace(func(e) {
       if (e.id == employeeId and e.companyId == companyId) {
         found := true;
-        { e with active = false };
+        { e with active = false; deactivatedAt = ?Time.now() };
       } else { e };
     });
     found;
@@ -290,6 +306,21 @@ module {
 
   // ─── Beschäftigungen ────────────────────────────────────────────────────────
 
+  // Prüft ob zwei Zeiträume [vonA, bisA] und [vonB, bisB] sich überlappen.
+  // null bedeutet "offen" (kein Enddatum = unendlich).
+  // Normaliert Timestamps auf Nanosekunden.
+  private func employmentsOverlap(
+    vonA : Int, bisA : ?Int,
+    vonB : Int, bisB : ?Int,
+  ) : Bool {
+    let startA = normalizeToNs(vonA);
+    let endA   = switch (bisA) { case null { 9_999_999_999_999_999_999 }; case (?b) { normalizeToNs(b) } };
+    let startB = normalizeToNs(vonB);
+    let endB   = switch (bisB) { case null { 9_999_999_999_999_999_999 }; case (?b) { normalizeToNs(b) } };
+    // Überlappung: A startet vor Ende von B UND B startet vor Ende von A
+    startA <= endB and startB <= endA;
+  };
+
   // Erstellt eine Beschäftigung; nur eine darf ohne Bis-Datum sein
   public func createEmployment(
     employments : List.List<Employment>,
@@ -306,6 +337,19 @@ module {
       if (hasOpen) {
         return #err("Es existiert bereits eine offene Beschäftigung (ohne Bis-Datum) für diesen Mitarbeiter.");
       };
+    };
+    // Überlappungsprüfung mit bestehenden Beschäftigungen
+    let overlapping = employments.find(func(em) {
+      if (em.employeeId != employeeId or em.companyId != companyId) return false;
+      employmentsOverlap(input.von, input.bis, em.von, em.bis);
+    });
+    switch (overlapping) {
+      case (?existing) {
+        let vonText = nsToDateDisplay(existing.von);
+        let bisText = switch (existing.bis) { case null { "offen" }; case (?b) { nsToDateDisplay(b) } };
+        return #err("Der Zeitraum überschneidet sich mit einer bestehenden Beschäftigung vom " # vonText # " bis " # bisText # ".");
+      };
+      case null {};
     };
     let emp : Employment = {
       id;
@@ -336,9 +380,19 @@ module {
     employmentId : Text,
     input : CompanyTypes.UpdateEmploymentInput,
   ) : { #ok : Employment; #err : Text } {
+    // Aktuelle Beschäftigung finden, um von/bis zu ermitteln
+    let currentOpt = employments.find(func(em) {
+      em.id == employmentId and em.employeeId == employeeId and em.companyId == companyId
+    });
+    let current = switch (currentOpt) {
+      case null { return #err("Beschäftigung nicht gefunden") };
+      case (?em) em;
+    };
+
+    let newVon = switch (input.von) { case (?v) v; case null current.von };
+    let newBis = switch (input.bis) { case (?v) ?v; case null current.bis };
+
     // Prüfen ob die neue Konfiguration die Bis-Datum-Regel verletzt
-    let newBis = input.bis;
-    // Wenn bis auf null gesetzt wird, prüfen ob schon eine andere offene existiert
     switch (newBis) {
       case null {
         let hasOtherOpen = employments.any(func(em) {
@@ -351,14 +405,30 @@ module {
       };
       case _ {};
     };
+
+    // Überlappungsprüfung: alle anderen Beschäftigungen des Mitarbeiters prüfen (aktuellen Eintrag ausschliessen)
+    let overlapping = employments.find(func(em) {
+      if (em.employeeId != employeeId or em.companyId != companyId) return false;
+      if (em.id == employmentId) return false; // Aktuellen Eintrag ausschliessen
+      employmentsOverlap(newVon, newBis, em.von, em.bis);
+    });
+    switch (overlapping) {
+      case (?existing) {
+        let vonText = nsToDateDisplay(existing.von);
+        let bisText = switch (existing.bis) { case null { "offen" }; case (?b) { nsToDateDisplay(b) } };
+        return #err("Der Zeitraum überschneidet sich mit einer bestehenden Beschäftigung vom " # vonText # " bis " # bisText # ".");
+      };
+      case null {};
+    };
+
     var result : ?Employment = null;
     employments.mapInPlace(func(em) {
       if (em.id == employmentId and em.employeeId == employeeId and em.companyId == companyId) {
         let updated : Employment = {
           em with
           funktion = switch (input.funktion) { case (?v) v; case null em.funktion };
-          von = switch (input.von) { case (?v) v; case null em.von };
-          bis = switch (input.bis) { case (?v) ?v; case null em.bis };
+          von = newVon;
+          bis = newBis;
           feiertagsberechnungsart = switch (input.feiertagsberechnungsart) { case (?v) v; case null em.feiertagsberechnungsart };
           pensum = input.pensum;
           stundenMo = input.stundenMo;
@@ -613,6 +683,20 @@ module {
     }).toArray();
   };
 
+  // Hilfsfunktion (öffentlich): Nanosekunden-Timestamp → Datum "TT.MM.JJJJ"
+  // Unterstützt Sekunden, Millisekunden und Nanosekunden (via normalizeToNs).
+  public func nsToDateDisplay(ns : Int) : Text {
+    let nsPerDay : Int = 86_400_000_000_000;
+    let normalized = normalizeToNs(ns);
+    let days = normalized / nsPerDay;
+    let dateText = unixDaysToDateText(days); // "YYYY-MM-DD"
+    // Umwandlung von "YYYY-MM-DD" zu "TT.MM.JJJJ"
+    let parts = dateText.split(#char '-');
+    let arr = parts.toArray();
+    if (arr.size() < 3) { return dateText };
+    arr[2] # "." # arr[1] # "." # arr[0];
+  };
+
   // Berechnet den Gleitzeitkonto-Saldo aus allen Korrekturen (in Minuten)
   // Gutschrift addiert, Reduktion subtrahiert
   public func getTimeBalance(
@@ -818,44 +902,52 @@ module {
           let dateStr = unixDaysToDateText(d);
           let holidayOpt = companyHolidays.find(func(h) { h.date == dateStr });
 
-          let targetMinutes : Int = switch (holidayOpt) {
-            case null { baseMinutes };
+          // Soll-Stunden: Feiertage werden IMMER als normale Arbeitstage gezählt (baseMinutes).
+          // Ein Feiertag reduziert die Soll-Zeit NICHT – er zählt sowohl als Soll- als auch
+          // als Ist-Tag (je nach feiertagsberechnungsart wird eine Ist-Gutschrift berechnet).
+          // Korrekte Logik: Soll = baseMinutes für alle Tage inkl. Feiertage.
+          sollStunden += baseMinutes;
+
+          // Feiertags-Ist-Gutschrift gemäss feiertagsberechnungsart berechnen
+          switch (holidayOpt) {
+            case null {}; // Kein Feiertag → keine Gutschrift
             case (?holiday) {
               // ganztaegig=true → voller Feiertag; ganztaegig=false → halbtägig
               let holidayFactor : Float = if (holiday.ganztaegig) { 1.0 } else { 0.5 };
               switch (emp.feiertagsberechnungsart) {
-                case (#exakt) {
-                  // Soll = 0; Ist-Stunden-Gutschrift für den Feiertag (ganztägig oder halbtägig)
-                  let credit = (baseMinutes.toFloat() * holidayFactor).toInt();
-                  holidayIstStunden += credit;
-                  0;
+                case (#keineGutschrift) {
+                  // Keine Ist-Gutschrift für Feiertage.
+                  // Soll bleibt erhalten → Saldo wird negativ (der Tag zählt als fehlend).
                 };
-                case (#exaktWochentag) {
-                  // Nur wenn der Feiertag auf einen Arbeitstag fällt
-                  if (baseMinutes > 0) {
-                    let credit = (baseMinutes.toFloat() * holidayFactor).toInt();
+                case (#wochentag_sollzeit) {
+                  // Ist-Gutschrift = Sollzeit des betroffenen Wochentags.
+                  // Beispiel: Freitag-Sollzeit 6:00, Feiertag auf Freitag → Gutschrift 6:00.
+                  let weekdaySollMinutes : Int = dailyTargetMinutes(emp, weekday).toInt();
+                  let credit = (weekdaySollMinutes.toFloat() * holidayFactor).toInt();
+                  holidayIstStunden += credit;
+                };
+                case (#durchschnittssoll) {
+                  // Ist-Gutschrift = Durchschnittssoll (Wochen-Sollzeit / Anzahl Soll-Arbeitstage).
+                  // Beispiel: 40:00 Wochen-Soll / 5 Tage = Gutschrift 8:00 (unabhängig vom Wochentag).
+                  let weeklyTotal : Int = (emp.stundenMo + emp.stundenDi + emp.stundenMi
+                    + emp.stundenDo + emp.stundenFr + emp.stundenSa + emp.stundenSo).toInt();
+                  let workingDays : Int =
+                    (if (emp.stundenMo > 0) 1 else 0) +
+                    (if (emp.stundenDi > 0) 1 else 0) +
+                    (if (emp.stundenMi > 0) 1 else 0) +
+                    (if (emp.stundenDo > 0) 1 else 0) +
+                    (if (emp.stundenFr > 0) 1 else 0) +
+                    (if (emp.stundenSa > 0) 1 else 0) +
+                    (if (emp.stundenSo > 0) 1 else 0);
+                  if (workingDays > 0) {
+                    let avgDailySoll : Float = weeklyTotal.toFloat() / workingDays.toFloat();
+                    let credit = (avgDailySoll * holidayFactor).toInt();
                     holidayIstStunden += credit;
-                    0;
-                  } else { baseMinutes };
-                };
-                case (#prozentual) {
-                  // Soll reduziert um Pensum% (und Ganztägig/Halbtägig-Faktor)
-                  let reduced = baseMinutes.toFloat() * holidayFactor * (1.0 - emp.pensum / 100.0);
-                  // Gutschrift: die freigestellten Stunden
-                  let credit = (baseMinutes.toFloat() * holidayFactor * emp.pensum / 100.0).toInt();
-                  holidayIstStunden += credit;
-                  reduced.toInt();
-                };
-                case (#entschaedigt) {
-                  // Feiertag bezahlt, Soll unverändert – aber Ist-Stunden werden gutgeschrieben
-                  let credit = (baseMinutes.toFloat() * holidayFactor).toInt();
-                  holidayIstStunden += credit;
-                  baseMinutes;
+                  };
                 };
               };
             };
           };
-          sollStunden += targetMinutes;
         };
       };
       d += 1;
@@ -943,9 +1035,18 @@ module {
   };
 
   // Hilfsfunktion: Nanosekunden-Timestamp → Datum-Text "YYYY-MM-DD"
+  // Normalisiert den Timestamp zuerst auf Nanosekunden (unterstützt Sekunden, Millisekunden, Nanosekunden)
   private func wirkungsdatumToDateText(nsTimestamp : Int) : Text {
     let nsPerDay : Int = 86_400_000_000_000;
-    let days = nsTimestamp / nsPerDay;
+    // Normalisierung: wirkungsdatum kann in Sekunden, Millisekunden oder Nanosekunden gespeichert sein
+    let normalizedNs : Int = if (nsTimestamp < 5_000_000_000) {
+      nsTimestamp * 1_000_000_000; // Sekunden → Nanosekunden
+    } else if (nsTimestamp < 10_000_000_000_000_000) {
+      nsTimestamp * 1_000_000; // Millisekunden → Nanosekunden
+    } else {
+      nsTimestamp; // Bereits Nanosekunden
+    };
+    let days = normalizedNs / nsPerDay;
     unixDaysToDateText(days);
   };
 

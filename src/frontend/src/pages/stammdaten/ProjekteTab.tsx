@@ -33,14 +33,14 @@ import { Pencil, Plus, Trash2, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { createActor } from "../../backend";
-import {
-  type Customer,
-  type Employee,
-  Erfassungsart,
-  type Project,
-  type ProjectMemberAssignment,
-  type ProjectStatus,
-  type ServiceType,
+import { Erfassungsart, type Result_31 } from "../../backend.d";
+import type {
+  Customer,
+  Employee,
+  Project,
+  ProjectMemberAssignment,
+  ProjectStatus,
+  ServiceType,
 } from "../../backend.d";
 
 type AnyActor = Record<string, (...args: unknown[]) => Promise<unknown>>;
@@ -65,6 +65,7 @@ interface MemberRow {
   employeeId: string;
   serviceTypeId: string;
   stundensatz: number;
+  kostendachCHF: string;
 }
 
 let _memberKeyCounter = 0;
@@ -73,6 +74,7 @@ const newMemberRow = (): MemberRow => ({
   employeeId: "",
   serviceTypeId: "",
   stundensatz: 0,
+  kostendachCHF: "",
 });
 
 interface ProjectForm {
@@ -85,6 +87,7 @@ interface ProjectForm {
   billableRate: number;
   active: boolean;
   erfassungsart: "dauer" | "zeitBlock";
+  kostendachCHF: string;
 }
 
 const defaultForm: ProjectForm = {
@@ -97,6 +100,7 @@ const defaultForm: ProjectForm = {
   billableRate: 0,
   active: true,
   erfassungsart: "dauer",
+  kostendachCHF: "",
 };
 
 export function ProjekteTab() {
@@ -110,6 +114,8 @@ export function ProjekteTab() {
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [form, setForm] = useState<ProjectForm>(defaultForm);
   const [members, setMembers] = useState<MemberRow[]>([]);
+  const [aufwendungen, setAufwendungen] = useState<number | null>(null);
+  const [aufwendungenLoading, setAufwendungenLoading] = useState(false);
   const [errors, setErrors] = useState<
     Partial<Record<keyof ProjectForm, string>>
   >({});
@@ -161,6 +167,10 @@ export function ProjekteTab() {
     mutationFn: async () => {
       if (!actor) throw new Error("Kein Actor");
 
+      const kostendachVal = form.kostendachCHF.trim()
+        ? Number.parseFloat(form.kostendachCHF.replace(/'/g, ""))
+        : undefined;
+
       const baseInput = {
         code: form.code,
         kurzbezeichnung: form.kurzbezeichnung,
@@ -176,6 +186,7 @@ export function ProjekteTab() {
           form.erfassungsart === "zeitBlock"
             ? Erfassungsart.zeitBlock
             : Erfassungsart.dauer,
+        kostendachCHF: kostendachVal,
       };
 
       let projectId: bigint;
@@ -200,6 +211,9 @@ export function ProjekteTab() {
           employeeId: BigInt(m.employeeId),
           serviceTypeId: BigInt(m.serviceTypeId),
           stundensatz: m.stundensatz,
+          kostendachCHF: m.kostendachCHF.trim()
+            ? Number.parseFloat(m.kostendachCHF.replace(/'/g, ""))
+            : undefined,
         }));
 
       const membRes = await toAny(actor).setProjectMembers(
@@ -246,6 +260,7 @@ export function ProjekteTab() {
     setEditItem(null);
     setForm(defaultForm);
     setMembers([]);
+    setAufwendungen(null);
     setErrors({});
     setDialogOpen(true);
   }
@@ -263,10 +278,13 @@ export function ProjekteTab() {
       active: p.active,
       erfassungsart:
         p.erfassungsart === Erfassungsart.zeitBlock ? "zeitBlock" : "dauer",
+      kostendachCHF: p.kostendachCHF != null ? String(p.kostendachCHF) : "",
     });
+    setAufwendungen(null);
     setErrors({});
 
     if (actor) {
+      // Load members
       try {
         const res = await toAny(actor).getProjectMembers(p.id);
         const r = res as { __kind__: string; ok?: ProjectMemberAssignment[] };
@@ -276,6 +294,8 @@ export function ProjekteTab() {
               employeeId: String(m.employeeId),
               serviceTypeId: String(m.serviceTypeId),
               stundensatz: m.stundensatz,
+              kostendachCHF:
+                m.kostendachCHF != null ? String(m.kostendachCHF) : "",
               _key: ++_memberKeyCounter,
             })),
           );
@@ -284,6 +304,21 @@ export function ProjekteTab() {
         }
       } catch {
         setMembers([]);
+      }
+
+      // Load Aufwendungen
+      setAufwendungenLoading(true);
+      try {
+        const aufRes = (await actor.getProjectAufwendungen(p.id)) as Result_31;
+        if (aufRes.__kind__ === "ok") {
+          setAufwendungen(aufRes.ok);
+        } else {
+          setAufwendungen(null);
+        }
+      } catch {
+        setAufwendungen(null);
+      } finally {
+        setAufwendungenLoading(false);
       }
     }
 
@@ -464,34 +499,18 @@ export function ProjekteTab() {
               </div>
             </div>
 
-            {/* Row 2: Code + Stundensatz */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="pcode">Code *</Label>
-                <Input
-                  id="pcode"
-                  data-ocid="projekte-code"
-                  value={form.code}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
-                />
-                {errors.code && (
-                  <p className="text-xs text-destructive">{errors.code}</p>
-                )}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="prate">Standard-Stundensatz (CHF)</Label>
-                <Input
-                  id="prate"
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  data-ocid="projekte-rate"
-                  value={form.billableRate}
-                  onChange={(e) =>
-                    setForm({ ...form, billableRate: Number(e.target.value) })
-                  }
-                />
-              </div>
+            {/* Row 2: Code */}
+            <div className="space-y-1">
+              <Label htmlFor="pcode">Code *</Label>
+              <Input
+                id="pcode"
+                data-ocid="projekte-code"
+                value={form.code}
+                onChange={(e) => setForm({ ...form, code: e.target.value })}
+              />
+              {errors.code && (
+                <p className="text-xs text-destructive">{errors.code}</p>
+              )}
             </div>
 
             {/* Row 3: Kunde */}
@@ -594,6 +613,48 @@ export function ProjekteTab() {
               </p>
             </div>
 
+            {/* Row 6: Budget */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="pkostendach">Kostendach (CHF)</Label>
+                <Input
+                  id="pkostendach"
+                  data-ocid="projekte-kostendach"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  placeholder="0.00"
+                  value={form.kostendachCHF}
+                  onChange={(e) =>
+                    setForm({ ...form, kostendachCHF: e.target.value })
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  Gesamtbudget des Projekts in CHF
+                </p>
+              </div>
+              {editItem && (
+                <div className="space-y-1">
+                  <Label>Aufwendungen (CHF)</Label>
+                  <div
+                    data-ocid="projekte-aufwendungen"
+                    className="flex h-9 items-center rounded-md border border-input bg-muted/30 px-3 text-sm font-mono"
+                  >
+                    {aufwendungenLoading
+                      ? "Wird berechnet…"
+                      : aufwendungen != null
+                        ? aufwendungen
+                            .toFixed(2)
+                            .replace(/\B(?=(\d{3})+(?!\d))/g, "'")
+                        : "–"}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Summe verrechenbarer Leistungen (berechnet)
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Mitarbeiter-Zuordnung */}
             <Separator />
             <div className="space-y-3">
@@ -630,8 +691,11 @@ export function ProjekteTab() {
                       <TableRow className="bg-muted/20">
                         <TableHead>Mitarbeiter</TableHead>
                         <TableHead>Leistungsart</TableHead>
-                        <TableHead className="w-32 text-right">
+                        <TableHead className="w-28 text-right">
                           Stundensatz (CHF)
+                        </TableHead>
+                        <TableHead className="w-28 text-right">
+                          Kostendach (CHF)
                         </TableHead>
                         <TableHead className="w-10" />
                       </TableRow>
@@ -667,9 +731,19 @@ export function ProjekteTab() {
                           <TableCell className="py-1.5">
                             <Select
                               value={m.serviceTypeId}
-                              onValueChange={(v) =>
-                                updateMember(i, { serviceTypeId: v })
-                              }
+                              onValueChange={(v) => {
+                                const st = serviceTypes.find(
+                                  (s) => String(s.id) === v,
+                                );
+                                updateMember(i, {
+                                  serviceTypeId: v,
+                                  // Prefill stundensatz from ServiceType.defaultRate, but only if user hasn't manually overridden it (i.e., still 0)
+                                  stundensatz:
+                                    m.stundensatz === 0 && st
+                                      ? st.defaultRate
+                                      : m.stundensatz,
+                                });
+                              }}
                             >
                               <SelectTrigger
                                 className="h-8 text-xs"
@@ -700,6 +774,22 @@ export function ProjekteTab() {
                               onChange={(e) =>
                                 updateMember(i, {
                                   stundensatz: Number(e.target.value),
+                                })
+                              }
+                            />
+                          </TableCell>
+                          <TableCell className="py-1.5">
+                            <Input
+                              type="number"
+                              min={0}
+                              step={0.01}
+                              placeholder="0.00"
+                              className="h-8 text-xs text-right"
+                              value={m.kostendachCHF}
+                              data-ocid="projekte-member-kostendach"
+                              onChange={(e) =>
+                                updateMember(i, {
+                                  kostendachCHF: e.target.value,
                                 })
                               }
                             />

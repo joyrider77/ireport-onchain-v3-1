@@ -127,7 +127,7 @@ const PRICING = [
     tier: "Professional",
     desc: "Ab 2 Mitarbeitende",
     price: "CHF 6.00",
-    priceNote: "pro Mitarbeiter / Jahr im Jahres-Abonnement",
+    priceNote: "pro Mitarbeiter / Monat im Jahres-Abonnement",
     priceExtra: "CHF 7.00 pro Mitarbeiter / Monat im Monats-Abonnement",
     highlight: true,
     features: [
@@ -161,7 +161,7 @@ const FAQS = [
   {
     id: "faq-kosten",
     q: "Was kostet iReport?",
-    a: "Die Basisversion ist kostenlos und für Teams bis 2 Mitarbeitende geeignet. Die Professional-Version kostet CHF 6.00 pro Mitarbeiter im Jahres-Abonnement oder CHF 7.00 pro Mitarbeiter im Monats-Abonnement.",
+    a: "Die Basisversion ist kostenlos und für Teams bis 2 Mitarbeitende geeignet. Die Professional-Version kostet CHF 6.00 pro Mitarbeiter / Monat im Jahres-Abonnement oder CHF 7.00 pro Mitarbeiter / Monat im Monats-Abonnement.",
   },
   {
     id: "faq-start",
@@ -227,7 +227,7 @@ function LandingNav({
               src="/assets/logo_transparent.png"
               alt="iReport"
               className="w-auto"
-              style={{ height: "72px", display: "block" }}
+              style={{ height: "108px", display: "block" }}
             />
           </a>
 
@@ -1184,7 +1184,7 @@ function LandingFooter() {
             style={{ height: "135px", width: "auto", marginBottom: "4px" }}
           />
           <p className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>
-            © {year} iServices AG · Schuppisstrasse 2 · 8050 Zürich
+            © {year} iServices AG · Schuppisstrasse 2 · 8057 Zürich
           </p>
         </div>
         <div className="flex items-center gap-6">

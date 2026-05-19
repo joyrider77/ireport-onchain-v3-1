@@ -1,72 +1,64 @@
-// Migration:
-//   1. inviteToEmployee Map<Text, EmployeeId> → Map<Text, InviteEntry>
-//      Existing codes receive a far-future expiresAt so they remain valid after upgrade.
-//   2. companySettings CompanySettings (without allowExpiredVacationBalance)
-//      → CompanySettings (with allowExpiredVacationBalance defaulting to false)
-import Map "mo:core/Map";
-import Nat "mo:core/Nat";
-import CommonTypes "types/common";
+// Migration: VacationLedger – calendarYearKey hinzugefügt
+// Altes VacationLedger hatte kein calendarYearKey-Feld.
+// Neues VacationLedger enthält calendarYearKey (4-stelliges Jahr als Text).
+// Migration: calendarYearKey = serviceYearKey (serviceYearKey wurde bereits als Jahr-String gesetzt).
+import List "mo:core/List";
 
 module {
-  // --- Old types (inline, as deployed before this upgrade) ---
-  type OldEmployeeId = Nat;
 
-  type OldCompanySettings = {
-    companyId : CommonTypes.CompanyId;
-    emailNewVacationRequest : Bool;
-    emailOnApproval : Bool;
-    vacationCarryoverDays : Nat;
-    maxVacationDays : Nat;
-    approvalRequired : Bool;
-    timezone : Text;
+  // Alter VacationLedger-Typ (ohne calendarYearKey)
+  type OldVacationLedger = {
+    id : Nat;
+    employeeId : Nat;
+    companyId : Nat;
+    serviceYearKey : Text;
+    serviceYearStart : Int;
+    serviceYearEnd : Int;
+    gesetzlicheFerientage : Float;
+    vertraglicheZusatzferienTage : Float;
+    geplanteFerientage : Float;
+    bezogeneFerientage : Float;
+    verbleibendeFerientage : Float;
+    laengsterZusammenhangenderBlock : Int;
+    twoWeekBlockSatisfied : Bool;
+    lastUpdatedAt : Int;
   };
 
-  type NewCompanySettings = {
-    companyId : CommonTypes.CompanyId;
-    emailNewVacationRequest : Bool;
-    emailOnApproval : Bool;
-    vacationCarryoverDays : Nat;
-    maxVacationDays : Nat;
-    approvalRequired : Bool;
-    timezone : Text;
-    allowExpiredVacationBalance : Bool;
+  // Neuer VacationLedger-Typ (mit calendarYearKey)
+  type NewVacationLedger = {
+    id : Nat;
+    employeeId : Nat;
+    companyId : Nat;
+    serviceYearKey : Text;
+    calendarYearKey : Text;
+    serviceYearStart : Int;
+    serviceYearEnd : Int;
+    gesetzlicheFerientage : Float;
+    vertraglicheZusatzferienTage : Float;
+    geplanteFerientage : Float;
+    bezogeneFerientage : Float;
+    verbleibendeFerientage : Float;
+    laengsterZusammenhangenderBlock : Int;
+    twoWeekBlockSatisfied : Bool;
+    lastUpdatedAt : Int;
   };
 
   type OldActor = {
-    inviteToEmployee : Map.Map<Text, OldEmployeeId>;
-    companySettings : Map.Map<CommonTypes.CompanyId, OldCompanySettings>;
+    vacationLedgers : List.List<OldVacationLedger>;
   };
 
-  // --- New types ---
   type NewActor = {
-    inviteToEmployee : Map.Map<Text, CommonTypes.InviteEntry>;
-    companySettings : Map.Map<CommonTypes.CompanyId, NewCompanySettings>;
+    vacationLedgers : List.List<NewVacationLedger>;
   };
-
-  // Far-future timestamp: year 2100-01-01 in nanoseconds
-  // = 4102444800 seconds * 1_000_000_000
-  let FAR_FUTURE_NS : CommonTypes.Timestamp = 4_102_444_800_000_000_000;
 
   public func run(old : OldActor) : NewActor {
-    let inviteToEmployee = old.inviteToEmployee.map<Text, OldEmployeeId, CommonTypes.InviteEntry>(
-      func(_code, employeeId) {
-        { employeeId = employeeId; expiresAt = FAR_FUTURE_NS };
+    let vacationLedgers = old.vacationLedgers.map<OldVacationLedger, NewVacationLedger>(
+      func(l) {
+        // serviceYearKey war bereits als Kalenderjahr-String gesetzt (z.B. "2024").
+        // calendarYearKey erhält denselben Wert; leere Strings werden auf "" belassen.
+        { l with calendarYearKey = l.serviceYearKey };
       }
     );
-    let companySettings = old.companySettings.map<CommonTypes.CompanyId, OldCompanySettings, NewCompanySettings>(
-      func(_id, s) {
-        {
-          companyId = s.companyId;
-          emailNewVacationRequest = s.emailNewVacationRequest;
-          emailOnApproval = s.emailOnApproval;
-          vacationCarryoverDays = s.vacationCarryoverDays;
-          maxVacationDays = s.maxVacationDays;
-          approvalRequired = s.approvalRequired;
-          timezone = s.timezone;
-          allowExpiredVacationBalance = false;
-        }
-      }
-    );
-    { inviteToEmployee; companySettings };
+    { vacationLedgers };
   };
 };

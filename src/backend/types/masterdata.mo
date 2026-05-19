@@ -61,6 +61,7 @@ module {
     employeeId : EmployeeId;
     serviceTypeId : ServiceTypeId;
     stundensatz : Float;
+    kostendachCHF : ?Float; // Kostendach in CHF für diesen Mitarbeiter/Leistungsart; null = kein Kostendach
   };
 
   // Projektdaten
@@ -76,6 +77,7 @@ module {
     projektleiter : ?EmployeeId;
     status : ProjectStatus;
     erfassungsart : ?Erfassungsart; // null = #dauer (Rückwärtskompatibilität)
+    kostendachCHF : ?Float; // Kostendach in CHF für das gesamte Projekt; null = kein Kostendach
   };
 
   // Projektzuweisung (Mitarbeiter → Projekt, einfache Zuordnung)
@@ -105,6 +107,28 @@ module {
     aktiv : Bool; // true = aktiv (Standard), false = inaktiv
   };
 
+  // Sichtbarkeitsmodus für den Firmenkalender
+  // full = vollständig sichtbar, masked_reason = Zeitraum+Name sichtbar, Grund maskiert
+  // anonymized = Zeitraum sichtbar, Person anonym, hidden = nicht sichtbar
+  public type CalendarVisibilityMode = {
+    #full;
+    #masked_reason;
+    #anonymized;
+    #hidden;
+  };
+
+  // Sichtbarkeitskonfiguration pro Abwesenheitsart für den Firmenkalender
+  public type AbsenceTypeVisibility = {
+    visibleInCompanyCalendar : Bool;
+    visibilityMode : CalendarVisibilityMode;
+    visibleForRoles : [Text]; // ["all"] | ["admin", "manager"] | ...
+    companyCalendarDisplayName : ?Text;
+    companyCalendarColor : ?Text;
+    showEmployeeName : Bool;
+    showAbsenceTypeName : Bool;
+    showComment : Bool;
+  };
+
   // Abwesenheitsart
   public type AbsenceType = {
     id : AbsenceTypeId;
@@ -113,6 +137,8 @@ module {
     requiresApproval : Bool;
     compensated : Bool; // true = Abwesenheit zählt als Arbeitszeit (entschädigt)
     aktiv : Bool; // true = aktiv (Standard), false = inaktiv
+    // Sichtbarkeit im Firmenkalender (optional – Defaults werden beim Lesen angewendet)
+    visibility : ?AbsenceTypeVisibility;
   };
 
   // Feiertag
@@ -126,8 +152,16 @@ module {
 
   // Einzelner Von/Bis-Zeitblock für einen Wochentag
   public type StandardTimeBlock = {
-    von : Text; // z.B. "08:00"
-    bis : Text; // z.B. "12:00"
+    von : Text;           // z.B. "08:00"
+    bis : Text;           // z.B. "12:00"
+    projektId : ?Nat;     // optional, für Standardarbeitszeit-Vorlage
+    leistungsartId : ?Nat; // optional, für Standardarbeitszeit-Vorlage
+  };
+
+  // Legacy-Typ (vor Migration): nur von/bis
+  public type LegacyStandardTimeBlock = {
+    von : Text;
+    bis : Text;
   };
 
   // Standardarbeitszeiten: mehrere Von/Bis-Blöcke pro Wochentag
@@ -139,6 +173,17 @@ module {
     friday    : [StandardTimeBlock];
     saturday  : [StandardTimeBlock];
     sunday    : [StandardTimeBlock];
+  };
+
+  // Legacy-Standardarbeitszeiten (für Migration)
+  public type LegacyStandardarbeitszeiten = {
+    monday    : [LegacyStandardTimeBlock];
+    tuesday   : [LegacyStandardTimeBlock];
+    wednesday : [LegacyStandardTimeBlock];
+    thursday  : [LegacyStandardTimeBlock];
+    friday    : [LegacyStandardTimeBlock];
+    saturday  : [LegacyStandardTimeBlock];
+    sunday    : [LegacyStandardTimeBlock];
   };
 
   // Eingabe-Typen für CRUD-Operationen
@@ -175,6 +220,7 @@ module {
     projektleiter : ?EmployeeId;
     status : ?ProjectStatus;
     erfassungsart : ?Erfassungsart;
+    kostendachCHF : ?Float; // null = kein Kostendach
   };
 
   public type UpdateProjectInput = {
@@ -187,6 +233,7 @@ module {
     projektleiter : ?EmployeeId;
     status : ?ProjectStatus;
     erfassungsart : ?Erfassungsart;
+    kostendachCHF : ?Float; // null = Wert unverändert lassen; ?(0.0) = Kostendach entfernen nicht möglich, null = kein Update
   };
 
   public type CreateServiceTypeInput = {
@@ -222,6 +269,7 @@ module {
     requiresApproval : Bool;
     compensated : Bool;
     aktiv : ?Bool; // null → true
+    visibility : ?AbsenceTypeVisibility; // null → Defaults je nach Name
   };
 
   public type UpdateAbsenceTypeInput = {
@@ -229,6 +277,7 @@ module {
     requiresApproval : ?Bool;
     compensated : ?Bool;
     aktiv : ?Bool;
+    visibility : ?AbsenceTypeVisibility; // null → keine Änderung
   };
 
   public type CreateHolidayInput = {

@@ -10,6 +10,7 @@ import InviteLinksModule "mo:caffeineai-invite-links/invite-links-module";
 import CommonTypes "../types/common";
 import CompanyTypes "../types/company";
 import CompanyLib "../lib/company";
+import AccessControlLib "../lib/AccessControlLib";
 
 mixin (
   accessControlState : AccessControl.AccessControlState,
@@ -25,18 +26,15 @@ mixin (
   // Maximale Anzahl aktiver Codes pro Firma
   let MAX_ACTIVE_CODES : Nat = 10;
 
-  // Hilfsfunktion: Admin/Manager-Rolle prüfen
+  // Hilfsfunktion: Admin/Manager-Rolle prüfen (delegiert an AccessControlLib)
   private func invRequireAdminOrManager(caller : Principal, companyId : CommonTypes.CompanyId) : () {
-    let empId = switch (principalToEmployee.get(caller)) {
-      case null { Runtime.trap("Mitarbeiter nicht gefunden") };
-      case (?eid) eid;
+    let company = switch (companies.find(func(c : CompanyTypes.Company) : Bool = c.id == companyId)) {
+      case null { Runtime.trap("Firma nicht gefunden") };
+      case (?c) c;
     };
-    let emp = switch (employees.find(func(e) { e.id == empId and e.companyId == companyId })) {
-      case null { Runtime.trap("Mitarbeiter nicht gefunden") };
-      case (?e) e;
-    };
-    if (emp.role != #admin and emp.role != #manager) {
-      Runtime.trap("Keine Berechtigung: Nur Admin oder Manager");
+    switch (AccessControlLib.requireRole(caller, company, [#admin, #manager], principalToEmployee, employees)) {
+      case (#err(msg)) { Runtime.trap(msg) };
+      case (#ok(_)) {};
     };
   };
 
@@ -49,7 +47,7 @@ mixin (
     for ((code, entry) in inviteToEmployee.entries()) {
       if (entry.expiresAt < now) {
         // Prüfen ob dieser Code zur Firma gehört
-        switch (employees.find(func(e) { e.id == entry.employeeId and e.companyId == companyId })) {
+        switch (employees.find(func(e : CompanyTypes.Employee) : Bool = e.id == entry.employeeId and e.companyId == companyId)) {
           case (?_) { toRemove.add(code) };
           case null {};
         };
@@ -66,7 +64,7 @@ mixin (
     var count : Nat = 0;
     for ((_, entry) in inviteToEmployee.entries()) {
       if (entry.expiresAt >= now) {
-        switch (employees.find(func(e) { e.id == entry.employeeId and e.companyId == companyId })) {
+        switch (employees.find(func(e : CompanyTypes.Employee) : Bool = e.id == entry.employeeId and e.companyId == companyId)) {
           case (?_) { count += 1 };
           case null {};
         };
@@ -94,7 +92,7 @@ mixin (
     };
 
     // 3. Prüfen ob Mitarbeiter zur Firma gehört
-    let emp = switch (employees.find(func(e) { e.id == employeeId and e.companyId == companyId })) {
+    let emp = switch (employees.find(func(e : CompanyTypes.Employee) : Bool = e.id == employeeId and e.companyId == companyId)) {
       case null { return #err("Mitarbeiter nicht gefunden") };
       case (?e) e;
     };
@@ -124,7 +122,7 @@ mixin (
       case (?e) e;
     };
     // Firma des Codes ermitteln
-    let ownerEmp = switch (employees.find(func(e) { e.id == entry.employeeId })) {
+    let ownerEmp = switch (employees.find(func(e : CompanyTypes.Employee) : Bool = e.id == entry.employeeId)) {
       case null { return #err("Mitarbeiter nicht gefunden") };
       case (?e) e;
     };
@@ -164,7 +162,7 @@ mixin (
       return #err("Mitarbeiter nicht gefunden");
     };
     // Principal auch mit Firma verknüpfen
-    let emp = switch (employees.find(func(e) { e.id == entry.employeeId })) {
+    let emp = switch (employees.find(func(e : CompanyTypes.Employee) : Bool = e.id == entry.employeeId)) {
       case null { return #err("Mitarbeiter nicht gefunden") };
       case (?e) e;
     };

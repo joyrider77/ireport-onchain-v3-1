@@ -9,13 +9,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -33,7 +26,6 @@ import { ArrowLeft, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { Customer } from "../../backend.d";
-import { KundeZeiterfassungsart } from "../../backend.d";
 import { useActor, useMutation, useQuery, useQueryClient } from "./shared";
 
 // ─── Form State ───────────────────────────────────────────────────────────────
@@ -52,7 +44,6 @@ interface KundeForm {
   ra_ort: string;
   ra_land: string;
   // Tab: Kundeneinstellungen
-  zeiterfassungsart: KundeZeiterfassungsart;
   waehrung: string;
   // Tab: Status
   aktiv: boolean;
@@ -69,7 +60,6 @@ const defaultForm: KundeForm = {
   ra_plz: "",
   ra_ort: "",
   ra_land: "Schweiz",
-  zeiterfassungsart: KundeZeiterfassungsart.stuendlich,
   waehrung: "CHF",
   aktiv: true,
 };
@@ -86,7 +76,6 @@ function customerToForm(c: Customer): KundeForm {
     ra_plz: c.rechnungsadresse?.plz ?? "",
     ra_ort: c.rechnungsadresse?.ort ?? "",
     ra_land: c.rechnungsadresse?.land ?? "Schweiz",
-    zeiterfassungsart: c.zeiterfassungsart ?? KundeZeiterfassungsart.stuendlich,
     waehrung: c.waehrung ?? "CHF",
     aktiv: c.aktiv,
   };
@@ -130,7 +119,6 @@ export function KundenTab() {
         beschreibung: form.beschreibung || undefined,
         kundennummer: form.kundennummer || undefined,
         rechnungsadresse,
-        zeiterfassungsart: form.zeiterfassungsart,
         waehrung: form.waehrung || "CHF",
         aktiv: form.aktiv,
         contact: undefined,
@@ -232,7 +220,6 @@ export function KundenTab() {
                 <TableRow className="bg-muted/30">
                   <TableHead>Name</TableHead>
                   <TableHead>Kundennummer</TableHead>
-                  <TableHead>Zeiterfassung</TableHead>
                   <TableHead>Status</TableHead>
                   {canWrite && (
                     <TableHead className="text-right">Aktionen</TableHead>
@@ -243,7 +230,7 @@ export function KundenTab() {
                 {customers.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={canWrite ? 5 : 4}
+                      colSpan={canWrite ? 4 : 3}
                       className="text-center py-8 text-muted-foreground"
                     >
                       Keine Kunden vorhanden
@@ -259,11 +246,6 @@ export function KundenTab() {
                       <TableCell className="font-medium">{c.name}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {c.kundennummer ?? "–"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {c.zeiterfassungsart === KundeZeiterfassungsart.block
-                          ? "Block"
-                          : "Stündlich"}
                       </TableCell>
                       <TableCell>
                         <Badge variant={c.aktiv ? "default" : "secondary"}>
@@ -540,31 +522,6 @@ export function KundenTab() {
         {/* ── Tab 3: Kundeneinstellungen ── */}
         <TabsContent value="einstellungen" className="mt-4 space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <Label htmlFor="ke-zeiterfassung">Zeiterfassungsart</Label>
-              <Select
-                value={form.zeiterfassungsart}
-                onValueChange={(v) =>
-                  sf("zeiterfassungsart", v as KundeZeiterfassungsart)
-                }
-                disabled={!canWrite}
-              >
-                <SelectTrigger
-                  id="ke-zeiterfassung"
-                  data-ocid="kunden-zeiterfassungsart"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={KundeZeiterfassungsart.stuendlich}>
-                    Stündlich
-                  </SelectItem>
-                  <SelectItem value={KundeZeiterfassungsart.block}>
-                    Block (Von / Bis)
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             <div className="space-y-1">
               <Label htmlFor="ke-waehrung">Währung</Label>
               <Input

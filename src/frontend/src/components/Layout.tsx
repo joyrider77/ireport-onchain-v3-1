@@ -7,9 +7,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useActor } from "@caffeineai/core-infrastructure";
+import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate, useSearch } from "@tanstack/react-router";
 import {
   BarChart2,
+  Bell,
   Building2,
   Calendar,
   CalendarOff,
@@ -17,6 +20,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  ClipboardCheck,
   Clock,
   Database,
   FileText,
@@ -27,15 +31,21 @@ import {
   MessageCircle,
   Receipt,
   Settings,
+  ShieldCheck,
   Tag,
   Users,
   Wallet,
   Wrench,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import logoImg from "/assets/ireport_logo.png";
+import { createActor } from "../backend";
+import type { SubscriptionPlan } from "../backend.d";
+import { NotificationBell } from "../components/notifications/NotificationBell";
 import { useAuth } from "../hooks/useAuthStore";
 import { StopwatchWidget } from "./StopwatchWidget";
+
+const SIDEBAR_STORAGE_KEY = "ireport_sidebar_expanded";
 
 interface StammdatenSubItem {
   label: string;
@@ -52,6 +62,7 @@ const stammdatenSubItems: StammdatenSubItem[] = [
   { label: "Spesenarten", tab: "spesenarten", icon: Wallet },
   { label: "Abwesenheitsarten", tab: "abwesenheitsarten", icon: CalendarOff },
   { label: "Feiertage", tab: "feiertage", icon: Gift },
+  { label: "Rechnungsvorlagen", tab: "rechnungsvorlagen", icon: Receipt },
 ];
 
 interface NavItem {
@@ -67,31 +78,134 @@ const topNavItems: NavItem[] = [
   { icon: Clock, label: "Zeiten erfassen", path: "/zeiten" },
   { icon: Receipt, label: "Spesen erfassen", path: "/spesen" },
   { icon: BarChart2, label: "Auswertungen", path: "/auswertungen" },
-  { icon: FileText, label: "Fakturierung", path: "/fakturierung" },
+  {
+    icon: FileText,
+    label: "Fakturierung",
+    path: "/fakturierung",
+    roles: ["admin", "manager"],
+  },
   {
     icon: Tag,
     label: "Genehmigungen",
     path: "/genehmigungen",
     roles: ["admin", "manager"],
   },
+  {
+    icon: ClipboardCheck,
+    label: "HR & Compliance",
+    path: "/hr-compliance",
+    roles: ["admin", "manager"],
+  },
+  { icon: Bell, label: "Benachrichtigungen", path: "/benachrichtigungen" },
 ];
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
+function useSubscriptionPlanBadge() {
+  const { actor, isFetching } = useActor(createActor);
+  const { companyId: companyIdStr, isPlatformAdmin } = useAuth();
+
+  return useQuery<SubscriptionPlan | null>({
+    queryKey: ["headerSubscriptionPlan", companyIdStr],
+    queryFn: async () => {
+      if (!actor || !companyIdStr) return null;
+      try {
+        const plan = await actor.getCompanySubscriptionPlan(
+          BigInt(companyIdStr),
+        );
+        return plan ?? null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!actor && !isFetching && !!companyIdStr && !isPlatformAdmin,
+    staleTime: 60_000,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+  });
+}
+
 export function Layout({ children }: LayoutProps) {
-  const [sidebarExpanded, setSidebarExpanded] = useState(true);
+  const subscriptionPlanQuery = useSubscriptionPlanBadge();
+  const subscriptionPlanName = subscriptionPlanQuery.data?.name ?? null;
+
+  const { actor: planActor, isFetching: planFetching } = useActor(createActor);
+  const { role: planRole, isPlatformAdmin: planIsAdmin } = useAuth();
+  const { data: planFeatures = [] } = useQuery<string[]>({
+    queryKey: ["myPlanFeatures"],
+    queryFn: async () =>
+      await (
+        planActor as unknown as Record<string, () => Promise<string[]>>
+      ).getMyPlanFeatures(),
+    enabled:
+      !!planActor &&
+      !planFetching &&
+      (planRole as string) !== "platformAdmin" &&
+      !planIsAdmin,
+    staleTime: 300_000,
+  });
+
+  const FEATURE_PATH_MAP: Record<string, string> = {
+    dashboard: "/dashboard",
+    calendar: "/kalender",
+    "time-tracking": "/zeiten",
+    "expense-tracking": "/spesen",
+    reports: "/auswertungen",
+    invoicing: "/fakturierung",
+    "master-data": "/stammdaten",
+    settings: "/einstellungen",
+  };
+  const featurePaths = new Set(
+    planFeatures.map((k: string) => FEATURE_PATH_MAP[k]).filter(Boolean),
+  );
+
+  const [sidebarExpanded, setSidebarExpanded] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+      return stored === null ? true : stored === "true";
+    } catch {
+      return true;
+    }
+  });
   const [supportTooltip, setSupportTooltip] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { role, companyName, companyLogoUrl, employeeName, logout } = useAuth();
+  const {
+    role,
+    companyName,
+    companyLogoUrl,
+    employeeName,
+    logout,
+    isPlatformAdmin,
+  } = useAuth();
+  // Persist sidebar state whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarExpanded));
+    } catch {
+      // ignore
+    }
+  }, [sidebarExpanded]);
 
   const userRole = role ?? "employee";
   const visibleNav = topNavItems.filter((item) => {
     if (!item.roles) return true;
     return item.roles.includes(userRole);
   });
+
+  const featureFilteredNav =
+    planFeatures.length > 0 &&
+    (userRole as string) !== "platformAdmin" &&
+    !isPlatformAdmin
+      ? visibleNav.filter((item) => {
+          const itemPath = item.path || "";
+          const isMappedPath =
+            Object.values(FEATURE_PATH_MAP).includes(itemPath);
+          return !isMappedPath || featurePaths.has(itemPath);
+        })
+      : visibleNav;
 
   const isAdminOrManager = userRole === "admin" || userRole === "manager";
 
@@ -176,7 +290,7 @@ export function Layout({ children }: LayoutProps) {
           {/* Nav Items */}
           <nav className="flex-1 overflow-y-auto py-2 space-y-0.5 px-1">
             {/* Top nav items */}
-            {visibleNav.map((item) => {
+            {featureFilteredNav.map((item) => {
               const isActive = location.pathname === item.path;
               const Icon = item.icon;
 
@@ -265,7 +379,6 @@ export function Layout({ children }: LayoutProps) {
                       type="button"
                       data-ocid="nav-stammdaten"
                       onClick={() => {
-                        setSidebarExpanded(true);
                         navigate({
                           to: "/stammdaten",
                           search: { tab: "mitarbeiter" },
@@ -312,6 +425,116 @@ export function Layout({ children }: LayoutProps) {
                 <TooltipContent side="right">Einstellungen</TooltipContent>
               </Tooltip>
             )}
+
+            {/* Platform-Admin (nur für Platform Admin) */}
+            {isPlatformAdmin &&
+              (sidebarExpanded ? (
+                <>
+                  <Separator className="my-1" />
+                  <button
+                    type="button"
+                    data-ocid="nav-platform-admin"
+                    onClick={() => navigate({ to: "/platform-admin" })}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors text-sm font-medium justify-start ${
+                      location.pathname === "/platform-admin"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-primary hover:bg-primary/10 hover:text-primary"
+                    }`}
+                  >
+                    <ShieldCheck className="w-4 h-4 flex-shrink-0" />
+                    <span className="truncate">Platform-Admin</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-ocid="nav-kosten-dashboard"
+                    onClick={() => navigate({ to: "/kosten-dashboard" })}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors text-sm font-medium justify-start ${
+                      location.pathname === "/kosten-dashboard"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-primary hover:bg-primary/10 hover:text-primary"
+                    }`}
+                  >
+                    <BarChart2 className="w-4 h-4 flex-shrink-0" />
+                    <span className="truncate">Kosten-Dashboard</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-ocid="nav-notification-admin"
+                    onClick={() =>
+                      navigate({ to: "/platform-admin/benachrichtigungen" })
+                    }
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors text-sm font-medium justify-start ${
+                      location.pathname === "/platform-admin/benachrichtigungen"
+                        ? "bg-primary text-primary-foreground"
+                        : "text-primary hover:bg-primary/10 hover:text-primary"
+                    }`}
+                  >
+                    <Bell className="w-4 h-4 flex-shrink-0" />
+                    <span className="truncate">Nachrichtenverwaltung</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        data-ocid="nav-platform-admin"
+                        onClick={() => navigate({ to: "/platform-admin" })}
+                        className={`w-full flex items-center justify-center gap-3 px-3 py-2.5 rounded-md transition-colors text-sm font-medium ${
+                          location.pathname === "/platform-admin"
+                            ? "bg-primary text-primary-foreground"
+                            : "text-primary hover:bg-primary/10"
+                        }`}
+                      >
+                        <ShieldCheck className="w-4 h-4 flex-shrink-0" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">Platform-Admin</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        data-ocid="nav-kosten-dashboard"
+                        onClick={() => navigate({ to: "/kosten-dashboard" })}
+                        className={`w-full flex items-center justify-center gap-3 px-3 py-2.5 rounded-md transition-colors text-sm font-medium ${
+                          location.pathname === "/kosten-dashboard"
+                            ? "bg-primary text-primary-foreground"
+                            : "text-primary hover:bg-primary/10"
+                        }`}
+                      >
+                        <BarChart2 className="w-4 h-4 flex-shrink-0" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      Kosten-Dashboard
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        data-ocid="nav-notification-admin"
+                        onClick={() =>
+                          navigate({ to: "/platform-admin/benachrichtigungen" })
+                        }
+                        className={`w-full flex items-center justify-center gap-3 px-3 py-2.5 rounded-md transition-colors text-sm font-medium ${
+                          location.pathname ===
+                          "/platform-admin/benachrichtigungen"
+                            ? "bg-primary text-primary-foreground"
+                            : "text-primary hover:bg-primary/10"
+                        }`}
+                      >
+                        <Bell className="w-4 h-4 flex-shrink-0" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      Nachrichtenverwaltung
+                    </TooltipContent>
+                  </Tooltip>
+                </>
+              ))}
           </nav>
 
           {/* Bottom: Logout */}
@@ -355,7 +578,7 @@ export function Layout({ children }: LayoutProps) {
             {/* Logo / Company name */}
             <div className="flex items-center gap-3 min-w-0">
               {/* Company logo left of company name (only if set) */}
-              {companyLogoUrl && (
+              {companyLogoUrl && !isPlatformAdmin && (
                 <img
                   src={companyLogoUrl}
                   alt={companyName ?? "Firmenlogo"}
@@ -364,8 +587,17 @@ export function Layout({ children }: LayoutProps) {
                 />
               )}
               {companyName && (
-                <span className="font-display font-semibold text-sm text-foreground truncate max-w-[220px]">
+                <span className="font-display font-semibold text-sm text-foreground truncate max-w-[180px]">
                   {companyName}
+                </span>
+              )}
+              {subscriptionPlanName && !isPlatformAdmin && (
+                <span
+                  data-ocid="header.subscription_plan_badge"
+                  className="text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0"
+                  style={{ backgroundColor: "#006066", color: "#ffffff" }}
+                >
+                  {subscriptionPlanName}
                 </span>
               )}
             </div>
@@ -373,6 +605,7 @@ export function Layout({ children }: LayoutProps) {
             {/* User area */}
             <div className="flex items-center gap-3">
               <StopwatchWidget />
+              <NotificationBell />
               <div className="flex items-center gap-2">
                 <Avatar className="w-8 h-8">
                   <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
@@ -417,7 +650,7 @@ export function Layout({ children }: LayoutProps) {
         </div>
 
         {/* Floating support chat */}
-        <div className="fixed bottom-6 right-6 z-50">
+        <div className="fixed bottom-6 right-6 z-50 no-print">
           <Tooltip open={supportTooltip} onOpenChange={setSupportTooltip}>
             <TooltipTrigger asChild>
               <button

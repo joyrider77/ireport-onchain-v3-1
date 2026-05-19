@@ -22,6 +22,11 @@ mixin (
   absenceTypes : List.List<MasterTypes.AbsenceType>,
   employments : List.List<CompanyTypes.Employment>,
   vacationBalances : List.List<CompanyTypes.VacationBalance>,
+  holidays : List.List<MasterTypes.Holiday>,
+  customers : List.List<MasterTypes.Customer>,
+  projects : List.List<MasterTypes.Project>,
+  projectMembers : Map.Map<CommonTypes.ProjectId, [MasterTypes.ProjectMemberAssignment]>,
+  serviceTypes : List.List<MasterTypes.ServiceType>,
 ) {
   // Hilfsfunktion: Authentifizierung prüfen
   private func rptRequireAuth(caller : Principal) : (CommonTypes.CompanyId, CommonTypes.EmployeeId) {
@@ -56,6 +61,46 @@ mixin (
     ReportsLib.getReportData(timeEntries, expenses, companyId, effectiveFilter);
   };
 
+  // Gibt eine Projektauswertung mit Budgetvergleich zurück
+  public query ({ caller }) func getProjectBudgetReport(
+    projectId : CommonTypes.ProjectId,
+    dateFrom : Text,
+    dateTo : Text,
+  ) : async CommonTypes.Result<TrackingTypes.ProjectBudgetReport> {
+    let (companyId, employeeId) = rptRequireAuth(caller);
+    // Rollenprüfung: Mitarbeiter dürfen nur eigene Projekte abfragen
+    let empRole = switch (employees.find(func(e) { e.id == employeeId and e.companyId == companyId })) {
+      case null { #employee };
+      case (?e) e.role;
+    };
+    switch (empRole) {
+      case (#employee) {
+        // Prüfen ob dieser Mitarbeiter dem Projekt zugewiesen ist
+        let membersArr : [MasterTypes.ProjectMemberAssignment] = switch (projectMembers.get(projectId)) {
+          case null { [] };
+          case (?arr) arr;
+        };
+        let isMember = membersArr.find(func(m) { m.employeeId == employeeId }) != null;
+        if (not isMember) {
+          return #err("Kein Zugriff auf dieses Projekt");
+        };
+      };
+      case _ {};
+    };
+    ReportsLib.getProjectBudgetReport(
+      timeEntries,
+      projects,
+      customers,
+      projectMembers,
+      employees,
+      serviceTypes,
+      companyId,
+      projectId,
+      dateFrom,
+      dateTo,
+    );
+  };
+
   // Gibt Kalendereinträge für einen Monat zurück
   public query ({ caller }) func getCalendarEntries(
     month : Text,
@@ -80,6 +125,7 @@ mixin (
       expenses,
       employments,
       vacationBalances,
+      holidays,
       companyId,
       employeeId,
       emp.weeklyHoursTarget,

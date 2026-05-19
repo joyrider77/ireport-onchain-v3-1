@@ -20,6 +20,8 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   Bell,
   Calendar,
+  Clock,
+  CreditCard,
   ExternalLink,
   Info,
   Loader2,
@@ -29,7 +31,13 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { createActor } from "../backend";
-import type { CompanySettings, UserNotificationSettings } from "../backend.d";
+import type {
+  CompanySettings,
+  SubscriptionPlan,
+  UserNotificationSettings,
+} from "../backend.d";
+import { BillingStatusPanel } from "../components/stripe/BillingStatusPanel";
+import { StripeInvoiceList } from "../components/stripe/StripeInvoiceList";
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -125,6 +133,18 @@ export default function EinstellungenPage() {
 
   const isAdmin = role === "admin";
   const isManagerOrAdmin = role === "admin" || role === "manager";
+
+  // ─── Subscription Plan ────────────────────────────────────────────────────
+
+  const { data: currentPlan } = useQuery<SubscriptionPlan | null>({
+    queryKey: ["companyPlan", companyId],
+    queryFn: async () => {
+      if (!actor || !companyId) return null;
+      return actor.getCompanySubscriptionPlan(BigInt(companyId));
+    },
+    enabled: !!actor && !isFetching && isAuthenticated && isAdmin,
+    staleTime: 60_000,
+  });
 
   // ─── Notification Settings ─────────────────────────────────────────────────
 
@@ -252,6 +272,120 @@ export default function EinstellungenPage() {
     },
   });
 
+  // ─── Default Work Hours ────────────────────────────────────────────────────
+
+  type DefaultWorkHoursForm = {
+    stundenMo: string;
+    stundenDi: string;
+    stundenMi: string;
+    stundenDo: string;
+    stundenFr: string;
+    stundenSa: string;
+    stundenSo: string;
+  };
+
+  const { data: defaultWorkHoursData, isLoading: defaultWorkHoursLoading } =
+    useQuery({
+      queryKey: ["defaultWorkHours", companyId],
+      queryFn: async () => {
+        if (!actor) return null;
+        try {
+          const result = await toAny(actor).getDefaultWorkHours();
+          const r = result as {
+            __kind__: string;
+            ok?: {
+              stundenMo: bigint;
+              stundenDi: bigint;
+              stundenMi: bigint;
+              stundenDo: bigint;
+              stundenFr: bigint;
+              stundenSa: bigint;
+              stundenSo: bigint;
+              companyId: bigint;
+            };
+          };
+          return r.__kind__ === "ok" && r.ok ? r.ok : null;
+        } catch {
+          return null;
+        }
+      },
+      enabled: !!actor && !isFetching && isAuthenticated && isAdmin,
+      staleTime: 30_000,
+    });
+
+  function minutesToHhMm(mins: number | bigint): string {
+    const m = Number(mins);
+    const h = Math.floor(m / 60);
+    const min = m % 60;
+    return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+  }
+
+  function hhmmToMinutes(s: string): number {
+    const [h, m] = s.split(":").map(Number);
+    return (Number.isNaN(h) ? 0 : h) * 60 + (Number.isNaN(m) ? 0 : m);
+  }
+
+  const [defaultWorkHoursForm, setDefaultWorkHoursForm] =
+    useState<DefaultWorkHoursForm>({
+      stundenMo: "08:00",
+      stundenDi: "08:00",
+      stundenMi: "08:00",
+      stundenDo: "08:00",
+      stundenFr: "08:00",
+      stundenSa: "00:00",
+      stundenSo: "00:00",
+    });
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: minutesToHhMm is a stable inline function, not reactive
+  useEffect(() => {
+    if (defaultWorkHoursData) {
+      setDefaultWorkHoursForm({
+        stundenMo: minutesToHhMm(defaultWorkHoursData.stundenMo),
+        stundenDi: minutesToHhMm(defaultWorkHoursData.stundenDi),
+        stundenMi: minutesToHhMm(defaultWorkHoursData.stundenMi),
+        stundenDo: minutesToHhMm(defaultWorkHoursData.stundenDo),
+        stundenFr: minutesToHhMm(defaultWorkHoursData.stundenFr),
+        stundenSa: minutesToHhMm(defaultWorkHoursData.stundenSa),
+        stundenSo: minutesToHhMm(defaultWorkHoursData.stundenSo),
+      });
+    }
+  }, [defaultWorkHoursData]);
+
+  const saveDefaultWorkHoursMutation = useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error("Nicht verfügbar");
+      // companyId is required by the Candid record — omitting it causes a
+      // synchronous encoding error that closes the async message channel.
+      // Prefer the value already returned by getDefaultWorkHours; fall back
+      // to the companyId from the auth context.
+      const resolvedCompanyId: bigint =
+        defaultWorkHoursData?.companyId != null
+          ? BigInt(defaultWorkHoursData.companyId)
+          : BigInt(companyId ?? 0);
+      const input = {
+        companyId: resolvedCompanyId,
+        stundenMo: BigInt(hhmmToMinutes(defaultWorkHoursForm.stundenMo)),
+        stundenDi: BigInt(hhmmToMinutes(defaultWorkHoursForm.stundenDi)),
+        stundenMi: BigInt(hhmmToMinutes(defaultWorkHoursForm.stundenMi)),
+        stundenDo: BigInt(hhmmToMinutes(defaultWorkHoursForm.stundenDo)),
+        stundenFr: BigInt(hhmmToMinutes(defaultWorkHoursForm.stundenFr)),
+        stundenSa: BigInt(hhmmToMinutes(defaultWorkHoursForm.stundenSa)),
+        stundenSo: BigInt(hhmmToMinutes(defaultWorkHoursForm.stundenSo)),
+      };
+      const result = await toAny(actor).updateDefaultWorkHours(input);
+      const r = result as { __kind__: string; err?: string };
+      if (r.__kind__ === "err")
+        throw new Error(r.err ?? "Fehler beim Speichern");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["defaultWorkHours"] });
+      toast.success("Standardarbeitsstunden gespeichert");
+    },
+    onError: (err: Error) => {
+      toast.error(`Fehler: ${err.message}`);
+    },
+  });
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -287,7 +421,22 @@ export default function EinstellungenPage() {
                 Ferien &amp; Abwesenheiten
               </TabsTrigger>
             )}
-
+            {isAdmin && (
+              <TabsTrigger
+                value="standardarbeitsstunden"
+                data-ocid="tab-standardarbeitsstunden"
+                className="gap-1.5"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                Standardarbeitsstunden
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="abo" data-ocid="tab-abo" className="gap-1.5">
+                <CreditCard className="w-3.5 h-3.5" />
+                Abo &amp; Abrechnung
+              </TabsTrigger>
+            )}
             <TabsTrigger
               value="profil"
               data-ocid="tab-profil"
@@ -321,7 +470,7 @@ export default function EinstellungenPage() {
                     <NotificationToggle
                       id="emailNewVacationRequest"
                       label="E-Mail bei neuem Ferienantrag"
-                      description="Sie erhalten eine E-Mail, wenn ein neuer Ferienantrag eingereicht wird."
+                      description="Du erhältst eine E-Mail, wenn ein neuer Ferienantrag eingereicht wird."
                       checked={notifForm.emailNewVacationRequest}
                       onCheckedChange={(v) =>
                         setNotifForm((p) => ({
@@ -334,7 +483,7 @@ export default function EinstellungenPage() {
                     <NotificationToggle
                       id="emailOnApproval"
                       label="E-Mail bei Genehmigung/Ablehnung"
-                      description="Sie erhalten eine E-Mail, wenn Ihr Ferienantrag genehmigt oder abgelehnt wird."
+                      description="Du erhältst eine E-Mail, wenn dein Ferienantrag genehmigt oder abgelehnt wird."
                       checked={notifForm.emailOnApproval}
                       onCheckedChange={(v) =>
                         setNotifForm((p) => ({ ...p, emailOnApproval: v }))
@@ -518,6 +667,167 @@ export default function EinstellungenPage() {
                   </Button>
                 </div>
               )}
+            </TabsContent>
+          )}
+
+          {/* ── Tab: Standardarbeitsstunden ── */}
+          {isAdmin && (
+            <TabsContent value="standardarbeitsstunden" className="space-y-4">
+              <Card className="shadow-card">
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    Standardarbeitsstunden pro Wochentag
+                  </CardTitle>
+                  <CardDescription>
+                    Diese Werte werden beim Erfassen einer neuen Beschäftigung
+                    automatisch vorausgefüllt.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  {defaultWorkHoursLoading ? (
+                    <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Einstellungen werden geladen…
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      {(
+                        [
+                          { key: "stundenMo" as const, label: "Montag" },
+                          { key: "stundenDi" as const, label: "Dienstag" },
+                          { key: "stundenMi" as const, label: "Mittwoch" },
+                          { key: "stundenDo" as const, label: "Donnerstag" },
+                          { key: "stundenFr" as const, label: "Freitag" },
+                          { key: "stundenSa" as const, label: "Samstag" },
+                          { key: "stundenSo" as const, label: "Sonntag" },
+                        ] as {
+                          key: keyof DefaultWorkHoursForm;
+                          label: string;
+                        }[]
+                      ).map(({ key, label }) => (
+                        <div key={key} className="space-y-1.5">
+                          <Label htmlFor={`dwh-${key}`}>{label}</Label>
+                          <Input
+                            id={`dwh-${key}`}
+                            placeholder="hh:mm"
+                            value={defaultWorkHoursForm[key]}
+                            onChange={(e) =>
+                              setDefaultWorkHoursForm((p) => ({
+                                ...p,
+                                [key]: e.target.value,
+                              }))
+                            }
+                            data-ocid={`input-dwh-${key}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  onClick={() => saveDefaultWorkHoursMutation.mutate()}
+                  disabled={
+                    saveDefaultWorkHoursMutation.isPending ||
+                    defaultWorkHoursLoading
+                  }
+                  data-ocid="save-default-work-hours"
+                  className="gap-2"
+                >
+                  {saveDefaultWorkHoursMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  Standardarbeitsstunden speichern
+                </Button>
+              </div>
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="abo" className="space-y-4">
+              <Card className="shadow-card">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-primary" />
+                    Abo-Status
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <BillingStatusPanel
+                    companyId={BigInt(companyId ?? 0)}
+                    isAdmin={isAdmin}
+                  />
+                </CardContent>
+              </Card>
+
+              {(() => {
+                const pp = currentPlan?.paymentProvider;
+                const isStripe =
+                  pp != null && typeof pp === "object" && "Stripe" in pp;
+                const isManual =
+                  pp != null && typeof pp === "object" && "Manuell" in pp;
+                const isFree =
+                  !currentPlan?.requiresPayment ||
+                  (pp != null && typeof pp === "object" && "Keine" in pp) ||
+                  !pp;
+                if (isStripe && currentPlan?.requiresPayment) {
+                  return (
+                    <Card className="shadow-card">
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <CreditCard className="w-4 h-4 text-primary" />
+                          Stripe-Rechnungen
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <StripeInvoiceList companyId={BigInt(companyId ?? 0)} />
+                      </CardContent>
+                    </Card>
+                  );
+                }
+                if (isManual) {
+                  return (
+                    <Card className="shadow-card">
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <CreditCard className="w-4 h-4 text-primary" />
+                          Abrechnung
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-muted-foreground">
+                          Die Abrechnung wird manuell durch den Administrator
+                          verwaltet.
+                        </p>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+                if (isFree) {
+                  return (
+                    <Card className="shadow-card">
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <CreditCard className="w-4 h-4 text-primary" />
+                          Abrechnung
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-muted-foreground">
+                          Dieser Plan ist kostenlos. Es ist keine Zahlung
+                          erforderlich.
+                        </p>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+                return null;
+              })()}
             </TabsContent>
           )}
 

@@ -3,11 +3,16 @@ import Map "mo:core/Map";
 import List "mo:core/List";
 import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
+import Time "mo:core/Time";
+import Float "mo:core/Float";
 import AccessControl "mo:caffeineai-authorization/access-control";
 import CommonTypes "../types/common";
 import CompanyTypes "../types/company";
 import TrackingTypes "../types/timetracking";
+import AuditTypes "../types/audit";
 import TimeLib "../lib/timetracking";
+import InputValidator "../lib/InputValidator";
+import ApprovalLib "../lib/timetracking-approval";
 
 mixin (
   accessControlState : AccessControl.AccessControlState,
@@ -17,6 +22,9 @@ mixin (
   principalToEmployee : Map.Map<Principal, CommonTypes.EmployeeId>,
   timeEntries : List.List<TrackingTypes.TimeEntry>,
   nextTimeEntryId : { var value : Nat },
+  auditLogEntries : List.List<AuditTypes.AuditLogEntry>,
+  nextAuditLogId : { var value : Nat },
+  timeEntryApprovalData : Map.Map<Nat, ApprovalLib.ApprovalRecord>,
 ) {
   // Hilfsfunktion: Authentifizierung prüfen
   private func ttRequireAuth(caller : Principal) : (CommonTypes.CompanyId, CommonTypes.EmployeeId) {
@@ -31,14 +39,79 @@ mixin (
     (companyId, employeeId);
   };
 
+  // Hilfsfunktion: Name des Aufrufers ermitteln (für Audit-Log)
+  private func ttCallerName(caller : Principal, companyId : CommonTypes.CompanyId) : Text {
+    switch (principalToEmployee.get(caller)) {
+      case null { caller.toText() };
+      case (?empId) {
+        switch (employees.find(func(e) { e.id == empId and e.companyId == companyId })) {
+          case null { caller.toText() };
+          case (?e) { e.firstName # " " # e.lastName };
+        };
+      };
+    };
+  };
+
+  // Hilfsfunktion: Zeiteintrag als lesbaren Text serialisieren (für Audit-Log)
+  private func timeEntryToText(e : TrackingTypes.TimeEntry) : Text {
+    "id=" # e.id.toText()
+    # " date=" # e.date
+    # " hours=" # e.hours.toText()
+    # " projectId=" # e.projectId.toText()
+    # " serviceTypeId=" # e.serviceTypeId.toText()
+    # " description=" # e.description
+    # " billable=" # (if (e.billable) "true" else "false");
+  };
+
+  // Generische Hilfsfunktion: Audit-Log-Eintrag für Zeiteintrag anhängen
+  private func appendTimeEntryAudit(
+    caller      : Principal,
+    companyId   : CommonTypes.CompanyId,
+    operation   : AuditTypes.AuditOperation,
+    entityId    : Text,
+    beforeState : ?Text,
+    afterState  : ?Text,
+    fieldChanges : ?[AuditTypes.AuditFieldChange],
+  ) {
+    let id = "AL-" # nextAuditLogId.value.toText();
+    nextAuditLogId.value += 1;
+    let entry : AuditTypes.AuditLogEntry = {
+      id;
+      companyId;
+      timestamp      = Time.now();
+      operation;
+      entityType     = #timeEntry;
+      entityId;
+      actorPrincipal = caller.toText();
+      actorName      = ttCallerName(caller, companyId);
+      beforeState;
+      afterState;
+      fieldChanges;
+    };
+    auditLogEntries.add(entry);
+  };
+
   // Erstellt einen neuen Zeiteintrag
   public shared ({ caller }) func createTimeEntry(
     input : TrackingTypes.CreateTimeEntryInput
   ) : async CommonTypes.Result<TrackingTypes.TimeEntry> {
     let (companyId, employeeId) = ttRequireAuth(caller);
+    // Datum und Stunden validieren
+    switch (InputValidator.isValidDate(input.date)) {
+      case (#err(msg)) { return #err(msg) };
+      case (#ok(())) {};
+    };
+    switch (InputValidator.isValidHours(input.hours)) {
+      case (#err(msg)) { return #err(msg) };
+      case (#ok(())) {};
+    };
     let id = nextTimeEntryId.value;
     nextTimeEntryId.value += 1;
-    #ok(TimeLib.createTimeEntry(timeEntries, id, companyId, employeeId, input));
+    let entry = TimeLib.createTimeEntry(timeEntries, id, companyId, employeeId, input);
+    appendTimeEntryAudit(caller, companyId, #create, entry.id.toText(), null, ?timeEntryToText(entry), null);
+    // Zeiteintrag direkt als #submitted registrieren (Genehmigungsworkflow)
+    timeEntryApprovalData.add(entry.id, { status = #submitted; approvedBy = null; reason = null });
+    #ok(entry);
   };
 
   // Gibt gefilterte Zeiteinträge zurück
@@ -76,9 +149,34 @@ mixin (
     input : TrackingTypes.UpdateTimeEntryInput,
   ) : async CommonTypes.Result<TrackingTypes.TimeEntry> {
     let (companyId, employeeId) = ttRequireAuth(caller);
+    let beforeOpt = timeEntries.find(func(e) { e.id == id and e.companyId == companyId and e.employeeId == employeeId });
     switch (TimeLib.updateTimeEntry(timeEntries, companyId, id, employeeId, input)) {
       case null { #err("Zeiteintrag nicht gefunden oder keine Berechtigung") };
-      case (?e) { #ok(e) };
+      case (?e) {
+        let beforeText = switch (beforeOpt) { case null { null }; case (?b) { ?timeEntryToText(b) } };
+        // Strukturierte Feldänderungen ermitteln
+        let changes = switch (beforeOpt) {
+          case null { null };
+          case (?b) {
+            var list : [AuditTypes.AuditFieldChange] = [];
+            if (b.date != e.date) {
+              list := list.concat([{ fieldName = "date"; before = b.date; after = e.date }]);
+            };
+            if (b.hours != e.hours) {
+              list := list.concat([{ fieldName = "hours"; before = b.hours.toText(); after = e.hours.toText() }]);
+            };
+            if (b.description != e.description) {
+              list := list.concat([{ fieldName = "description"; before = b.description; after = e.description }]);
+            };
+            if (b.billable != e.billable) {
+              list := list.concat([{ fieldName = "billable"; before = if (b.billable) "true" else "false"; after = if (e.billable) "true" else "false" }]);
+            };
+            if (list.size() > 0) { ?list } else { null };
+          };
+        };
+        appendTimeEntryAudit(caller, companyId, #update, e.id.toText(), beforeText, ?timeEntryToText(e), changes);
+        #ok(e);
+      };
     };
   };
 
@@ -87,7 +185,19 @@ mixin (
     id : CommonTypes.TimeEntryId
   ) : async CommonTypes.Result<()> {
     let (companyId, employeeId) = ttRequireAuth(caller);
+    // Genehmigungsstatus prüfen: genehmigte Einträge dürfen nicht direkt gelöscht werden
+    switch (timeEntryApprovalData.get(id)) {
+      case (?approvalRecord) {
+        if (approvalRecord.status == #approved) {
+          return #err("Dieser Eintrag wurde bereits genehmigt. Bitte den Vorgesetzten bitten, die Genehmigung zuerst zurückzusetzen.");
+        };
+      };
+      case null {};
+    };
+    let beforeOpt = timeEntries.find(func(e) { e.id == id and e.companyId == companyId and e.employeeId == employeeId });
     if (TimeLib.deleteTimeEntry(timeEntries, companyId, id, employeeId)) {
+      let beforeText = switch (beforeOpt) { case null { null }; case (?b) { ?timeEntryToText(b) } };
+      appendTimeEntryAudit(caller, companyId, #remove, id.toText(), beforeText, null, null);
       #ok(());
     } else {
       #err("Zeiteintrag nicht gefunden oder keine Berechtigung");

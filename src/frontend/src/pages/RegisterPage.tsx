@@ -35,7 +35,8 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const { identity } = useInternetIdentity();
   const { actor } = useActor(createActor);
-  const { setAuthenticated, isAuthenticated, companyId } = useAuthStore();
+  const { setAuthenticated, isAuthenticated, companyId, setPlatformAdmin } =
+    useAuthStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -125,6 +126,16 @@ export default function RegisterPage() {
         data.companyName,
         `${data.firstName} ${data.lastName}`,
       );
+      // Check Platform Admin status after registration
+      try {
+        const platformAdminResult = (await toAny(
+          actor,
+        ).isPlatformAdmin()) as boolean;
+        setPlatformAdmin(platformAdminResult);
+      } catch (e) {
+        console.warn("isPlatformAdmin check fehlgeschlagen:", e);
+        setPlatformAdmin(false);
+      }
       toast.success("Unternehmen erfolgreich registriert!");
       navigate({ to: "/dashboard" });
     } catch (err) {

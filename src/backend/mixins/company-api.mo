@@ -11,8 +11,14 @@ import CommonTypes "../types/common";
 import CompanyTypes "../types/company";
 import MasterTypes "../types/masterdata";
 import TrackingTypes "../types/timetracking";
+import AuditTypes "../types/audit";
 import MasterLib "../lib/masterdata";
 import CompanyLib "../lib/company";
+import AccessControlLib "../lib/AccessControlLib";
+import InputValidator "../lib/InputValidator";
+import CostDashboardTypes "../types/cost-dashboard";
+import Order "mo:core/Order";
+import ComplianceTypes "../types/compliance";
 
 mixin (
   accessControlState : AccessControl.AccessControlState,
@@ -48,7 +54,42 @@ mixin (
   // Für Arbeitszeitsaldo-Berechnung
   timeEntries : List.List<TrackingTypes.TimeEntry>,
   absences : List.List<TrackingTypes.Absence>,
+  expenses : List.List<TrackingTypes.Expense>,
+  // Platform Admin State
+  platformAdminPrincipal : { var value : ?Principal },
+  platformAdminCreatedAt : { var value : Int },
+  // Audit-Log (append-only)
+  auditLogEntries : List.List<AuditTypes.AuditLogEntry>,
+  nextAuditLogId : { var value : Nat },
+  // Standard-Arbeitsstunden pro Firma
+  defaultWorkHoursMap : Map.Map<CommonTypes.CompanyId, CompanyTypes.DefaultWorkHours>,
+  // Abonnement-Zustände für Auto-Zuweisung
+  subscriptionPlans : Map.Map<Text, CostDashboardTypes.SubscriptionPlan>,
+  subscriptionPlansInitialized : { var value : Bool },
+  companySubscriptions : Map.Map<Text, Text>,
+  companySubscriptionDetails : Map.Map<Text, CostDashboardTypes.CompanySubscription>,
+  principalToCompanyRef : Map.Map<Principal, CommonTypes.CompanyId>,
+  // Auto-Init Compliance-Profil fuer neue Mitarbeiter
+  complianceProfiles     : List.List<ComplianceTypes.EmployeeComplianceProfile>,
+  nextComplianceProfileId : { var value : Nat },
 ) {
+  // Hilfsfunktionen: Plan-Auto-Zuweisung (synchron, keine async-Abhängigkeit)
+  private func platformAdminCompanyId_() : ?CommonTypes.CompanyId {
+    switch (platformAdminPrincipal.value) {
+      case null { null };
+      case (?pa) { principalToCompanyRef.get(pa) };
+    };
+  };
+
+  private func isPlatformAdminCompany_(companyId : CommonTypes.CompanyId) : Bool {
+    switch (platformAdminCompanyId_()) {
+      case null { false };
+      case (?paId) { paId == companyId };
+    };
+  };
+
+  // autoAssignPlan_ removed — plan changes now require explicit user confirmation via applyPlanChange();
+
   // Hilfsfunktion: Authentifizierung prüfen
   private func requireCompanyId(caller : Principal) : CommonTypes.CompanyId {
     switch (principalToCompany.get(caller)) {
@@ -57,28 +98,91 @@ mixin (
     };
   };
 
-  // Hilfsfunktion: Employee-ID des Aufrufers ermitteln
-  private func requireEmployeeId(caller : Principal) : CommonTypes.EmployeeId {
-    switch (principalToEmployee.get(caller)) {
-      case null { Runtime.trap("Kein Mitarbeiterdatensatz gefunden") };
-      case (?eid) eid;
-    };
-  };
-
-  // Hilfsfunktion: Rolle des Aufrufers prüfen
+  // Hilfsfunktion: Rolle des Aufrufers prüfen (delegiert an AccessControlLib)
   private func requireRole(caller : Principal, companyId : CommonTypes.CompanyId, allowedRoles : [CommonTypes.Role]) : () {
-    let empId = requireEmployeeId(caller);
-    let emp = switch (employees.find(func(e) { e.id == empId and e.companyId == companyId })) {
-      case null { Runtime.trap("Mitarbeiter nicht gefunden") };
-      case (?e) e;
+    let company = switch (companies.find(func(c : CompanyTypes.Company) : Bool = c.id == companyId)) {
+      case null { Runtime.trap("Firma nicht gefunden") };
+      case (?c) c;
     };
-    let hasRole = allowedRoles.any(func(r) { r == emp.role });
-    if (not hasRole) {
-      Runtime.trap("Keine Berechtigung für diese Aktion");
+    switch (AccessControlLib.requireRole(caller, company, allowedRoles, principalToEmployee, employees)) {
+      case (#err(msg)) { Runtime.trap(msg) };
+      case (#ok(_)) {};
     };
   };
 
-  // Prüft ob der Aufrufer bereits registriert ist
+  // Hilfsfunktion: Name des Aufrufers ermitteln (für Audit-Log)
+  private func callerNameCompany(caller : Principal, companyId : CommonTypes.CompanyId) : Text {
+    switch (principalToEmployee.get(caller)) {
+      case null { caller.toText() };
+      case (?empId) {
+        switch (employees.find(func(e) { e.id == empId and e.companyId == companyId })) {
+          case null { caller.toText() };
+          case (?e) { e.firstName # " " # e.lastName };
+        };
+      };
+    };
+  };
+
+  // Hilfsfunktion: Audit-Log-Eintrag anhängen (mit optionalen Feldänderungen)
+  private func appendCompanyAudit(
+    caller      : Principal,
+    companyId   : CommonTypes.CompanyId,
+    entityType  : AuditTypes.AuditEntityType,
+    operation   : AuditTypes.AuditOperation,
+    entityId    : Text,
+    beforeState : ?Text,
+    afterState  : ?Text,
+  ) {
+    appendCompanyAuditWithChanges(caller, companyId, entityType, operation, entityId, beforeState, afterState, null);
+  };
+
+  private func appendCompanyAuditWithChanges(
+    caller       : Principal,
+    companyId    : CommonTypes.CompanyId,
+    entityType   : AuditTypes.AuditEntityType,
+    operation    : AuditTypes.AuditOperation,
+    entityId     : Text,
+    beforeState  : ?Text,
+    afterState   : ?Text,
+    fieldChanges : ?[AuditTypes.AuditFieldChange],
+  ) {
+    let id = "AL-" # nextAuditLogId.value.toText();
+    nextAuditLogId.value += 1;
+    let entry : AuditTypes.AuditLogEntry = {
+      id;
+      companyId;
+      timestamp      = Time.now();
+      operation;
+      entityType;
+      entityId;
+      actorPrincipal = caller.toText();
+      actorName      = callerNameCompany(caller, companyId);
+      beforeState;
+      afterState;
+      fieldChanges;
+    };
+    auditLogEntries.add(entry);
+  };
+
+  // Serialisierung Mitarbeiter für Audit
+  private func employeeToText(e : CompanyTypes.Employee) : Text {
+    let deactivatedPart = switch (e.deactivatedAt) {
+      case null { "" };
+      case (?ts) { " deactivatedAt=" # ts.toText() };
+    };
+    "id=" # e.id.toText() # " name=" # e.firstName # " " # e.lastName
+    # " role=" # (switch (e.role) { case (#admin) "admin"; case (#manager) "manager"; case (#employee) "employee" })
+    # " active=" # (if (e.active) "true" else "false")
+    # deactivatedPart;
+  };
+
+  // Serialisierung Firma für Audit
+  private func companyToText(c : CompanyTypes.Company) : Text {
+    "id=" # c.id.toText() # " name=" # c.name
+    # " isActive=" # (if (c.isActive) "true" else "false");
+  };
+
+  // Prüft ob der Caller bereits registriert ist
   public query ({ caller }) func isRegistered() : async Bool {
     CompanyLib.isRegistered(principalToCompany, caller);
   };
@@ -92,6 +196,16 @@ mixin (
   ) : async CommonTypes.Result<CompanyTypes.Company> {
     if (CompanyLib.isRegistered(principalToCompany, caller)) {
       return #err("Diese Identität ist bereits registriert");
+    };
+    // Beim allerersten Aufruf (keine Firma vorhanden) den Caller als Platform Admin speichern
+    if (companies.isEmpty()) {
+      switch (platformAdminPrincipal.value) {
+        case null {
+          platformAdminPrincipal.value := ?caller;
+          platformAdminCreatedAt.value := Time.now();
+        };
+        case (?_) {};
+      };
     };
     // Firma erstellen
     let companyId = nextCompanyId.value;
@@ -154,7 +268,7 @@ mixin (
     // Projekt: intern / INT
     let projectId = nextProjectId.value;
     nextProjectId.value += 1;
-    ignore MasterLib.createProject(projects, projectId, companyId, { customerId; name = "intern"; kurzbezeichnung = "INT"; code = "INT"; billableRate = 0.0; projektleiter = null; status = ?#aktiv; erfassungsart = null });
+    ignore MasterLib.createProject(projects, projectId, companyId, { customerId; name = "intern"; kurzbezeichnung = "INT"; code = "INT"; billableRate = 0.0; projektleiter = null; status = ?#aktiv; erfassungsart = null; kostendachCHF = null });
 
     // Spesenart: Spesen allgemein
     let etId = nextExpenseTypeId.value;
@@ -163,13 +277,13 @@ mixin (
 
     // Abwesenheitsarten
     let at1Id = nextAbsenceTypeId.value; nextAbsenceTypeId.value += 1;
-    ignore MasterLib.createAbsenceType(absenceTypes, at1Id, companyId, { name = "Krankheit"; requiresApproval = false; compensated = false; aktiv = ?true });
+    ignore MasterLib.createAbsenceType(absenceTypes, at1Id, companyId, { name = "Krankheit"; requiresApproval = false; compensated = false; aktiv = ?true; visibility = null });
     let at2Id = nextAbsenceTypeId.value; nextAbsenceTypeId.value += 1;
-    ignore MasterLib.createAbsenceType(absenceTypes, at2Id, companyId, { name = "Unbezahlter Urlaub"; requiresApproval = false; compensated = false; aktiv = ?true });
+    ignore MasterLib.createAbsenceType(absenceTypes, at2Id, companyId, { name = "Unbezahlter Urlaub"; requiresApproval = false; compensated = false; aktiv = ?true; visibility = null });
     let at3Id = nextAbsenceTypeId.value; nextAbsenceTypeId.value += 1;
-    ignore MasterLib.createAbsenceType(absenceTypes, at3Id, companyId, { name = "Sonstiges"; requiresApproval = false; compensated = false; aktiv = ?true });
+    ignore MasterLib.createAbsenceType(absenceTypes, at3Id, companyId, { name = "Sonstiges"; requiresApproval = false; compensated = false; aktiv = ?true; visibility = null });
     let at4Id = nextAbsenceTypeId.value; nextAbsenceTypeId.value += 1;
-    ignore MasterLib.createAbsenceType(absenceTypes, at4Id, companyId, { name = "Ferien"; requiresApproval = true; compensated = true; aktiv = ?true });
+    ignore MasterLib.createAbsenceType(absenceTypes, at4Id, companyId, { name = "Ferien"; requiresApproval = true; compensated = true; aktiv = ?true; visibility = null });
 
     // Feiertag: Nationalfeiertag (1. August, 11 Jahre)
     let years = ["2024", "2025", "2026", "2027", "2028", "2029", "2030", "2031", "2032", "2033", "2034"];
@@ -179,7 +293,48 @@ mixin (
     };
 
     // Admin-Mitarbeiter automatisch dem internen Projekt zuweisen (Leistungsart: interne Administration)
-    projectMembers.add(projectId, [{ employeeId; serviceTypeId = stId; stundensatz = 0.0 }]);
+    projectMembers.add(projectId, [{ employeeId; serviceTypeId = stId; stundensatz = 0.0; kostendachCHF = null }]);
+
+    // Audit: Firma und erster Admin-Mitarbeiter registrieren
+    appendCompanyAudit(caller, companyId, #company, #create, companyId.toText(), null, ?companyToText(company));
+    appendCompanyAudit(caller, companyId, #employee, #create, emp.id.toText(), null, ?employeeToText(emp));
+
+    // Abonnement-Zuweisung: Initial 'basis' Plan setzen (ohne Auto-Wechsel)
+    // Die eigentliche Planwechsel-Bestätigung erfolgt über applyPlanChange() nach Benutzer-Dialog.
+    if (not isPlatformAdminCompany_(companyId)) {
+      // Nur zuweisen wenn noch kein Plan vorhanden
+      let initKey = companyId.toText();
+      switch (companySubscriptions.get(initKey)) {
+        case null {
+          companySubscriptions.add(initKey, "basis");
+          let initNow = Time.now();
+          companySubscriptionDetails.add(initKey, {
+            companyId;
+            planId                       = "basis";
+            billingModel                 = #monthly;
+            subscriptionStartDate        = ?initNow;
+            proRataAmount                = null;
+            proRataNote                  = null;
+            proRataCalculatedAt          = null;
+            nextDueDate                  = null;
+            stripeCustomerId             = null;
+            stripeSubscriptionId         = null;
+            stripeProductId              = null;
+            stripeStatus                 = null;
+            stripeCurrentPeriodStart     = null;
+            stripeCurrentPeriodEnd       = null;
+            stripeCancelAtPeriodEnd      = false;
+            latestStripeInvoiceId        = null;
+            latestStripePaymentStatus    = null;
+            lastStripeSyncAt             = null;
+            scheduledPlanChangeId        = null;
+            scheduledPlanChangePriceId   = null;
+            scheduledPlanChangeEffectiveAt = null;
+          });
+        };
+        case (?_) {};
+      };
+    };
 
     // Willkommens-E-Mail an den Admin senden (fire-and-forget)
     ignore await EmailClient.sendServiceEmail(
@@ -210,9 +365,25 @@ mixin (
   ) : async CommonTypes.Result<CompanyTypes.Company> {
     let companyId = requireCompanyId(caller);
     requireRole(caller, companyId, [#admin]);
+    let beforeOpt = companies.find(func(c : CompanyTypes.Company) : Bool = c.id == companyId);
     switch (CompanyLib.updateCompany(companies, companyId, input)) {
       case null { #err("Firma nicht gefunden") };
-      case (?c) { #ok(c) };
+      case (?c) {
+        let beforeText = switch (beforeOpt) { case null { null }; case (?b) { ?companyToText(b) } };
+        // Feldänderungen ermitteln
+        let changes : ?[AuditTypes.AuditFieldChange] = switch (beforeOpt) {
+          case null { null };
+          case (?b) {
+            var list : [AuditTypes.AuditFieldChange] = [];
+            if (b.name != c.name) {
+              list := list.concat([{ fieldName = "name"; before = b.name; after = c.name }]);
+            };
+            if (list.size() > 0) { ?list } else { null };
+          };
+        };
+        appendCompanyAuditWithChanges(caller, companyId, #company, #update, companyId.toText(), beforeText, ?companyToText(c), changes);
+        #ok(c);
+      };
     };
   };
 
@@ -270,6 +441,7 @@ mixin (
                 employeeId = emp.id;
                 serviceTypeId = st.id;
                 stundensatz = 0.0;
+                kostendachCHF = null;
               };
               let updatedMembers = currentMembers.concat([newMember]);
               projectMembers.add(proj.id, updatedMembers);
@@ -279,33 +451,220 @@ mixin (
       };
     };
 
+    appendCompanyAudit(caller, companyId, #employee, #create, emp.id.toText(), null, ?employeeToText(emp));
+
+    // Auto-Initialisierung: Standard-Compliance-Profil fuer neuen Mitarbeiter erstellen
+    // aktiv = true: sofort aktiv, damit der wöchentliche Compliance-Check greift.
+    // Admin kann das Profil deaktivieren falls gewünscht.
+    let _cpNow = Time.now();
+    let _cpId = nextComplianceProfileId.value;
+    nextComplianceProfileId.value += 1;
+    let _defaultProfile : ComplianceTypes.EmployeeComplianceProfile = {
+      id = _cpId;
+      employeeId = emp.id;
+      companyId;
+      aktiv = true;
+      vertraglicheWochenstunden = 42.0;
+      gesetzlicheWochenhochstarbeitszeit = 45.0;
+      gesetzlicherFerienanspruchWochen = 4.0;
+      vertraglicheZusatzferienTage = 0.0;
+      ausnahmeprofil = null;
+      erfassungsModus = "VOLLSTAENDIG";
+      createdAt = _cpNow;
+      updatedAt = _cpNow;
+    };
+    complianceProfiles.add(_defaultProfile);
     #ok(emp);
   };
 
   // Aktualisiert einen Mitarbeiter (Admin/Manager)
+  // FIX: Status-Toggle für alle Rollen zuverlässig implementiert.
+  // requireRole prüft NUR die Rolle des Aufrufers (caller), nicht des Zielobjekts.
   public shared ({ caller }) func updateEmployee(
     id : CommonTypes.EmployeeId,
     input : CompanyTypes.UpdateEmployeeInput,
   ) : async CommonTypes.Result<CompanyTypes.Employee> {
     let companyId = requireCompanyId(caller);
-    requireRole(caller, companyId, [#admin, #manager]);
+    // Zugriffscheck: gibt #err zurück statt zu trappen, damit Frontend die Meldung sieht
+    let company = switch (companies.find(func(c : CompanyTypes.Company) : Bool = c.id == companyId)) {
+      case null { return #err("Firma nicht gefunden") };
+      case (?c) c;
+    };
+    switch (AccessControlLib.requireRole(caller, company, [#admin, #manager], principalToEmployee, employees)) {
+      case (#err(_)) { return #err("Keine Berechtigung: nur Admin oder Manager") };
+      case (#ok(_)) {};
+    };
+    let beforeOpt = employees.find(func(e) { e.id == id and e.companyId == companyId });
     switch (CompanyLib.updateEmployee(employees, companyId, id, input)) {
-      case null { #err("Mitarbeiter nicht gefunden") };
-      case (?e) { #ok(e) };
+      case null { #err("Mitarbeiter nicht gefunden oder gehört nicht zu deiner Firma") };
+      case (?e) {
+        let beforeText = switch (beforeOpt) { case null { null }; case (?b) { ?employeeToText(b) } };
+        // Strukturierte Feldänderungen ermitteln
+        let changes : ?[AuditTypes.AuditFieldChange] = switch (beforeOpt) {
+          case null { null };
+          case (?b) {
+            var list : [AuditTypes.AuditFieldChange] = [];
+            if (b.active != e.active) {
+              list := list.concat([{ fieldName = "active"; before = if (b.active) "true" else "false"; after = if (e.active) "true" else "false" }]);
+            };
+            if (b.role != e.role) {
+              let roleText = func(r : CompanyTypes.Role) : Text = switch (r) { case (#admin) "admin"; case (#manager) "manager"; case (#employee) "employee" };
+              list := list.concat([{ fieldName = "role"; before = roleText(b.role); after = roleText(e.role) }]);
+            };
+            if (b.firstName != e.firstName) {
+              list := list.concat([{ fieldName = "firstName"; before = b.firstName; after = e.firstName }]);
+            };
+            if (b.lastName != e.lastName) {
+              list := list.concat([{ fieldName = "lastName"; before = b.lastName; after = e.lastName }]);
+            };
+            if (b.email != e.email) {
+              list := list.concat([{ fieldName = "email"; before = b.email; after = e.email }]);
+            };
+            if (list.size() > 0) { ?list } else { null };
+          };
+        };
+        appendCompanyAuditWithChanges(caller, companyId, #employee, #update, e.id.toText(), beforeText, ?employeeToText(e), changes);
+        #ok(e);
+      };
     };
   };
 
-  // Löscht einen Mitarbeiter (Admin)
+  // Setzt den Aktiv-Status eines Mitarbeiters direkt (Admin/Manager).
+  // Dedizierter Endpunkt mit non-optionalem Bool, um das ?Bool-Candid-Encoding-Problem zu umgehen
+  // (value.active ? some(v) : none() gibt bei false fälschlicherweise none() zurück).
+  public shared ({ caller }) func setEmployeeActive(
+    id : CommonTypes.EmployeeId,
+    active : Bool,
+  ) : async CommonTypes.Result<CompanyTypes.Employee> {
+    let companyId = requireCompanyId(caller);
+    let company = switch (companies.find(func(c : CompanyTypes.Company) : Bool = c.id == companyId)) {
+      case null { return #err("Firma nicht gefunden") };
+      case (?c) c;
+    };
+    switch (AccessControlLib.requireRole(caller, company, [#admin, #manager], principalToEmployee, employees)) {
+      case (#err(_)) { return #err("Keine Berechtigung: nur Admin oder Manager") };
+      case (#ok(_)) {};
+    };
+    let beforeOpt = employees.find(func(e) { e.id == id and e.companyId == companyId });
+    switch (CompanyLib.updateEmployee(employees, companyId, id, { active = ?active; firstName = null; lastName = null; email = null; role = null; employmentType = null; startDate = null; weeklyHoursTarget = null; geburtsdatum = null; adresseZusatz1 = null; adresseZusatz2 = null; strasse = null; postfach = null; plz = null; ort = null; land = null })) {
+      case null { #err("Mitarbeiter nicht gefunden oder gehört nicht zu deiner Firma") };
+      case (?e) {
+        let beforeText = switch (beforeOpt) { case null { null }; case (?b) { ?employeeToText(b) } };
+        let changes : ?[AuditTypes.AuditFieldChange] = switch (beforeOpt) {
+          case null { null };
+          case (?b) {
+            if (b.active != e.active) {
+              ?[{ fieldName = "active"; before = if (b.active) "true" else "false"; after = if (e.active) "true" else "false" }]
+            } else { null };
+          };
+        };
+        appendCompanyAuditWithChanges(caller, companyId, #employee, #update, e.id.toText(), beforeText, ?employeeToText(e), changes);
+        // Plan-Auto-Zuweisung bei Statusaenderung ENTFERNT:
+        // Planwechsel erfolgt nur nach expliziter Benutzer-Bestätigung via applyPlanChange().
+        #ok(e);
+      };
+    };
+  };
+
+  // Deaktiviert einen Mitarbeiter (setzt active=false) – Admin
   public shared ({ caller }) func deleteEmployee(
     id : CommonTypes.EmployeeId
   ) : async CommonTypes.Result<()> {
     let companyId = requireCompanyId(caller);
     requireRole(caller, companyId, [#admin]);
+    let beforeOpt = employees.find(func(e) { e.id == id and e.companyId == companyId });
     if (CompanyLib.deleteEmployee(employees, companyId, id)) {
+      // Capture afterState: employee is now deactivated (active=false, deactivatedAt set)
+      let afterOpt = employees.find(func(e) { e.id == id and e.companyId == companyId });
+      let beforeText = switch (beforeOpt) { case null { null }; case (?b) { ?employeeToText(b) } };
+      let afterText = switch (afterOpt) { case null { null }; case (?a) { ?employeeToText(a) } };
+      let changes : ?[AuditTypes.AuditFieldChange] = switch (beforeOpt) {
+        case null { null };
+        case (?b) {
+          ?[{ fieldName = "active"; before = "true"; after = "false" }]
+        };
+      };
+      appendCompanyAuditWithChanges(caller, companyId, #employee, #update, id.toText(), beforeText, afterText, changes);
       #ok(());
     } else {
       #err("Mitarbeiter nicht gefunden");
     };
+  };
+
+  // Löscht einen Mitarbeiter dauerhaft (Admin) – nur wenn keine Daten vorhanden
+  // Prüft: Zeiterfassungen, Ferieneinträge/Abwesenheiten, Spesen
+  public shared ({ caller }) func purgeEmployee(
+    id : CommonTypes.EmployeeId
+  ) : async CommonTypes.Result<()> {
+    let companyId = requireCompanyId(caller);
+    requireRole(caller, companyId, [#admin]);
+    // Mitarbeiter muss zur Firma gehören
+    let empOpt = employees.find(func(e) { e.id == id and e.companyId == companyId });
+    switch (empOpt) {
+      case null { return #err("Mitarbeiter nicht gefunden oder gehört nicht zu deiner Firma") };
+      case (?_) {};
+    };
+    // Vorprüfung: Zeiterfassungen
+    let hasTimeEntries = timeEntries.any(func(te : TrackingTypes.TimeEntry) : Bool {
+      te.employeeId == id and te.companyId == companyId
+    });
+    if (hasTimeEntries) {
+      return #err("Dieser Mitarbeiter kann nicht gelöscht werden, da noch Zeiterfassungen vorhanden sind.");
+    };
+    // Vorprüfung: Abwesenheiten/Ferien
+    let hasAbsences = absences.any(func(ab : TrackingTypes.Absence) : Bool {
+      ab.employeeId == id and ab.companyId == companyId
+    });
+    if (hasAbsences) {
+      return #err("Dieser Mitarbeiter kann nicht gelöscht werden, da noch Ferieneinträge/Abwesenheiten vorhanden sind.");
+    };
+    // Vorprüfung: Spesen
+    let hasExpenses = expenses.any(func(ex : TrackingTypes.Expense) : Bool {
+      ex.employeeId == id and ex.companyId == companyId
+    });
+    if (hasExpenses) {
+      return #err("Dieser Mitarbeiter kann nicht gelöscht werden, da noch Spesen vorhanden sind.");
+    };
+    // KRITISCH: beforeState VOR dem Löschen serialisieren
+    let beforeText : ?Text = switch (empOpt) {
+      case null { null };
+      case (?e) { ?employeeToText(e) };
+    };
+    // Echtes Löschen: Mitarbeiterdatensatz
+    let empFiltered = employees.filter(func(e) { not (e.id == id and e.companyId == companyId) });
+    employees.clear();
+    employees.append(empFiltered);
+    // Beschäftigungen entfernen
+    let emFiltered = employments.filter(func(em : CompanyTypes.Employment) : Bool {
+      not (em.employeeId == id and em.companyId == companyId)
+    });
+    employments.clear();
+    employments.append(emFiltered);
+    // Ferienguthaben entfernen
+    let vbFiltered = vacationBalances.filter(func(vb : CompanyTypes.VacationBalance) : Bool {
+      not (vb.employeeId == id and vb.companyId == companyId)
+    });
+    vacationBalances.clear();
+    vacationBalances.append(vbFiltered);
+    // Zeitsaldokorrekturen entfernen
+    let tbFiltered = timeBalanceCorrections.filter(func(c : CompanyTypes.TimeBalanceCorrection) : Bool {
+      not (c.employeeId == id and c.companyId == companyId)
+    });
+    timeBalanceCorrections.clear();
+    timeBalanceCorrections.append(tbFiltered);
+    // Principal-Mapping entfernen (falls vorhanden)
+    let principalsToRemove : [Principal] = principalToEmployee.entries()
+      .toArray()
+      .filterMap<(Principal, CommonTypes.EmployeeId), Principal>(func((p, empId)) {
+        if (empId == id) { ?p } else { null }
+      });
+    for (p in principalsToRemove.values()) {
+      principalToEmployee.remove(p);
+      principalToCompany.remove(p);
+    };
+    // Audit: #remove mit beforeState (serialisiert VOR dem Löschen), afterState=null
+    appendCompanyAudit(caller, companyId, #employee, #remove, id.toText(), beforeText, null);
+    #ok(());
   };
 
   // Gibt die Firmeneinstellungen zurück
@@ -354,6 +713,11 @@ mixin (
   ) : async CommonTypes.Result<CompanyTypes.Employment> {
     let companyId = requireCompanyId(caller);
     requireRole(caller, companyId, [#admin, #manager]);
+    // Pensum validieren (0–100): Float → Nat-Konvertierung für den Validator
+    switch (InputValidator.isValidPensum(input.pensum.toInt().toNat())) {
+      case (#err(msg)) { return #err(msg) };
+      case (#ok(())) {};
+    };
     let id = nextEmploymentId.value;
     nextEmploymentId.value += 1;
     switch (CompanyLib.createEmployment(employments, id.toText(), employeeId, companyId, input)) {
@@ -370,6 +734,11 @@ mixin (
   ) : async CommonTypes.Result<CompanyTypes.Employment> {
     let companyId = requireCompanyId(caller);
     requireRole(caller, companyId, [#admin, #manager]);
+    // Pensum validieren (0–100): Float → Nat-Konvertierung für den Validator
+    switch (InputValidator.isValidPensum(input.pensum.toInt().toNat())) {
+      case (#err(msg)) { return #err(msg) };
+      case (#ok(())) {};
+    };
     switch (CompanyLib.updateEmployment(employments, companyId, employeeId, employmentId, input)) {
       case (#err(msg)) { #err(msg) };
       case (#ok(em)) { #ok(em) };
@@ -450,6 +819,39 @@ mixin (
     } else {
       #err("Ferienguthaben nicht gefunden");
     };
+  };
+
+  // ─── Standard-Arbeitsstunden ──────────────────────────────────────────────────
+
+  // Gibt die Standard-Arbeitsstunden der Firma zurueck (oder Standardwerte 480/0)
+  public query ({ caller }) func getDefaultWorkHours() : async CompanyTypes.DefaultWorkHours {
+    let companyId = requireCompanyId(caller);
+    switch (defaultWorkHoursMap.get(companyId)) {
+      case (?dwh) { dwh };
+      case null {
+        {
+          companyId;
+          stundenMo = 480;
+          stundenDi = 480;
+          stundenMi = 480;
+          stundenDo = 480;
+          stundenFr = 480;
+          stundenSa = 0;
+          stundenSo = 0;
+        };
+      };
+    };
+  };
+
+  // Aktualisiert die Standard-Arbeitsstunden der Firma (Admin)
+  public shared ({ caller }) func updateDefaultWorkHours(
+    input : CompanyTypes.DefaultWorkHours
+  ) : async CommonTypes.Result<CompanyTypes.DefaultWorkHours> {
+    let companyId = requireCompanyId(caller);
+    requireRole(caller, companyId, [#admin]);
+    let updated : CompanyTypes.DefaultWorkHours = { input with companyId };
+    defaultWorkHoursMap.add(companyId, updated);
+    #ok(updated);
   };
 
   // ─── Zeitsaldokorrekturen ────────────────────────────────────────────────────

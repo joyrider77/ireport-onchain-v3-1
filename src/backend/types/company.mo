@@ -16,6 +16,10 @@ module {
     taxId : ?Text;
     address : ?Text;
     createdAt : Timestamp;
+    mwstNummer  : ?Text;  // MwSt-Identifikationsnummer für Rechnungen
+    kontoInhaber : ?Text; // Konto-Inhaber für Bankverbindung
+    kontoAdresse : ?Text; // Adresse des Konto-Inhabers
+    isActive : Bool;      // Platform Admin kann Mandanten deaktivieren
   };
 
   // Mitarbeiterdaten (mit persönlichen Zusatzfeldern)
@@ -31,6 +35,8 @@ module {
     startDate : Text;
     weeklyHoursTarget : Float;
     active : Bool;
+    activatedAt : ?Int;    // Zeitstempel der letzten Aktivierung (Nanosekunden)
+    deactivatedAt : ?Int;  // Zeitstempel der letzten Deaktivierung (Nanosekunden)
     // Persönliche Daten
     geburtsdatum : ?Int;
     adresseZusatz1 : ?Text;
@@ -42,12 +48,23 @@ module {
     land : ?Text;
   };
 
+  // Platform Admin: Mitarbeiterübersicht pro Firma
+  public type PlatformAdminUserEntry = {
+    id : EmployeeId;
+    firstName : Text;
+    lastName : Text;
+    email : Text;
+    role : Role;
+    isActive : Bool;
+    activatedAt : ?Int;
+    deactivatedAt : ?Int;
+  };
+
   // Feiertagsberechnungsart
   public type FeiertagsberechnungsartType = {
-    #exakt;
-    #prozentual;
-    #entschaedigt;
-    #exaktWochentag;
+    #keineGutschrift;      // An Feiertagen wird keine Zeit gutgeschrieben (Gutschrift 0:00)
+    #wochentag_sollzeit;   // Gutschrift gemäss Sollzeit des betroffenen Wochentags
+    #durchschnittssoll;    // Gutschrift gemäss durchschnittlicher täglicher Sollzeit
   };
 
   // Beschäftigung (Anstellung eines Mitarbeiters, inkl. Wochenstunden in Minuten)
@@ -105,6 +122,9 @@ module {
     logoUrl : ?Text;
     taxId : ?Text;
     address : ?Text;
+    mwstNummer  : ?Text;
+    kontoInhaber : ?Text;
+    kontoAdresse : ?Text;
   };
 
   // Eingabedaten für neuen Mitarbeiter
@@ -205,6 +225,18 @@ module {
     dauer : ?Int;
     ueberzeit : ?Int;
     bemerkung : ?Text;
+  };
+
+  // Standard-Arbeitsstunden pro Wochentag (in Minuten) – wird bei neuer Beschäftigung als Vorlage verwendet
+  public type DefaultWorkHours = {
+    companyId : CompanyId;
+    stundenMo : Nat; // Minuten
+    stundenDi : Nat;
+    stundenMi : Nat;
+    stundenDo : Nat;
+    stundenFr : Nat;
+    stundenSa : Nat;
+    stundenSo : Nat;
   };
 
   // Firmeneinstellungen

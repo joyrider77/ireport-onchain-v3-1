@@ -62,6 +62,9 @@ module {
       receiptBlobId = input.receiptBlobId;
       status = #pending;
       resetReason = null;
+      kundeId = input.kundeId;
+      projektId = input.projektId;
+      fakturiertInRechnungId = null;
     };
     expenses.add(expense);
     expense;
@@ -86,6 +89,8 @@ module {
           reimbursementCHF = switch (input.reimbursementCHF) { case (?v) v; case null e.reimbursementCHF };
           description = switch (input.description) { case (?v) v; case null e.description };
           receiptBlobId = switch (input.receiptBlobId) { case (?v) ?v; case null e.receiptBlobId };
+          kundeId = switch (input.kundeId) { case (?v) ?v; case null e.kundeId };
+          projektId = switch (input.projektId) { case (?v) ?v; case null e.projektId };
         };
         result := ?updated;
         updated;

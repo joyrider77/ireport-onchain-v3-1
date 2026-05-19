@@ -34,7 +34,7 @@ import { useActor } from "@caffeineai/core-infrastructure";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Check, CheckCircle2, ClipboardList, RotateCcw, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { createActor } from "../backend";
 import type {
@@ -42,10 +42,13 @@ import type {
   AbsenceFilter,
   AbsenceStatus,
   AbsenceType,
+  Customer,
   Employee,
   Expense,
   ExpenseFilter,
   ExpenseStatus,
+  Project,
+  ServiceType,
 } from "../backend";
 
 type AnyActor = Record<string, (...args: unknown[]) => Promise<unknown>>;
@@ -85,12 +88,46 @@ function formatDate(ts: bigint): string {
   return new Date(Number(ts) / 1_000_000).toLocaleDateString("de-CH");
 }
 
+/** Format a time entry date field — handles nanosecond BigInt OR ISO string */
+function formatTimeEntryDate(date: unknown): string {
+  if (!date) return "–";
+  if (typeof date === "bigint") {
+    return new Date(Number(date) / 1_000_000).toLocaleDateString("de-CH");
+  }
+  if (typeof date === "number") {
+    // Nanoseconds as number
+    const d = new Date(date > 1e12 ? date / 1_000_000 : date * 1000);
+    return d.toLocaleDateString("de-CH");
+  }
+  if (typeof date === "string") {
+    // ISO date string YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      const [y, m, d] = date.split("-");
+      return `${d}.${m}.${y}`;
+    }
+    const parsed = new Date(date);
+    if (!Number.isNaN(parsed.getTime()))
+      return parsed.toLocaleDateString("de-CH");
+  }
+  return "–";
+}
+
+/** Format hours (number) as hh:mm */
+function formatHoursHHMM(hours: unknown): string {
+  if (hours === undefined || hours === null) return "–";
+  const h = typeof hours === "bigint" ? Number(hours) : Number(hours);
+  if (Number.isNaN(h)) return "–";
+  const wholeHours = Math.floor(h);
+  const minutes = Math.round((h - wholeHours) * 60);
+  return `${String(wholeHours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
 type AbsenceStatusFilter = "all" | "submitted" | "approved" | "rejected";
 type ExpenseStatusFilter = "all" | "pending" | "approved" | "rejected";
 
 export default function GenehmigungsPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, companyId, role } = useAuth();
+  const { isAuthenticated, companyId, role, employeeId } = useAuth();
   const { actor, isFetching } = useActor(createActor);
   const queryClient = useQueryClient();
 
@@ -98,6 +135,23 @@ export default function GenehmigungsPage() {
     useState<AbsenceStatusFilter>("submitted");
   const [expenseFilter, setExpenseFilter] =
     useState<ExpenseStatusFilter>("pending");
+  const [mitarbeiterFilter, setMitarbeiterFilter] = useState<"alle" | "meine">(
+    role === "admin" ? "alle" : "meine",
+  );
+
+  const supervisedEmployeeIds = useMemo(() => {
+    const ids: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith("supervisor_")) {
+        const supervisorId = localStorage.getItem(key);
+        if (supervisorId === employeeId) {
+          ids.push(key.replace("supervisor_", ""));
+        }
+      }
+    }
+    return ids;
+  }, [employeeId]);
 
   // Reject absence dialog state
   const [rejectAbsenceId, setRejectAbsenceId] = useState<bigint | null>(null);
@@ -114,6 +168,20 @@ export default function GenehmigungsPage() {
   // Reset expense dialog state
   const [resetExpenseId, setResetExpenseId] = useState<bigint | null>(null);
   const [resetExpenseReason, setResetExpenseReason] = useState("");
+
+  // Reject Zeitrapport dialog state
+  const [rejectZeitrapportId, setRejectZeitrapportId] = useState<bigint | null>(
+    null,
+  );
+  const [rejectZeitrapportReason, setRejectZeitrapportReason] = useState("");
+  const [filterMonthFerien, setFilterMonthFerien] = useState<string>("alle");
+  const [filterMonthAbsenzen, setFilterMonthAbsenzen] =
+    useState<string>("alle");
+  const [filterMonthSpesen, setFilterMonthSpesen] = useState<string>("alle");
+  const [filterMonthZeitrapporte, setFilterMonthZeitrapporte] =
+    useState<string>("alle");
+  const [filterStatusZeitrapporte, setFilterStatusZeitrapporte] =
+    useState<string>("alle");
 
   useEffect(() => {
     if (!isAuthenticated || !companyId) {
@@ -151,16 +219,10 @@ export default function GenehmigungsPage() {
     staleTime: 60_000,
   });
 
-  // Identify the system-managed vacation type strictly by name "ferien" + requiresApproval.
-  // This prevents other requiresApproval types from being incorrectly treated as vacation.
-  const vacationType =
-    absenceTypes.find(
-      (t) => t.name.toLowerCase() === "ferien" && t.requiresApproval,
-    ) ??
-    absenceTypes.find(
-      (t) => t.requiresApproval && t.name.toLowerCase().includes("feri"),
-    ) ??
-    absenceTypes.find((t) => t.requiresApproval);
+  // Strictly match by name only — never use requiresApproval as a fallback.
+  const vacationType = absenceTypes.find(
+    (t) => t.name.toLowerCase() === "ferien",
+  );
 
   const absenceQueryFilter: AbsenceFilter =
     absenceFilter === "all"
@@ -183,14 +245,64 @@ export default function GenehmigungsPage() {
     staleTime: 30_000,
   });
 
-  const vacationAbsences = allAbsences.filter(
+  const vacationAbsencesRaw = allAbsences.filter(
     (a) => vacationType && a.absenceTypeId === vacationType.id,
   );
+
+  // Non-vacation absences (all types excluding the vacation type, regardless of requiresApproval)
+  const _nonVacationAbsenceTypeIds = new Set(
+    absenceTypes
+      .filter((t) => !vacationType || t.id !== vacationType.id)
+      .map((t) => String(t.id)),
+  );
+  const nonVacationApprovalAbsencesRaw = allAbsences.filter(
+    (a) => !vacationType || String(a.absenceTypeId) !== String(vacationType.id),
+  );
+
+  // Apply Alle/Meine filter
+  const vacationAbsencesFiltered =
+    mitarbeiterFilter === "meine"
+      ? vacationAbsencesRaw.filter((a) =>
+          supervisedEmployeeIds.includes(String(a.employeeId)),
+        )
+      : vacationAbsencesRaw;
+  const nonVacationApprovalAbsencesFiltered =
+    mitarbeiterFilter === "meine"
+      ? nonVacationApprovalAbsencesRaw.filter((a) =>
+          supervisedEmployeeIds.includes(String(a.employeeId)),
+        )
+      : nonVacationApprovalAbsencesRaw;
+
+  // Apply month filter for Ferien/Absenzen
+  const vacationAbsences =
+    filterMonthFerien === "alle"
+      ? vacationAbsencesFiltered
+      : vacationAbsencesFiltered.filter((a) => {
+          const d = new Date(a.dateFrom);
+          return (
+            `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}` ===
+            filterMonthFerien
+          );
+        });
+  const nonVacationApprovalAbsences =
+    filterMonthAbsenzen === "alle"
+      ? nonVacationApprovalAbsencesFiltered
+      : nonVacationApprovalAbsencesFiltered.filter((a) => {
+          const d = new Date(a.dateFrom);
+          return (
+            `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}` ===
+            filterMonthAbsenzen
+          );
+        });
+
+  function getAbsenceTypeName(id: bigint): string {
+    return absenceTypes.find((t) => t.id === id)?.name ?? String(id);
+  }
 
   const expenseQueryFilter: ExpenseFilter =
     expenseFilter === "all" ? {} : { status: expenseFilter as ExpenseStatus };
 
-  const { data: allExpenses = [], isLoading: loadingExpenses } = useQuery<
+  const { data: allExpensesRaw = [], isLoading: loadingExpenses } = useQuery<
     Expense[]
   >({
     queryKey: ["allExpenses", expenseFilter],
@@ -202,9 +314,126 @@ export default function GenehmigungsPage() {
     staleTime: 30_000,
   });
 
+  // Apply Alle/Meine filter for expenses
+  const allExpensesFiltered =
+    mitarbeiterFilter === "meine"
+      ? allExpensesRaw.filter((e) =>
+          supervisedEmployeeIds.includes(String(e.employeeId)),
+        )
+      : allExpensesRaw;
+
+  // Apply month filter for Spesen
+  const allExpenses =
+    filterMonthSpesen === "alle"
+      ? allExpensesFiltered
+      : allExpensesFiltered.filter((e) => {
+          if (!e.date) return false;
+          const d = new Date(
+            typeof e.date === "bigint"
+              ? Number(e.date) / 1_000_000
+              : String(e.date),
+          );
+          return (
+            `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}` ===
+            filterMonthSpesen
+          );
+        });
+
+  const { data: submittedTimeEntriesRaw = [], refetch: refetchTimeEntries } =
+    useQuery({
+      queryKey: ["submittedTimeEntries", companyId],
+      queryFn: async () => {
+        if (!actor) return [];
+        return (await toAny(actor).listSubmittedTimeEntries()) as Record<
+          string,
+          unknown
+        >[];
+      },
+      enabled,
+      staleTime: 30_000,
+    });
+
+  // Apply Alle/Meine filter for time entries
+  const submittedTimeEntriesFiltered =
+    mitarbeiterFilter === "meine"
+      ? submittedTimeEntriesRaw.filter((e) =>
+          supervisedEmployeeIds.includes(String(e.employeeId)),
+        )
+      : submittedTimeEntriesRaw;
+
+  // Apply month + status filter for Zeitrapporte
+  const submittedTimeEntries = submittedTimeEntriesFiltered
+    .filter((e) => {
+      if (filterMonthZeitrapporte === "alle") return true;
+      const raw = e.date;
+      if (!raw) return false;
+      let d: Date;
+      if (typeof raw === "bigint") d = new Date(Number(raw) / 1_000_000);
+      else if (typeof raw === "number")
+        d = new Date(raw > 1e12 ? raw / 1_000_000 : raw * 1000);
+      else d = new Date(String(raw));
+      return (
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}` ===
+        filterMonthZeitrapporte
+      );
+    })
+    .filter((e) => {
+      if (filterStatusZeitrapporte === "alle") return true;
+      return String(e.status) === filterStatusZeitrapporte;
+    });
+
   function getEmployeeName(id: bigint): string {
     const emp = employees.find((e) => e.id === id);
     return emp ? `${emp.firstName} ${emp.lastName}` : String(id);
+  }
+
+  const { data: projects = [] } = useQuery<Project[]>({
+    queryKey: ["projects"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (await toAny(actor).listProjects()) as Project[];
+    },
+    enabled,
+    staleTime: 60_000,
+  });
+
+  const { data: customers = [] } = useQuery<Customer[]>({
+    queryKey: ["customers"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (await toAny(actor).listCustomers()) as Customer[];
+    },
+    enabled,
+    staleTime: 60_000,
+  });
+
+  const { data: serviceTypes = [] } = useQuery<ServiceType[]>({
+    queryKey: ["serviceTypes"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (await toAny(actor).listServiceTypes()) as ServiceType[];
+    },
+    enabled,
+    staleTime: 60_000,
+  });
+
+  function getProjectName(id: unknown): string {
+    const proj = projects.find((p) => String(p.id) === String(id));
+    return proj?.name ?? "–";
+  }
+
+  function getClientName(id: unknown): string {
+    const proj = projects.find((p) => String(p.id) === String(id));
+    if (!proj) return "–";
+    const cust = customers.find(
+      (c) => String(c.id) === String(proj.customerId),
+    );
+    return cust?.name ?? "–";
+  }
+
+  function getServiceTypeName(id: unknown): string {
+    const st = serviceTypes.find((s) => String(s.id) === String(id));
+    return st?.name ?? "–";
   }
 
   // ─── Absence mutations ────────────────────────────────────────────────────────
@@ -213,29 +442,50 @@ export default function GenehmigungsPage() {
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Nicht verfügbar");
       const result = (await toAny(actor).approveAbsence(id)) as {
-        __kind__: string;
+        __kind__?: string;
         err?: string;
       };
-      if (result.__kind__ === "err") throw new Error(result.err);
+      if ((result as { __kind__?: string }).__kind__ === "err")
+        throw new Error(
+          typeof result.err === "string"
+            ? result.err
+            : "Fehler bei der Genehmigung",
+        );
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["allAbsences"] });
+      queryClient.invalidateQueries({
+        queryKey: ["allAbsences"],
+        refetchType: "active",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["absences"],
+        refetchType: "active",
+      });
       toast.success("Ferienantrag genehmigt");
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) =>
+      toast.error(`Genehmigung fehlgeschlagen: ${err.message}`),
   });
 
   const rejectAbsenceMutation = useMutation({
     mutationFn: async ({ id, comment }: { id: bigint; comment: string }) => {
       if (!actor) throw new Error("Nicht verfügbar");
-      const result = (await toAny(actor).rejectAbsence(id, comment)) as {
-        __kind__: string;
-        err?: string;
-      };
-      if (result.__kind__ === "err") throw new Error(result.err);
+      let result: unknown;
+      try {
+        result = await toAny(actor).rejectAbsence(id, comment);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new Error(`Canister-Fehler: ${msg}`);
+      }
+      const r = result as { __kind__?: string; err?: string };
+      if ((r as { __kind__?: string }).__kind__ === "err")
+        throw new Error(
+          typeof r.err === "string" ? r.err : "Fehler bei der Ablehnung",
+        );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allAbsences"] });
+      queryClient.invalidateQueries({ queryKey: ["absences"] });
       toast.success("Ferienantrag abgelehnt");
       setRejectAbsenceId(null);
       setRejectAbsenceComment("");
@@ -252,10 +502,18 @@ export default function GenehmigungsPage() {
         __kind__: string;
         err?: string;
       };
-      if (result.__kind__ === "err") throw new Error(result.err);
+      if (result.__kind__ === "err")
+        throw new Error(result.err ?? "Fehler bei der Genehmigung");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["allExpenses"] });
+      queryClient.invalidateQueries({
+        queryKey: ["allExpenses"],
+        refetchType: "active",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["expenses"],
+        refetchType: "active",
+      });
       toast.success("Spesen genehmigt");
     },
     onError: (err: Error) => toast.error(err.message),
@@ -271,10 +529,18 @@ export default function GenehmigungsPage() {
         __kind__: string;
         err?: string;
       };
-      if (result.__kind__ === "err") throw new Error(result.err);
+      if (result.__kind__ === "err")
+        throw new Error(result.err ?? "Fehler bei der Ablehnung");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["allExpenses"] });
+      queryClient.invalidateQueries({
+        queryKey: ["allExpenses"],
+        refetchType: "active",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["expenses"],
+        refetchType: "active",
+      });
       toast.success("Spesen abgelehnt");
       setRejectExpenseId(null);
       setRejectExpenseComment("");
@@ -285,17 +551,27 @@ export default function GenehmigungsPage() {
   const resetAbsenceMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: bigint; reason: string }) => {
       if (!actor) throw new Error("Nicht verfügbar");
-      const result = (await toAny(actor).resetAbsenceToAusstehend(
-        id,
-        reason,
-      )) as {
-        __kind__: string;
-        err?: string;
-      };
-      if (result.__kind__ === "err") throw new Error(result.err);
+      let result: unknown;
+      try {
+        result = await toAny(actor).resetAbsenceToAusstehend(id, reason);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new Error(`Canister-Fehler: ${msg}`);
+      }
+      const r = result as { __kind__?: string; err?: string };
+      if (r.__kind__ === "err")
+        throw new Error(r.err ?? "Fehler beim Zurücksetzen");
+      if (typeof r.err === "string") throw new Error(r.err);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["allAbsences"] });
+      queryClient.invalidateQueries({
+        queryKey: ["allAbsences"],
+        refetchType: "active",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["absences"],
+        refetchType: "active",
+      });
       toast.success("Ferienantrag auf «Ausstehend» zurückgesetzt");
       setResetAbsenceId(null);
       setResetAbsenceReason("");
@@ -313,10 +589,18 @@ export default function GenehmigungsPage() {
         __kind__: string;
         err?: string;
       };
-      if (result.__kind__ === "err") throw new Error(result.err);
+      if (result.__kind__ === "err")
+        throw new Error(result.err ?? "Fehler beim Zurücksetzen");
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["allExpenses"] });
+      queryClient.invalidateQueries({
+        queryKey: ["allExpenses"],
+        refetchType: "active",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["expenses"],
+        refetchType: "active",
+      });
       toast.success("Spesen auf «Ausstehend» zurückgesetzt");
       setResetExpenseId(null);
       setResetExpenseReason("");
@@ -325,6 +609,44 @@ export default function GenehmigungsPage() {
       toast.error(err.message);
       setResetExpenseId(null);
     },
+  });
+
+  const approveTimeEntryMutation = useMutation({
+    mutationFn: async (id: bigint) => {
+      if (!actor) throw new Error("Nicht verfügbar");
+      const result = await actor.approveTimeEntry(id, {});
+      const r = result as { ok?: unknown; err?: string } | null;
+      if (r && "err" in (r as object))
+        throw new Error((r as any).err ?? "Fehler bei der Genehmigung");
+    },
+    onSuccess: () => {
+      refetchTimeEntries();
+      queryClient.invalidateQueries({ queryKey: ["timeEntries"] });
+      queryClient.invalidateQueries({ queryKey: ["submittedTimeEntries"] });
+      toast.success("Zeiteintrag genehmigt");
+    },
+    onError: (err: Error) =>
+      toast.error(`Fehler: ${err?.message ?? "Unbekannter Fehler"}`),
+  });
+
+  const rejectTimeEntryMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: bigint; reason: string }) => {
+      if (!actor) throw new Error("Nicht verfügbar");
+      const result = await actor.rejectTimeEntry(id, { reason: reason });
+      const r = result as { ok?: unknown; err?: string } | null;
+      if (r && "err" in (r as object))
+        throw new Error((r as any).err ?? "Fehler bei der Ablehnung");
+    },
+    onSuccess: () => {
+      refetchTimeEntries();
+      queryClient.invalidateQueries({ queryKey: ["timeEntries"] });
+      queryClient.invalidateQueries({ queryKey: ["submittedTimeEntries"] });
+      setRejectZeitrapportId(null);
+      setRejectZeitrapportReason("");
+      toast.success("Zeiteintrag abgelehnt");
+    },
+    onError: (err: Error) =>
+      toast.error(`Fehler: ${err?.message ?? "Unbekannter Fehler"}`),
   });
 
   if (role !== "admin" && role !== "manager") return null;
@@ -341,23 +663,101 @@ export default function GenehmigungsPage() {
           </p>
         </div>
 
+        <div className="flex gap-2 mb-4">
+          <button
+            type="button"
+            onClick={() => setMitarbeiterFilter("alle")}
+            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+              mitarbeiterFilter === "alle"
+                ? "bg-[#006066] text-white"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            }`}
+            data-ocid="filter-alle-mitarbeiter"
+          >
+            Alle Mitarbeiter
+          </button>
+          <button
+            type="button"
+            onClick={() => setMitarbeiterFilter("meine")}
+            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+              mitarbeiterFilter === "meine"
+                ? "bg-[#006066] text-white"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            }`}
+            data-ocid="filter-meine-mitarbeiter"
+          >
+            Meine Mitarbeiter
+          </button>
+        </div>
+
         <Tabs defaultValue="ferien">
           <TabsList>
             <TabsTrigger value="ferien" data-ocid="tab-ferien-genehmigung">
               Ferienanträge
             </TabsTrigger>
+            <TabsTrigger value="absenzen" data-ocid="tab-absenzen-genehmigung">
+              Absenzen
+              {nonVacationApprovalAbsences.filter(
+                (a) => a.status === "submitted",
+              ).length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
+                  {
+                    nonVacationApprovalAbsences.filter(
+                      (a) => a.status === "submitted",
+                    ).length
+                  }
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="spesen" data-ocid="tab-spesen-genehmigung">
               Spesen
+            </TabsTrigger>
+            <TabsTrigger
+              value="zeitrapporte"
+              data-ocid="tab-zeitrapporte-genehmigung"
+            >
+              Zeitrapporte
             </TabsTrigger>
           </TabsList>
 
           {/* ─── Tab 1: Ferienanträge ──────────────────────────────── */}
           <TabsContent value="ferien" className="mt-4 space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center flex-wrap gap-2">
               <p className="text-sm text-muted-foreground">
                 Ferienanträge aller Mitarbeitenden
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Label className="text-sm text-muted-foreground whitespace-nowrap">
+                  Monat:
+                </Label>
+                <Select
+                  value={filterMonthFerien}
+                  onValueChange={setFilterMonthFerien}
+                >
+                  <SelectTrigger
+                    className="w-36"
+                    data-ocid="select-ferien-month-filter"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="alle">Alle Monate</SelectItem>
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const d = new Date();
+                      d.setMonth(d.getMonth() - i);
+                      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                      const label = d.toLocaleDateString("de-CH", {
+                        month: "long",
+                        year: "numeric",
+                      });
+                      return (
+                        <SelectItem key={val} value={val}>
+                          {label}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
                 <Label className="text-sm text-muted-foreground whitespace-nowrap">
                   Status:
                 </Label>
@@ -518,13 +918,244 @@ export default function GenehmigungsPage() {
             </Card>
           </TabsContent>
 
-          {/* ─── Tab 2: Spesen ────────────────────────────────────────── */}
-          <TabsContent value="spesen" className="mt-4 space-y-4">
+          {/* ─── Tab 2: Absenzen (non-vacation requiresApproval absences) ─ */}
+          <TabsContent value="absenzen" className="mt-4 space-y-4">
             <div className="flex justify-between items-center">
+              <p className="text-sm text-muted-foreground">
+                Absenzen mit Genehmigungspflicht aller Mitarbeitenden
+              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Label className="text-sm text-muted-foreground whitespace-nowrap">
+                  Monat:
+                </Label>
+                <Select
+                  value={filterMonthAbsenzen}
+                  onValueChange={setFilterMonthAbsenzen}
+                >
+                  <SelectTrigger
+                    className="w-36"
+                    data-ocid="select-absenzen-month-filter"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="alle">Alle Monate</SelectItem>
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const d = new Date();
+                      d.setMonth(d.getMonth() - i);
+                      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                      const label = d.toLocaleDateString("de-CH", {
+                        month: "long",
+                        year: "numeric",
+                      });
+                      return (
+                        <SelectItem key={val} value={val}>
+                          {label}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <Label className="text-sm text-muted-foreground whitespace-nowrap">
+                  Status:
+                </Label>
+                <Select
+                  value={absenceFilter}
+                  onValueChange={(v) =>
+                    setAbsenceFilter(v as AbsenceStatusFilter)
+                  }
+                >
+                  <SelectTrigger
+                    className="w-36"
+                    data-ocid="select-absenzen-filter"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="submitted">Ausstehend</SelectItem>
+                    <SelectItem value="approved">Genehmigt</SelectItem>
+                    <SelectItem value="rejected">Abgelehnt</SelectItem>
+                    <SelectItem value="all">Alle</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <Card className="shadow-card">
+              <CardContent className="p-0">
+                {loadingAbsences ? (
+                  <div className="p-4 space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <Skeleton key={i} className="h-10 w-full" />
+                    ))}
+                  </div>
+                ) : nonVacationApprovalAbsences.length === 0 ? (
+                  <div
+                    className="flex flex-col items-center justify-center py-16 gap-3 text-center"
+                    data-ocid="empty-absenzen-genehmigung"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                      <CheckCircle2 className="w-6 h-6 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        Keine Absenzen
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Es liegen keine Absenzen mit dem gewählten Status vor.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Mitarbeiter</TableHead>
+                          <TableHead>Abwesenheitsart</TableHead>
+                          <TableHead>Datum von</TableHead>
+                          <TableHead>Datum bis</TableHead>
+                          <TableHead className="text-right">Tage</TableHead>
+                          <TableHead>Begründung</TableHead>
+                          <TableHead>Eingereicht am</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Aktionen</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {nonVacationApprovalAbsences.map((a) => (
+                          <TableRow
+                            key={String(a.id)}
+                            data-ocid={`absenz-approval-row-${a.id}`}
+                          >
+                            <TableCell className="font-medium">
+                              {getEmployeeName(a.employeeId)}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {getAbsenceTypeName(a.absenceTypeId)}
+                            </TableCell>
+                            <TableCell>{formatDateDE(a.dateFrom)}</TableCell>
+                            <TableCell>{formatDateDE(a.dateTo)}</TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {daysBetween(a.dateFrom, a.dateTo)}
+                            </TableCell>
+                            <TableCell className="max-w-40 truncate text-muted-foreground">
+                              {a.description ?? "—"}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              {formatDate(a.createdAt)}
+                            </TableCell>
+                            <TableCell>
+                              {absenceStatusBadge(a.status)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-1">
+                                {a.status === "submitted" && (
+                                  <>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="gap-1.5 text-green-700 border-green-200 hover:bg-green-50"
+                                      onClick={() =>
+                                        approveAbsenceMutation.mutate(a.id)
+                                      }
+                                      disabled={
+                                        approveAbsenceMutation.isPending
+                                      }
+                                      data-ocid={`btn-approve-absenz-${a.id}`}
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                      Genehmigen
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+                                      onClick={() => {
+                                        setRejectAbsenceId(a.id);
+                                        setRejectAbsenceComment("");
+                                      }}
+                                      data-ocid={`btn-reject-absenz-${a.id}`}
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                      Ablehnen
+                                    </Button>
+                                  </>
+                                )}
+                                {a.status === "approved" && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="gap-1.5 text-amber-700 border-amber-200 hover:bg-amber-50"
+                                    onClick={() => {
+                                      setResetAbsenceId(a.id);
+                                      setResetAbsenceReason("");
+                                    }}
+                                    data-ocid={`btn-reset-absenz-${a.id}`}
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                    Zurücksetzen
+                                  </Button>
+                                )}
+                                {a.status === "rejected" &&
+                                  a.rejectionComment && (
+                                    <span className="text-xs text-muted-foreground italic max-w-32 truncate block">
+                                      {a.rejectionComment}
+                                    </span>
+                                  )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ─── Tab 3: Spesen ────────────────────────────────────────── */}
+          <TabsContent value="spesen" className="mt-4 space-y-4">
+            <div className="flex justify-between items-center flex-wrap gap-2">
               <p className="text-sm text-muted-foreground">
                 Spesenbelege aller Mitarbeitenden
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Label className="text-sm text-muted-foreground whitespace-nowrap">
+                  Monat:
+                </Label>
+                <Select
+                  value={filterMonthSpesen}
+                  onValueChange={setFilterMonthSpesen}
+                >
+                  <SelectTrigger
+                    className="w-36"
+                    data-ocid="select-spesen-month-filter"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="alle">Alle Monate</SelectItem>
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const d = new Date();
+                      d.setMonth(d.getMonth() - i);
+                      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                      const label = d.toLocaleDateString("de-CH", {
+                        month: "long",
+                        year: "numeric",
+                      });
+                      return (
+                        <SelectItem key={val} value={val}>
+                          {label}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
                 <Label className="text-sm text-muted-foreground whitespace-nowrap">
                   Status:
                 </Label>
@@ -677,7 +1308,257 @@ export default function GenehmigungsPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* ─── Tab 3: Zeitrapporte ──────────────────────────────── */}
+          <TabsContent value="zeitrapporte" className="mt-4 space-y-4">
+            <div className="flex justify-between items-center flex-wrap gap-2">
+              <p className="text-sm text-muted-foreground">
+                Eingereichte Zeitrapporte aller Mitarbeitenden
+              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Label className="text-sm text-muted-foreground whitespace-nowrap">
+                  Monat:
+                </Label>
+                <Select
+                  value={filterMonthZeitrapporte}
+                  onValueChange={setFilterMonthZeitrapporte}
+                >
+                  <SelectTrigger
+                    className="w-36"
+                    data-ocid="select-zeitrapporte-month-filter"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="alle">Alle Monate</SelectItem>
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const d = new Date();
+                      d.setMonth(d.getMonth() - i);
+                      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                      const label = d.toLocaleDateString("de-CH", {
+                        month: "long",
+                        year: "numeric",
+                      });
+                      return (
+                        <SelectItem key={val} value={val}>
+                          {label}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <Label className="text-sm text-muted-foreground whitespace-nowrap">
+                  Status:
+                </Label>
+                <Select
+                  value={filterStatusZeitrapporte}
+                  onValueChange={setFilterStatusZeitrapporte}
+                >
+                  <SelectTrigger
+                    className="w-36"
+                    data-ocid="select-zeitrapporte-status-filter"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="alle">Alle Status</SelectItem>
+                    <SelectItem value="submitted">Ausstehend</SelectItem>
+                    <SelectItem value="approved">Genehmigt</SelectItem>
+                    <SelectItem value="rejected">Abgelehnt</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Card className="shadow-card">
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-[#00182b] hover:bg-[#00182b]">
+                        <TableHead className="text-white">
+                          Mitarbeiter
+                        </TableHead>
+                        <TableHead className="text-white">Datum</TableHead>
+                        <TableHead className="text-white">Stunden</TableHead>
+                        <TableHead className="text-white">Kunde</TableHead>
+                        <TableHead className="text-white">Projekt</TableHead>
+                        <TableHead className="text-white">
+                          Leistungsart
+                        </TableHead>
+                        <TableHead className="text-white">
+                          Beschreibung
+                        </TableHead>
+                        <TableHead className="text-white">Aktionen</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {submittedTimeEntries.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={8}>
+                            <div
+                              className="flex flex-col items-center justify-center py-16 gap-3 text-center"
+                              data-ocid="empty-zeitrapporte-genehmigung"
+                            >
+                              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                                <ClipboardList className="w-6 h-6 text-muted-foreground" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-foreground">
+                                  Keine ausstehenden Zeitrapporte
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  Alle Zeitrapporte wurden bearbeitet
+                                </p>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        submittedTimeEntries.map((entry, idx) => (
+                          <TableRow
+                            key={String(entry.id)}
+                            data-ocid={`zeitrapport-item-${idx + 1}`}
+                          >
+                            <TableCell>
+                              {getEmployeeName(
+                                BigInt(String(entry.employeeId)),
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {formatTimeEntryDate(entry.date)}
+                            </TableCell>
+                            <TableCell className="tabular-nums">
+                              {formatHoursHHMM(entry.hours)}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {getClientName(entry.projectId)}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {getProjectName(entry.projectId)}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {getServiceTypeName(entry.serviceTypeId)}
+                            </TableCell>
+                            <TableCell className="max-w-[160px] truncate">
+                              {String(entry.description || "-")}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
+                                  onClick={() =>
+                                    approveTimeEntryMutation.mutate(
+                                      BigInt(String(entry.id)),
+                                    )
+                                  }
+                                  disabled={approveTimeEntryMutation.isPending}
+                                  data-ocid={`btn-approve-zeitrapport-${idx + 1}`}
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  Genehmigen
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+                                  onClick={() => {
+                                    setRejectZeitrapportId(
+                                      BigInt(String(entry.id)),
+                                    );
+                                    setRejectZeitrapportReason("");
+                                  }}
+                                  data-ocid={`btn-reject-zeitrapport-${idx + 1}`}
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                  Ablehnen
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
+
+        {/* ─── Dialog: Zeitrapport ablehnen ─────────────────────────── */}
+        <Dialog
+          open={rejectZeitrapportId !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setRejectZeitrapportId(null);
+              setRejectZeitrapportReason("");
+            }
+          }}
+        >
+          <DialogContent
+            className="max-w-md"
+            data-ocid="dialog-reject-zeitrapport"
+          >
+            <DialogHeader>
+              <DialogTitle>Zeiteintrag ablehnen</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="rejectZeitrapportReason">
+                  Begründung <span className="text-destructive">*</span>
+                </Label>
+                <Textarea
+                  id="rejectZeitrapportReason"
+                  placeholder="Grund der Ablehnung eingeben…"
+                  rows={3}
+                  value={rejectZeitrapportReason}
+                  onChange={(e) => setRejectZeitrapportReason(e.target.value)}
+                  data-ocid="input-reject-zeitrapport-reason"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setRejectZeitrapportId(null);
+                  setRejectZeitrapportReason("");
+                }}
+                data-ocid="btn-cancel-reject-zeitrapport"
+              >
+                Abbrechen
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => {
+                  if (
+                    rejectZeitrapportId !== null &&
+                    rejectZeitrapportReason.trim()
+                  ) {
+                    rejectTimeEntryMutation.mutate({
+                      id: rejectZeitrapportId,
+                      reason: rejectZeitrapportReason,
+                    });
+                  }
+                }}
+                disabled={
+                  rejectTimeEntryMutation.isPending ||
+                  !rejectZeitrapportReason.trim()
+                }
+                data-ocid="btn-confirm-reject-zeitrapport"
+              >
+                {rejectTimeEntryMutation.isPending
+                  ? "Ablehnen…"
+                  : "Ablehnen bestätigen"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* ─── Dialog: Ferienantrag ablehnen ────────────────────────── */}
         <Dialog

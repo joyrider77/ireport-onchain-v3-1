@@ -145,7 +145,72 @@ module {
     });
   };
 
-  // Berechnet Ist-Stunden für einen Mitarbeiter inkl. bezahlter Abwesenheiten und genehmigter Ferien.
+  // Hilfsfunktion: Berechnet Feiertagsgutschrift (in Stunden) für einen Mitarbeiter im Zeitraum [fromDays, toDays]
+  // gemäss feiertagsberechnungsart der aktiven Beschäftigung.
+  private func calcHolidayIstStunden(
+    holidays : List.List<MasterTypes.Holiday>,
+    employments : List.List<CompanyTypes.Employment>,
+    companyId : CompanyId,
+    employeeId : EmployeeId,
+    fromDays : Int,
+    toDays : Int,
+  ) : Float {
+    let nsPerDay : Int = 86_400_000_000_000;
+    let companyHolidays = holidays.filter(func(h) { h.companyId == companyId });
+    var creditHours : Float = 0.0;
+    var d = fromDays;
+    label holidayCreditLoop while (d <= toDays) {
+      let dateStr = unixDaysToDateText(d);
+      let holidayOpt = companyHolidays.find(func(h) { h.date == dateStr });
+      switch (holidayOpt) {
+        case null {};
+        case (?holiday) {
+          let dayNs = d * nsPerDay;
+          let weekday = weekdayFromDays(d);
+          let empOpt = activeEmploymentForDay(employments, employeeId, companyId, dayNs);
+          switch (empOpt) {
+            case null {};
+            case (?emp) {
+              let holidayFactor : Float = if (holiday.ganztaegig) { 1.0 } else { 0.5 };
+              switch (emp.feiertagsberechnungsart) {
+                case (#keineGutschrift) {
+                  // Keine Gutschrift
+                };
+                case (#wochentag_sollzeit) {
+                  let weekdaySollMins : Float = dailyTargetMinutes(emp, weekday).toFloat();
+                  creditHours += (weekdaySollMins * holidayFactor) / 60.0;
+                };
+                case (#durchschnittssoll) {
+                  let weeklyTotal : Float = (
+                    emp.stundenMo + emp.stundenDi + emp.stundenMi +
+                    emp.stundenDo + emp.stundenFr + emp.stundenSa + emp.stundenSo
+                  ).toFloat();
+                  let workingDays : Float = (
+                    (if (emp.stundenMo > 0) 1 else 0) +
+                    (if (emp.stundenDi > 0) 1 else 0) +
+                    (if (emp.stundenMi > 0) 1 else 0) +
+                    (if (emp.stundenDo > 0) 1 else 0) +
+                    (if (emp.stundenFr > 0) 1 else 0) +
+                    (if (emp.stundenSa > 0) 1 else 0) +
+                    (if (emp.stundenSo > 0) 1 else 0)
+                  ).toFloat();
+                  if (workingDays > 0.0) {
+                    let avgDailySollMins : Float = weeklyTotal / workingDays;
+                    creditHours += (avgDailySollMins * holidayFactor) / 60.0;
+                  };
+                };
+              };
+            };
+          };
+        };
+      };
+      d += 1;
+    };
+    creditHours;
+  };
+
+  // Berechnet Ist-Stunden für einen Mitarbeiter inkl. bezahlter Abwesenheiten, genehmigter Ferien
+  // und Feiertagsgutschriften gemäss feiertagsberechnungsart.
   // Für ganztägige Abwesenheiten werden die Arbeitsstunden der aktiven Beschäftigung je Wochentag verwendet.
   // Für mehrtägige Abwesenheiten wird jeder Kalendertag einzeln berechnet.
   public func calcIstStunden(
@@ -153,6 +218,7 @@ module {
     absences : List.List<TrackingTypes.Absence>,
     absenceTypes : List.List<MasterTypes.AbsenceType>,
     employments : List.List<CompanyTypes.Employment>,
+    holidays : List.List<MasterTypes.Holiday>,
     companyId : CompanyId,
     employeeId : EmployeeId,
     dateFrom : Text,
@@ -191,7 +257,7 @@ module {
           });
           let includeInIst = switch (absenceTypeOpt) {
             case null { false };
-            case (?at) { at.compensated or at.requiresApproval };
+            case (?at) { at.compensated };
           };
           if (includeInIst) {
             if (a.ganztaetig) {
@@ -230,7 +296,162 @@ module {
       },
     );
 
-    istFromEntries + istFromAbsences;
+    // Feiertagsgutschriften im Zeitraum
+    let fromDays = dateToUnixDays(dateFrom);
+    let toDays = dateToUnixDays(dateTo);
+    let istFromHolidays = calcHolidayIstStunden(holidays, employments, companyId, employeeId, fromDays, toDays);
+
+    istFromEntries + istFromAbsences + istFromHolidays;
+  };
+
+  // Erstellt eine Projektauswertung mit Budgetvergleich
+  public func getProjectBudgetReport(
+    timeEntries : List.List<TrackingTypes.TimeEntry>,
+    projects : List.List<MasterTypes.Project>,
+    customers : List.List<MasterTypes.Customer>,
+    projectMembers : Map.Map<CommonTypes.ProjectId, [MasterTypes.ProjectMemberAssignment]>,
+    employees : List.List<CompanyTypes.Employee>,
+    serviceTypes : List.List<MasterTypes.ServiceType>,
+    companyId : CommonTypes.CompanyId,
+    projectId : CommonTypes.ProjectId,
+    dateFrom : Text,
+    dateTo : Text,
+  ) : CommonTypes.Result<TrackingTypes.ProjectBudgetReport> {
+    // Projekt und Kunde ermitteln
+    let projectOpt = projects.find(func(p) { p.id == projectId and p.companyId == companyId });
+    let project = switch (projectOpt) {
+      case null { return #err("Projekt nicht gefunden") };
+      case (?p) p;
+    };
+    let customerOpt = customers.find(func(c) { c.id == project.customerId and c.companyId == companyId });
+    let customerName = switch (customerOpt) {
+      case null { "" };
+      case (?c) c.name;
+    };
+
+    // Zeiteinträge für dieses Projekt und den Zeitraum filtern
+    let relevantEntries = timeEntries.filter(func(e) {
+      e.companyId == companyId and e.projectId == projectId and dateInRange(e.date, dateFrom, dateTo)
+    });
+
+    // Projektmitglieder-Zuweisung abrufen
+    let membersArr : [MasterTypes.ProjectMemberAssignment] = switch (projectMembers.get(projectId)) {
+      case null { [] };
+      case (?arr) arr;
+    };
+
+    // Hilfsfunktion: Stundensatz für Mitarbeiter + Leistungsart aus projectMembers
+    let getRate = func(empId : CommonTypes.EmployeeId, stId : CommonTypes.ServiceTypeId) : Float {
+      let found = membersArr.find(func(m) { m.employeeId == empId and m.serviceTypeId == stId });
+      switch (found) {
+        case null { 0.0 };
+        case (?m) m.stundensatz;
+      };
+    };
+
+    // Hilfsfunktion: Kostendach für Mitarbeiter + Leistungsart
+    let getKostendach = func(empId : CommonTypes.EmployeeId, stId : CommonTypes.ServiceTypeId) : Float {
+      let found = membersArr.find(func(m) { m.employeeId == empId and m.serviceTypeId == stId });
+      switch (found) {
+        case null { 0.0 };
+        case (?m) switch (m.kostendachCHF) { case null { 0.0 }; case (?v) v };
+      };
+    };
+
+    // Mitarbeiter-IDs die Einträge haben (dedupliziert)
+    let empIdsWithEntries = relevantEntries.foldLeft(
+      List.empty<CommonTypes.EmployeeId>(),
+      func(acc : List.List<CommonTypes.EmployeeId>, e : TrackingTypes.TimeEntry) : List.List<CommonTypes.EmployeeId> {
+        if (acc.find(func(id) { id == e.employeeId }) == null) {
+          acc.add(e.employeeId);
+        };
+        acc;
+      },
+    );
+
+    // Pro Mitarbeiter einen EmployeeBudgetReport aufbauen
+    let empReports = empIdsWithEntries.map<CommonTypes.EmployeeId, TrackingTypes.EmployeeBudgetReport>(
+      func(empId) {
+        let empOpt = employees.find(func(e) { e.id == empId and e.companyId == companyId });
+        let empName = switch (empOpt) {
+          case null { "" };
+          case (?e) e.firstName # " " # e.lastName;
+        };
+
+        // Einträge dieses Mitarbeiters für dieses Projekt
+        let empEntries = relevantEntries.filter(func(e) { e.employeeId == empId });
+
+        // Leistungsart-IDs dieses Mitarbeiters (dedupliziert)
+        let stIdsForEmp = empEntries.foldLeft(
+          List.empty<CommonTypes.ServiceTypeId>(),
+          func(acc : List.List<CommonTypes.ServiceTypeId>, e : TrackingTypes.TimeEntry) : List.List<CommonTypes.ServiceTypeId> {
+            if (acc.find(func(id) { id == e.serviceTypeId }) == null) {
+              acc.add(e.serviceTypeId);
+            };
+            acc;
+          },
+        );
+
+        // Pro Leistungsart einen ServiceTypeBudgetReport aufbauen
+        let stReports = stIdsForEmp.map<CommonTypes.ServiceTypeId, TrackingTypes.ServiceTypeBudgetReport>(
+          func(stId) {
+            let stOpt = serviceTypes.find(func(st) { st.id == stId and st.companyId == companyId });
+            let stName = switch (stOpt) {
+              case null { "" };
+              case (?st) st.name;
+            };
+            let stEntries = empEntries.filter(func(e) { e.serviceTypeId == stId });
+            let stunden = stEntries.foldLeft(0.0 : Float, func(acc : Float, e : TrackingTypes.TimeEntry) : Float { acc + e.hours });
+            let rate = getRate(empId, stId);
+            {
+              serviceTypeId = stId;
+              serviceTypeName = stName;
+              kostendachCHF = getKostendach(empId, stId);
+              aufgewendetCHF = stunden * rate;
+              aufgewendeteStunden = stunden;
+            };
+          },
+        ).toArray();
+
+        // Mitarbeiter-Totale aus Leistungsart-Reports
+        var empStunden : Float = 0.0;
+        var empAufgewendet : Float = 0.0;
+        var empKostendach : Float = 0.0;
+        for (r in stReports.values()) {
+          empStunden += r.aufgewendeteStunden;
+          empAufgewendet += r.aufgewendetCHF;
+          empKostendach += r.kostendachCHF;
+        };
+        {
+          employeeId = empId;
+          employeeName = empName;
+          kostendachCHF = empKostendach;
+          aufgewendetCHF = empAufgewendet;
+          aufgewendeteStunden = empStunden;
+          serviceTypeReports = stReports;
+        };
+      },
+    ).toArray();
+
+    // Projekt-Totale
+    var totalStunden : Float = 0.0;
+    var totalAufgewendet : Float = 0.0;
+    var totalKostendach : Float = 0.0;
+    for (r in empReports.values()) {
+      totalStunden += r.aufgewendeteStunden;
+      totalAufgewendet += r.aufgewendetCHF;
+      totalKostendach += r.kostendachCHF;
+    };
+
+    #ok({
+      projectId;
+      projectName = project.name;
+      customerName;
+      totalKostendachCHF = totalKostendach;
+      totalAufgewendetCHF = totalAufgewendet;
+      totalStunden;
+      employeeReports = empReports;
+    });
   };
 
   // Gibt Auswertungsdaten zurück
@@ -314,7 +535,7 @@ module {
   };
 
   // Gibt Dashboard-Statistiken zurück
-  // employments wird für korrekte ganztägige Abwesenheits-Stundenberechnung benötigt
+  // employments und holidays werden für korrekte Ist-Stunden-Berechnung benötigt
   public func getDashboardStats(
     timeEntries : List.List<TrackingTypes.TimeEntry>,
     absences : List.List<TrackingTypes.Absence>,
@@ -322,6 +543,7 @@ module {
     expenses : List.List<TrackingTypes.Expense>,
     employments : List.List<CompanyTypes.Employment>,
     vacationBalances : List.List<CompanyTypes.VacationBalance>,
+    holidays : List.List<MasterTypes.Holiday>,
     companyId : CompanyId,
     employeeId : EmployeeId,
     _weeklyHoursTarget : Float,
@@ -404,7 +626,7 @@ module {
           });
           let shouldInclude = switch (absTypeOpt) {
             case null { false };
-            case (?at) { at.compensated or at.requiresApproval };
+            case (?at) { at.compensated };
           };
           if (shouldInclude) {
             if (a.ganztaetig) {
@@ -440,7 +662,8 @@ module {
       },
     );
 
-    let hoursThisWeek = hoursFromEntries + hoursFromAbsences;
+    let hoursThisWeek = hoursFromEntries + hoursFromAbsences
+      + calcHolidayIstStunden(holidays, employments, companyId, employeeId, mondayDays, sundayDays);
 
     // Prüft ob eine AbsenceType requiresApproval = true hat (Ferientyp)
     let isVacationType = func(absenceTypeId : TrackingTypes.AbsenceTypeId) : Bool {

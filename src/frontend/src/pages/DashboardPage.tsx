@@ -1,4 +1,5 @@
 import { Layout } from "@/components/Layout";
+import { TimeOverviewDashboard } from "@/components/timeoverview/TimeOverviewDashboard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -211,15 +212,15 @@ function FeriensaldoWidget() {
             }>
           >,
           toAny(actor).listAbsenceTypes() as Promise<
-            Array<{ id: bigint; requiresApproval: boolean }>
+            Array<{ id: bigint; name: string; requiresApproval: boolean }>
           >,
         ]);
         const vacTypeIds = new Set(
           (typesRes ?? [])
-            .filter((t) => t.requiresApproval)
+            .filter((t) => t.name === "Ferien")
             .map((t) => String(t.id)),
         );
-        // Filter: only vacation-type (requiresApproval), approved, and belonging
+        // Filter: only vacation-type (Ferien), approved, and belonging
         // to the target employee (safety net in case backend ignores filter)
         const filtered = (absencesRes ?? []).filter(
           (a) =>
@@ -748,6 +749,13 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* ── Zeitübersicht (top) ── */}
+        <TimeOverviewDashboard
+          employeeId={employeeId ? BigInt(employeeId) : null}
+          companyId={companyId ? BigInt(companyId) : null}
+          employments={myEmployments}
+        />
+
         {/* ── KPI Cards ── */}
         <div
           className="grid grid-cols-1 sm:grid-cols-2 gap-4"
@@ -793,7 +801,6 @@ export default function DashboardPage() {
         {/* ── Feriensaldo Widget ── */}
         <FeriensaldoWidget />
 
-        {/* ── Charts ── */}
         <div className="grid grid-cols-1 gap-4">
           {/* Stunden Übersicht */}
           <Card className="shadow-card">

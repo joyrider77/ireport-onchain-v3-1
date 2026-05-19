@@ -26,6 +26,7 @@ export interface Absence {
   'dauer' : bigint,
   'companyId' : CompanyId,
 }
+export interface AbsenceApprovalInput { 'reason' : [] | [string] }
 export interface AbsenceFilter {
   'status' : [] | [AbsenceStatus],
   'absenceTypeId' : [] | [AbsenceTypeId],
@@ -42,10 +43,35 @@ export interface AbsenceType {
   'aktiv' : boolean,
   'name' : string,
   'requiresApproval' : boolean,
+  'visibility' : [] | [AbsenceTypeVisibility],
   'compensated' : boolean,
   'companyId' : CompanyId,
 }
 export type AbsenceTypeId = bigint;
+export interface AbsenceTypeVisibility {
+  'visibleForRoles' : Array<string>,
+  'showAbsenceTypeName' : boolean,
+  'visibilityMode' : CalendarVisibilityMode,
+  'showComment' : boolean,
+  'companyCalendarDisplayName' : [] | [string],
+  'showEmployeeName' : boolean,
+  'visibleInCompanyCalendar' : boolean,
+  'companyCalendarColor' : [] | [string],
+}
+export type AuditEntityType = { 'expenseType' : null } |
+  { 'serviceType' : null } |
+  { 'expense' : null } |
+  { 'timeEntry' : null } |
+  { 'customer' : null } |
+  { 'ferien' : null } |
+  { 'invoiceTemplate' : null } |
+  { 'absence' : null } |
+  { 'company' : null } |
+  { 'employee' : null } |
+  { 'approval' : null } |
+  { 'absenceType' : null } |
+  { 'holiday' : null } |
+  { 'project' : null };
 export interface AuditEntry {
   'id' : bigint,
   'oldStatus' : string,
@@ -58,18 +84,68 @@ export interface AuditEntry {
   'previousApprovedBy' : [] | [Principal],
   'reason' : [] | [string],
 }
+export interface AuditFieldChange {
+  'after' : string,
+  'before' : string,
+  'fieldName' : string,
+}
+export interface AuditLogEntry {
+  'id' : string,
+  'beforeState' : [] | [string],
+  'actorName' : string,
+  'entityId' : string,
+  'operation' : AuditOperation,
+  'timestamp' : bigint,
+  'actorPrincipal' : string,
+  'entityType' : AuditEntityType,
+  'fieldChanges' : [] | [Array<AuditFieldChange>],
+  'afterState' : [] | [string],
+  'companyId' : CompanyId,
+}
+export interface AuditLogFilter {
+  'dateTo' : [] | [bigint],
+  'actorPrincipalFilter' : [] | [string],
+  'operation' : [] | [AuditOperation],
+  'entityType' : [] | [AuditEntityType],
+  'dateFrom' : [] | [bigint],
+}
+export type AuditOperation = { 'reject' : null } |
+  { 'remove' : null } |
+  { 'approve' : null } |
+  { 'delete' : null } |
+  { 'create' : null } |
+  { 'update' : null };
+export type BillingModel = { 'monthly' : null } |
+  { 'yearly' : null };
 export interface CalendarData {
   'absences' : Array<Absence>,
   'expenses' : Array<Expense>,
   'timeEntries' : Array<TimeEntry>,
+}
+export type CalendarVisibilityMode = { 'full' : null } |
+  { 'hidden' : null } |
+  { 'anonymized' : null } |
+  { 'masked_reason' : null };
+export interface CanisterStatusInfo {
+  'backendStatus' : string,
+  'dataSource' : string,
+  'frontendCanisterId' : string,
+  'backendCycles' : bigint,
+  'backendMemorySize' : bigint,
+  'backendCanisterId' : string,
+  'timestamp' : bigint,
 }
 export interface Company {
   'id' : CompanyId,
   'taxId' : [] | [string],
   'name' : string,
   'createdAt' : Timestamp,
+  'mwstNummer' : [] | [string],
+  'kontoInhaber' : [] | [string],
+  'isActive' : boolean,
   'logoUrl' : [] | [string],
   'address' : [] | [string],
+  'kontoAdresse' : [] | [string],
 }
 export type CompanyId = bigint;
 export interface CompanySettings {
@@ -81,6 +157,94 @@ export interface CompanySettings {
   'vacationCarryoverDays' : bigint,
   'maxVacationDays' : bigint,
   'companyId' : CompanyId,
+}
+export interface CompanySubscription {
+  'stripeCurrentPeriodEnd' : [] | [bigint],
+  'latestStripePaymentStatus' : [] | [string],
+  'latestStripeInvoiceId' : [] | [string],
+  'nextDueDate' : [] | [bigint],
+  'planId' : string,
+  'stripeSubscriptionId' : [] | [string],
+  'billingModel' : BillingModel,
+  'proRataCalculatedAt' : [] | [bigint],
+  'scheduledPlanChangePriceId' : [] | [string],
+  'stripeCancelAtPeriodEnd' : boolean,
+  'stripeProductId' : [] | [string],
+  'stripeCustomerId' : [] | [string],
+  'subscriptionStartDate' : [] | [bigint],
+  'scheduledPlanChangeEffectiveAt' : [] | [bigint],
+  'stripeStatus' : [] | [string],
+  'proRataAmount' : [] | [number],
+  'stripeCurrentPeriodStart' : [] | [bigint],
+  'lastStripeSyncAt' : [] | [bigint],
+  'scheduledPlanChangeId' : [] | [string],
+  'proRataNote' : [] | [string],
+  'companyId' : bigint,
+}
+export interface ComplianceCockpitKPI {
+  'mitarbeiterMitGesetzlicherUeberzeit' : bigint,
+  'ferienRisiken' : bigint,
+  'pausenVerstoesse' : bigint,
+  'ruhezeitVerstoesse' : bigint,
+  'mitarbeiterMitVerstoessen' : bigint,
+}
+export interface ComplianceCockpitRow {
+  'vertraglicheUeberstundenH' : number,
+  'offeneMassnahmen' : bigint,
+  'employee' : { 'id' : bigint, 'lastName' : string, 'firstName' : string },
+  'ferienstatus' : string,
+  'pausenVerstoesse' : bigint,
+  'gesamtstatus' : ComplianceStatus,
+  'gesetzlicheUeberzeitH' : number,
+  'ruhezeitVerstoesse' : bigint,
+}
+export interface ComplianceFinding {
+  'id' : bigint,
+  'status' : ComplianceStatus,
+  'istWert' : number,
+  'resolutionType' : [] | [ComplianceResolutionType],
+  'periodeKey' : string,
+  'periodeTyp' : CompliancePeriodeTyp,
+  'rechtlicheReferenz' : [] | [string],
+  'auditHash' : [] | [string],
+  'createdAt' : bigint,
+  'sollWert' : number,
+  'resolutionReason' : [] | [string],
+  'sourceEntryIds' : Array<bigint>,
+  'meldung' : string,
+  'employeeId' : bigint,
+  'resolvedAt' : [] | [bigint],
+  'resolvedBy' : [] | [bigint],
+  'ruleCode' : string,
+  'einheit' : string,
+  'companyId' : bigint,
+}
+export type CompliancePeriodeTyp = { 'DAY' : null } |
+  { 'SERVICE_YEAR' : null } |
+  { 'WEEK' : null };
+export type ComplianceResolutionType = { 'FREIGEGEBEN' : null } |
+  { 'IGNORED' : null } |
+  { 'CORRECTED' : null };
+export type ComplianceStatus = { 'CRITICAL' : null } |
+  { 'FREIGEGEBEN' : null } |
+  { 'INFO' : null } |
+  { 'COMPLIANT' : null } |
+  { 'WARNING' : null } |
+  { 'BREACH' : null };
+export interface CostDashboardData {
+  'dataSource' : string,
+  'frontendCanisterId' : string,
+  'snapshots' : Array<CycleSnapshot>,
+  'settings' : CostSettings,
+  'backendCanisterId' : string,
+  'backendCyclesBalance' : [] | [bigint],
+}
+export interface CostSettings {
+  'backendAlertThreshold' : bigint,
+  'icpPriceUsd' : number,
+  'alertEnabled' : boolean,
+  'usdChfRate' : number,
+  'frontendAlertThreshold' : bigint,
 }
 export interface CreateAbsenceInput {
   'absenceTypeId' : AbsenceTypeId,
@@ -94,6 +258,7 @@ export interface CreateAbsenceTypeInput {
   'aktiv' : [] | [boolean],
   'name' : string,
   'requiresApproval' : boolean,
+  'visibility' : [] | [AbsenceTypeVisibility],
   'compensated' : boolean,
 }
 export interface CreateCustomerInput {
@@ -141,7 +306,9 @@ export interface CreateEmploymentInput {
 export interface CreateExpenseInput {
   'date' : string,
   'description' : string,
+  'projektId' : [] | [bigint],
   'billableCHF' : number,
+  'kundeId' : [] | [bigint],
   'reimbursementCHF' : number,
   'expenseTypeId' : ExpenseTypeId,
   'receiptBlobId' : [] | [string],
@@ -157,6 +324,25 @@ export interface CreateHolidayInput {
   'date' : string,
   'name' : string,
 }
+export interface CreateInvoiceInput {
+  'fusstext' : string,
+  'positionen' : Array<InvoicePositionInput>,
+  'qrAktiv' : [] | [boolean],
+  'mwstSatz' : number,
+  'rabatt' : number,
+  'kopftext' : string,
+  'kundeId' : CustomerId,
+  'skonto' : number,
+}
+export interface CreatePauseOverrideInput {
+  'action' : string,
+  'userId' : bigint,
+  'date' : string,
+  'gapEnd' : bigint,
+  'gapStart' : bigint,
+  'reason' : [] | [string],
+  'companyId' : bigint,
+}
 export interface CreateProjectInput {
   'status' : [] | [ProjectStatus],
   'erfassungsart' : [] | [Erfassungsart],
@@ -165,6 +351,7 @@ export interface CreateProjectInput {
   'name' : string,
   'customerId' : CustomerId,
   'kurzbezeichnung' : string,
+  'kostendachCHF' : [] | [number],
   'projektleiter' : [] | [EmployeeId],
 }
 export interface CreateServiceTypeInput {
@@ -189,6 +376,7 @@ export interface CreateTimeEntryInput {
   'description' : string,
   'billable' : boolean,
   'projectId' : ProjectId,
+  'requiresApproval' : [] | [boolean],
   'serviceTypeId' : ServiceTypeId,
 }
 export interface CreateVacationBalanceInput {
@@ -210,6 +398,16 @@ export interface Customer {
   'companyId' : CompanyId,
 }
 export type CustomerId = bigint;
+export interface CycleSnapshot {
+  'frontendCycles' : bigint,
+  'backendCycles' : bigint,
+  'timestamp' : bigint,
+}
+export interface CycleStatus {
+  'dataSource' : string,
+  'frontendCycles' : [] | [bigint],
+  'backendCycles' : bigint,
+}
 export interface DashboardStats {
   'hoursTarget' : number,
   'pendingExpenses' : bigint,
@@ -218,6 +416,37 @@ export interface DashboardStats {
   'approvedVacationDays' : bigint,
   'pendingVacations' : bigint,
 }
+export interface DayPauseComplianceResult {
+  'status' : string,
+  'isCompliant' : boolean,
+  'date' : string,
+  'detectedPauseMinutes' : bigint,
+  'requiredPauseMinutes' : bigint,
+  'meldung' : string,
+  'employeeId' : bigint,
+  'workDurationMinutes' : bigint,
+  'pausen' : Array<DetectedPause>,
+  'companyId' : bigint,
+}
+export interface DefaultWorkHours {
+  'stundenDi' : bigint,
+  'stundenDo' : bigint,
+  'stundenFr' : bigint,
+  'stundenMi' : bigint,
+  'stundenMo' : bigint,
+  'stundenSa' : bigint,
+  'stundenSo' : bigint,
+  'companyId' : CompanyId,
+}
+export interface DetectedPause {
+  'pauseEnd' : bigint,
+  'source' : string,
+  'date' : string,
+  'pauseStart' : bigint,
+  'durationMinutes' : bigint,
+  'complianceRelevant' : boolean,
+  'ignored' : boolean,
+}
 export interface Employee {
   'id' : EmployeeId,
   'ort' : [] | [string],
@@ -225,8 +454,10 @@ export interface Employee {
   'weeklyHoursTarget' : number,
   'active' : boolean,
   'postfach' : [] | [string],
+  'activatedAt' : [] | [bigint],
   'land' : [] | [string],
   'role' : Role,
+  'deactivatedAt' : [] | [bigint],
   'email' : string,
   'geburtsdatum' : [] | [bigint],
   'employmentType' : EmploymentType,
@@ -238,6 +469,28 @@ export interface Employee {
   'startDate' : string,
   'companyId' : CompanyId,
   'firstName' : string,
+}
+export interface EmployeeBudgetReport {
+  'employeeName' : string,
+  'aufgewendetCHF' : number,
+  'aufgewendeteStunden' : number,
+  'employeeId' : EmployeeId,
+  'serviceTypeReports' : Array<ServiceTypeBudgetReport>,
+  'kostendachCHF' : number,
+}
+export interface EmployeeComplianceProfile {
+  'id' : bigint,
+  'aktiv' : boolean,
+  'createdAt' : bigint,
+  'updatedAt' : bigint,
+  'employeeId' : bigint,
+  'ausnahmeprofil' : [] | [string],
+  'vertraglicheWochenstunden' : number,
+  'erfassungsModus' : string,
+  'vertraglicheZusatzferienTage' : number,
+  'gesetzlicheWochenhochstarbeitszeit' : number,
+  'gesetzlicherFerienanspruchWochen' : number,
+  'companyId' : bigint,
 }
 export type EmployeeId = bigint;
 export interface Employment {
@@ -265,11 +518,14 @@ export type Erfassungsart = { 'zeitBlock' : null } |
 export interface Expense {
   'id' : ExpenseId,
   'status' : ExpenseStatus,
+  'fakturiertInRechnungId' : [] | [bigint],
   'date' : string,
   'description' : string,
   'employeeId' : EmployeeId,
+  'projektId' : [] | [bigint],
   'resetReason' : [] | [string],
   'billableCHF' : number,
+  'kundeId' : [] | [bigint],
   'reimbursementCHF' : number,
   'expenseTypeId' : ExpenseTypeId,
   'receiptBlobId' : [] | [string],
@@ -294,10 +550,15 @@ export interface ExpenseType {
   'companyId' : CompanyId,
 }
 export type ExpenseTypeId = bigint;
-export type FeiertagsberechnungsartType = { 'exaktWochentag' : null } |
-  { 'entschaedigt' : null } |
-  { 'exakt' : null } |
-  { 'prozentual' : null };
+export interface FeatureAccessResult {
+  'featureKey' : FeatureKey,
+  'hasAccess' : boolean,
+  'companyId' : CompanyId,
+}
+export type FeatureKey = string;
+export type FeiertagsberechnungsartType = { 'wochentag_sollzeit' : null } |
+  { 'durchschnittssoll' : null } |
+  { 'keineGutschrift' : null };
 export interface Holiday {
   'id' : HolidayId,
   'ganztaegig' : boolean,
@@ -306,8 +567,237 @@ export interface Holiday {
   'companyId' : CompanyId,
 }
 export type HolidayId = bigint;
+export interface HttpHeader { 'value' : string, 'name' : string }
+export interface HttpRequestResult {
+  'status' : bigint,
+  'body' : Uint8Array,
+  'headers' : Array<HttpHeader>,
+}
+export interface HttpTransformArgs {
+  'context' : Uint8Array,
+  'response' : HttpRequestResult,
+}
+export interface Invoice {
+  'id' : bigint,
+  'status' : InvoiceStatus,
+  'rechnungsnummer' : string,
+  'total' : number,
+  'createdAt' : Timestamp,
+  'createdBy' : Principal,
+  'fusstext' : string,
+  'mwstBetrag' : number,
+  'positionen' : Array<InvoicePosition>,
+  'faelligkeitsdatum' : string,
+  'qrAktiv' : boolean,
+  'mwstSatz' : number,
+  'rabatt' : number,
+  'kopftext' : string,
+  'kundeId' : CustomerId,
+  'zwischensumme' : number,
+  'datum' : string,
+  'skonto' : number,
+  'waehrung' : string,
+  'companyId' : CompanyId,
+}
+export interface InvoicePosition {
+  'id' : bigint,
+  'typ' : InvoicePositionTyp,
+  'menge' : number,
+  'referenzId' : [] | [bigint],
+  'total' : number,
+  'bezeichnung' : string,
+  'invoiceId' : bigint,
+  'preis' : number,
+  'einheit' : string,
+}
+export interface InvoicePositionInput {
+  'typ' : InvoicePositionTyp,
+  'menge' : number,
+  'referenzId' : [] | [bigint],
+  'bezeichnung' : string,
+  'preis' : number,
+  'einheit' : string,
+}
+export type InvoicePositionTyp = { 'leistung' : null } |
+  { 'freitext' : null } |
+  { 'spese' : null };
+export type InvoiceStatus = { 'entwurf' : null } |
+  { 'versendet' : null } |
+  { 'bezahlt' : null } |
+  { 'storniert' : null } |
+  { 'ueberfaellig' : null };
+export interface InvoiceTemplate {
+  'id' : bigint,
+  'qrIban' : [] | [string],
+  'fusszeileLayout' : [] | [string],
+  'qrKontoinhaberAdresse' : [] | [string],
+  'bank' : string,
+  'iban' : string,
+  'kopfzeileLayout' : [] | [string],
+  'createdAt' : Timestamp,
+  'fusstext' : string,
+  'mwstNummer' : string,
+  'qrKontoinhaber' : [] | [string],
+  'kopfzeileLogoQuelle' : [] | [string],
+  'qrReferenztyp' : [] | [string],
+  'kopfzeileBildPosition' : [] | [string],
+  'kopfzeileAdressePosition' : [] | [string],
+  'zahlungszielTage' : bigint,
+  'kopfzeileBildUrl' : [] | [string],
+  'qrWaehrung' : [] | [string],
+  'spalten' : Array<string>,
+  'qrReferenzPraefix' : [] | [string],
+  'fusszeilePosition' : [] | [string],
+  'mwstSatz' : number,
+  'kopfzeileLogoGroesse' : [] | [string],
+  'kopftext' : string,
+  'kundenadresseAbstandNach' : [] | [bigint],
+  'kundenadresseAbstandOben' : [] | [number],
+  'kundenadresseEinrueckungZeichen' : [] | [bigint],
+  'fusszeileBildPosition' : [] | [string],
+  'kopfzeileAdresse' : [] | [string],
+  'kopfzeilePosition' : [] | [string],
+  'praefix' : string,
+  'naechsteNummer' : bigint,
+  'qrAktivStandard' : boolean,
+  'farbe' : string,
+  'fusszeileBildUrl' : [] | [string],
+  'kundenadresseLinks' : [] | [boolean],
+  'companyId' : CompanyId,
+}
+export interface InvoiceTemplateInput {
+  'qrIban' : [] | [string],
+  'fusszeileLayout' : [] | [string],
+  'qrKontoinhaberAdresse' : [] | [string],
+  'bank' : string,
+  'iban' : string,
+  'kopfzeileLayout' : [] | [string],
+  'fusstext' : string,
+  'mwstNummer' : string,
+  'qrKontoinhaber' : [] | [string],
+  'kopfzeileLogoQuelle' : [] | [string],
+  'qrReferenztyp' : [] | [string],
+  'kopfzeileBildPosition' : [] | [string],
+  'kopfzeileAdressePosition' : [] | [string],
+  'zahlungszielTage' : bigint,
+  'kopfzeileBildUrl' : [] | [string],
+  'qrWaehrung' : [] | [string],
+  'spalten' : Array<string>,
+  'qrReferenzPraefix' : [] | [string],
+  'fusszeilePosition' : [] | [string],
+  'mwstSatz' : [] | [number],
+  'kopfzeileLogoGroesse' : [] | [string],
+  'kopftext' : string,
+  'kundenadresseAbstandNach' : [] | [bigint],
+  'kundenadresseAbstandOben' : [] | [number],
+  'kundenadresseEinrueckungZeichen' : [] | [bigint],
+  'fusszeileBildPosition' : [] | [string],
+  'kopfzeileAdresse' : [] | [string],
+  'kopfzeilePosition' : [] | [string],
+  'praefix' : string,
+  'naechsteNummer' : bigint,
+  'qrAktivStandard' : [] | [boolean],
+  'farbe' : string,
+  'fusszeileBildUrl' : [] | [string],
+  'kundenadresseLinks' : [] | [boolean],
+}
 export type KundeZeiterfassungsart = { 'stuendlich' : null } |
   { 'block' : null };
+export interface MaskedCalendarAbsence {
+  'id' : string,
+  'status' : string,
+  'displayTitle' : string,
+  'employeeName' : [] | [string],
+  'visibilityMode' : string,
+  'displayColor' : [] | [string],
+  'toDate' : string,
+  'employeeId' : [] | [string],
+  'isOwnEntry' : boolean,
+  'fromDate' : string,
+}
+export interface MonthlyBillingEntry {
+  'month' : string,
+  'activeUserCount' : bigint,
+  'planId' : string,
+  'billableUserCount' : bigint,
+  'billingModel' : [] | [string],
+  'year' : bigint,
+  'creditAmount' : [] | [number],
+  'totalCHF' : number,
+  'companyName' : string,
+  'nextDueDateTimestamp' : [] | [bigint],
+  'planName' : string,
+  'proRataAmount' : [] | [number],
+  'proRataNote' : [] | [string],
+  'companyId' : bigint,
+}
+export interface Notification {
+  'id' : string,
+  'status' : NotificationStatus,
+  'title' : string,
+  'validFrom' : bigint,
+  'createdAt' : bigint,
+  'senderDisplayName' : string,
+  'messageFormat' : NotificationFormat,
+  'messageBody' : string,
+  'targetRoleIds' : Array<string>,
+  'targetUserIds' : Array<string>,
+  'targetType' : NotificationTargetType,
+  'priority' : NotificationPriority,
+  'targetTenantIds' : Array<string>,
+  'senderUserId' : string,
+  'validUntil' : [] | [bigint],
+}
+export type NotificationFormat = { 'html' : null } |
+  { 'markdown' : null };
+export type NotificationPriority = { 'normal' : null } |
+  { 'important' : null } |
+  { 'critical' : null };
+export type NotificationStatus = { 'sent' : null } |
+  { 'draft' : null } |
+  { 'archived' : null };
+export type NotificationTargetType = { 'mixed' : null } |
+  { 'role' : null } |
+  { 'user' : null } |
+  { 'tenant' : null };
+export interface PauseOverride {
+  'id' : bigint,
+  'action' : string,
+  'userId' : bigint,
+  'date' : string,
+  'createdByUserId' : bigint,
+  'createdAt' : bigint,
+  'gapEnd' : bigint,
+  'updatedAt' : bigint,
+  'gapStart' : bigint,
+  'reason' : [] | [string],
+  'companyId' : bigint,
+}
+export type PaymentProvider = { 'stripe' : null } |
+  { 'none' : null } |
+  { 'manual' : null };
+export interface PlatformAdminConfig {
+  'frontendCanisterId' : string,
+  'stripeWebhookEndpointUrl' : string,
+  'stripeSecretKey' : string,
+  'stripePublishableKey' : string,
+  'stripeWebhookSecret' : string,
+}
+export interface PlatformAdminConfigPublic {
+  'frontendCanisterId' : string,
+  'stripeWebhookEndpointUrl' : string,
+  'stripePublishableKey' : string,
+}
+export interface PlatformAdminUserEntry {
+  'id' : EmployeeId,
+  'activatedAt' : [] | [bigint],
+  'role' : Role,
+  'deactivatedAt' : [] | [bigint],
+  'isActive' : boolean,
+  'email' : string,
+  'lastName' : string,
+  'firstName' : string,
+}
 export interface Project {
   'id' : ProjectId,
   'status' : ProjectStatus,
@@ -318,6 +808,7 @@ export interface Project {
   'name' : string,
   'customerId' : CustomerId,
   'kurzbezeichnung' : string,
+  'kostendachCHF' : [] | [number],
   'projektleiter' : [] | [EmployeeId],
   'companyId' : CompanyId,
 }
@@ -326,10 +817,20 @@ export interface ProjectAssignment {
   'projectId' : ProjectId,
   'companyId' : CompanyId,
 }
+export interface ProjectBudgetReport {
+  'totalKostendachCHF' : number,
+  'customerName' : string,
+  'totalAufgewendetCHF' : number,
+  'projectName' : string,
+  'totalStunden' : number,
+  'projectId' : ProjectId,
+  'employeeReports' : Array<EmployeeBudgetReport>,
+}
 export type ProjectId = bigint;
 export interface ProjectMemberAssignment {
   'stundensatz' : number,
   'employeeId' : EmployeeId,
+  'kostendachCHF' : [] | [number],
   'serviceTypeId' : ServiceTypeId,
 }
 export type ProjectStatus = { 'aktiv' : null } |
@@ -357,59 +858,134 @@ export interface ReportFilter {
   'customerId' : [] | [CompanyId],
   'dateFrom' : string,
 }
-export type Result = { 'ok' : VacationBalance } |
+export interface ResolveFindingInput {
+  'resolutionType' : ComplianceResolutionType,
+  'findingId' : bigint,
+  'resolutionReason' : string,
+}
+export type Result = { 'ok' : SubscriptionPlan } |
   { 'err' : string };
-export type Result_1 = { 'ok' : UserNotificationSettings } |
+export type Result_1 = { 'ok' : VacationBalance } |
   { 'err' : string };
-export type Result_10 = { 'ok' : Employee } |
+export type Result_10 = { 'ok' : ExpenseType } |
   { 'err' : string };
-export type Result_11 = { 'ok' : Customer } |
+export type Result_11 = { 'ok' : Expense } |
   { 'err' : string };
-export type Result_12 = { 'ok' : CompanySettings } |
+export type Result_12 = { 'ok' : Employment } |
   { 'err' : string };
-export type Result_13 = { 'ok' : Company } |
+export type Result_13 = { 'ok' : Employee } |
   { 'err' : string };
-export type Result_14 = { 'ok' : AbsenceType } |
+export type Result_14 = { 'ok' : DefaultWorkHours } |
   { 'err' : string };
-export type Result_15 = { 'ok' : Absence } |
+export type Result_15 = { 'ok' : Customer } |
   { 'err' : string };
-export type Result_16 = { 'ok' : null } |
+export type Result_16 = { 'ok' : CompanySettings } |
   { 'err' : string };
-export type Result_17 = { 'ok' : Array<VacationBalance> } |
+export type Result_17 = { 'ok' : Company } |
   { 'err' : string };
-export type Result_18 = { 'ok' : Array<TimeBalanceCorrection> } |
+export type Result_18 = { 'ok' : AbsenceType } |
   { 'err' : string };
-export type Result_19 = { 'ok' : Array<Employment> } |
+export type Result_19 = { 'ok' : Absence } |
   { 'err' : string };
-export type Result_2 = { 'ok' : TimeEntry } |
+export type Result_2 = { 'ok' : UserNotificationSettings } |
   { 'err' : string };
-export type Result_20 = { 'ok' : bigint } |
+export type Result_20 = { 'ok' : CompanySubscription } |
   { 'err' : string };
-export type Result_21 = { 'ok' : Standardarbeitszeiten } |
+export type Result_21 = { 'ok' : string } |
   { 'err' : string };
-export type Result_22 = { 'ok' : Array<ProjectMemberAssignment> } |
+export type Result_22 = { 'ok' : Array<VacationBalance> } |
   { 'err' : string };
-export type Result_23 = { 'ok' : [] | [Employment] } |
+export type Result_23 = { 'ok' : Array<TimeBalanceCorrection> } |
   { 'err' : string };
-export type Result_24 = { 'ok' : WorkTimeBalance } |
+export type Result_24 = { 'ok' : Array<Employment> } |
   { 'err' : string };
-export type Result_25 = { 'ok' : string } |
+export type Result_25 = {
+    'ok' : {
+      'spesen' : Array<Expense>,
+      'zeiteintraege' : Array<UnbilledTimeEntry>,
+    }
+  } |
   { 'err' : string };
-export type Result_26 = { 'ok' : ProjectAssignment } |
+export type Result_26 = {
+    'ok' : { 'spesen' : Array<Expense>, 'zeiteintraege' : Array<TimeEntry> }
+  } |
   { 'err' : string };
-export type Result_3 = { 'ok' : TimeBalanceCorrection } |
+export type Result_27 = { 'ok' : bigint } |
   { 'err' : string };
-export type Result_4 = { 'ok' : ServiceType } |
+export type Result_28 = { 'ok' : Standardarbeitszeiten } |
   { 'err' : string };
-export type Result_5 = { 'ok' : Project } |
+export type Result_29 = { 'ok' : Array<ProjectMemberAssignment> } |
   { 'err' : string };
-export type Result_6 = { 'ok' : Holiday } |
+export type Result_3 = { 'ok' : TimeEntry } |
   { 'err' : string };
-export type Result_7 = { 'ok' : ExpenseType } |
+export type Result_30 = { 'ok' : ProjectBudgetReport } |
   { 'err' : string };
-export type Result_8 = { 'ok' : Expense } |
+export type Result_31 = { 'ok' : number } |
   { 'err' : string };
-export type Result_9 = { 'ok' : Employment } |
+export type Result_32 = { 'ok' : Array<Invoice> } |
+  { 'err' : string };
+export type Result_33 = { 'ok' : [] | [InvoiceTemplate] } |
+  { 'err' : string };
+export type Result_34 = { 'ok' : [] | [Employment] } |
+  { 'err' : string };
+export type Result_35 = { 'ok' : WorkTimeBalance } |
+  { 'err' : string };
+export type Result_36 = {
+    'ok' : {
+      'nextDueDate' : [] | [bigint],
+      'billingModel' : BillingModel,
+      'subscriptionStartDate' : [] | [bigint],
+    }
+  } |
+  { 'err' : string };
+export type Result_37 = { 'ok' : { 'url' : string } } |
+  { 'err' : string };
+export type Result_38 = { 'ok' : { 'url' : string, 'sessionId' : string } } |
+  { 'err' : string };
+export type Result_4 = { 'ok' : TimeBalanceCorrection } |
+  { 'err' : string };
+export type Result_42 = { 'ok' : InvoiceTemplate } |
+  { 'err' : string };
+export type Result_43 = {
+    'ok' : {
+      'internalStatus' : string,
+      'inSync' : boolean,
+      'stripeStatus' : string,
+    }
+  } |
+  { 'err' : string };
+export type Result_44 = {
+    'ok' : {
+      'estimatedMonthlyCost' : number,
+      'currentPlanId' : [] | [string],
+      'activeUserCount' : bigint,
+      'changeNeeded' : boolean,
+      'suggestedPlanId' : [] | [string],
+      'suggestedPlanName' : string,
+      'currentPlanName' : string,
+    }
+  } |
+  { 'err' : string };
+export type Result_45 = {
+    'ok' : {
+      'note' : string,
+      'remainingDays' : bigint,
+      'isUpgrade' : boolean,
+      'proRataAmount' : number,
+    }
+  } |
+  { 'err' : string };
+export type Result_46 = { 'ok' : ProjectAssignment } |
+  { 'err' : string };
+export type Result_5 = { 'ok' : null } |
+  { 'err' : string };
+export type Result_6 = { 'ok' : ServiceType } |
+  { 'err' : string };
+export type Result_7 = { 'ok' : Project } |
+  { 'err' : string };
+export type Result_8 = { 'ok' : Invoice } |
+  { 'err' : string };
+export type Result_9 = { 'ok' : Holiday } |
   { 'err' : string };
 export type Role = { 'manager' : null } |
   { 'admin' : null } |
@@ -422,8 +998,20 @@ export interface ServiceType {
   'billable' : boolean,
   'companyId' : CompanyId,
 }
+export interface ServiceTypeBudgetReport {
+  'serviceTypeName' : string,
+  'aufgewendetCHF' : number,
+  'aufgewendeteStunden' : number,
+  'kostendachCHF' : number,
+  'serviceTypeId' : ServiceTypeId,
+}
 export type ServiceTypeId = bigint;
-export interface StandardTimeBlock { 'bis' : string, 'von' : string }
+export interface StandardTimeBlock {
+  'bis' : string,
+  'von' : string,
+  'leistungsartId' : [] | [bigint],
+  'projektId' : [] | [bigint],
+}
 export interface Standardarbeitszeiten {
   'tuesday' : Array<StandardTimeBlock>,
   'wednesday' : Array<StandardTimeBlock>,
@@ -432,6 +1020,69 @@ export interface Standardarbeitszeiten {
   'sunday' : Array<StandardTimeBlock>,
   'friday' : Array<StandardTimeBlock>,
   'monday' : Array<StandardTimeBlock>,
+}
+export interface StripeEvent {
+  'id' : string,
+  'stripeEventId' : string,
+  'processingStatus' : StripeEventStatus,
+  'stripeSubscriptionId' : [] | [string],
+  'errorMessage' : [] | [string],
+  'tenantId' : [] | [bigint],
+  'processedAt' : [] | [bigint],
+  'subscriptionId' : [] | [string],
+  'receivedAt' : bigint,
+  'stripeCustomerId' : [] | [string],
+  'rawPayload' : [] | [string],
+  'eventType' : string,
+}
+export type StripeEventStatus = { 'processed' : null } |
+  { 'ignored' : null } |
+  { 'received' : null } |
+  { 'failed' : null };
+export interface StripeInvoice {
+  'id' : string,
+  'status' : string,
+  'stripeSubscriptionId' : [] | [string],
+  'dueDate' : [] | [bigint],
+  'stripeInvoiceId' : string,
+  'amountPaid' : number,
+  'invoicePdfUrl' : [] | [string],
+  'invoiceNumber' : [] | [string],
+  'periodEnd' : [] | [bigint],
+  'stripeCustomerId' : string,
+  'currency' : string,
+  'amountDue' : number,
+  'periodStart' : [] | [bigint],
+  'issuedAt' : bigint,
+  'paidAt' : [] | [bigint],
+  'hostedInvoiceUrl' : [] | [string],
+  'companyId' : bigint,
+}
+export interface SubscriptionPlan {
+  'id' : string,
+  'features' : Array<string>,
+  'requiresPayment' : boolean,
+  'sortOrder' : bigint,
+  'name' : string,
+  'stripeLookupKey' : [] | [string],
+  'description' : string,
+  'isActive' : boolean,
+  'stripeProductId' : [] | [string],
+  'updatedAt' : bigint,
+  'pricePerYearCHF' : number,
+  'stripePriceId' : [] | [string],
+  'pricePerMonthCHF' : number,
+  'stripeMode' : [] | [string],
+  'stripePriceIdYearly' : [] | [string],
+  'minActiveDaysPerMonth' : bigint,
+  'maxEmployees' : [] | [bigint],
+  'paymentProvider' : PaymentProvider,
+}
+export interface TenantCostEntry {
+  'employeeCount' : bigint,
+  'estimatedCycles' : bigint,
+  'companyName' : string,
+  'companyId' : bigint,
 }
 export type Time = bigint;
 export interface TimeBalanceCorrection {
@@ -450,6 +1101,7 @@ export interface TimeEntry {
   'bis' : [] | [string],
   'von' : [] | [string],
   'hours' : number,
+  'fakturiertInRechnungId' : [] | [bigint],
   'date' : string,
   'createdAt' : Timestamp,
   'description' : string,
@@ -459,6 +1111,19 @@ export interface TimeEntry {
   'serviceTypeId' : ServiceTypeId,
   'companyId' : CompanyId,
 }
+export interface TimeEntryApprovalAuditEntry {
+  'id' : bigint,
+  'oldStatus' : string,
+  'action' : string,
+  'changedBy' : Principal,
+  'timestamp' : bigint,
+  'targetType' : string,
+  'newStatus' : string,
+  'targetId' : bigint,
+  'previousApprovedBy' : [] | [Principal],
+  'reason' : [] | [string],
+}
+export interface TimeEntryApprovalInput { 'reason' : [] | [string] }
 export interface TimeEntryFilter {
   'dateTo' : [] | [string],
   'employeeId' : [] | [EmployeeId],
@@ -466,7 +1131,27 @@ export interface TimeEntryFilter {
   'dateFrom' : [] | [string],
 }
 export type TimeEntryId = bigint;
+export type TimeEntryStatus = { 'submitted' : null } |
+  { 'approved' : null } |
+  { 'rejected' : null } |
+  { 'draft' : null };
 export type Timestamp = bigint;
+export interface UnbilledTimeEntry {
+  'id' : bigint,
+  'bis' : [] | [string],
+  'von' : [] | [string],
+  'hours' : number,
+  'date' : string,
+  'stundensatz' : number,
+  'createdAt' : bigint,
+  'description' : string,
+  'totalCHF' : number,
+  'employeeId' : bigint,
+  'billable' : boolean,
+  'projectId' : bigint,
+  'serviceTypeId' : bigint,
+  'companyId' : bigint,
+}
 export interface UpdateAbsenceInput {
   'dateTo' : [] | [string],
   'ganztaetig' : [] | [boolean],
@@ -478,13 +1163,27 @@ export interface UpdateAbsenceTypeInput {
   'aktiv' : [] | [boolean],
   'name' : [] | [string],
   'requiresApproval' : [] | [boolean],
+  'visibility' : [] | [AbsenceTypeVisibility],
   'compensated' : [] | [boolean],
 }
 export interface UpdateCompanyInput {
   'taxId' : [] | [string],
   'name' : [] | [string],
+  'mwstNummer' : [] | [string],
+  'kontoInhaber' : [] | [string],
   'logoUrl' : [] | [string],
   'address' : [] | [string],
+  'kontoAdresse' : [] | [string],
+}
+export interface UpdateComplianceProfileInput {
+  'id' : bigint,
+  'aktiv' : boolean,
+  'ausnahmeprofil' : [] | [string],
+  'vertraglicheWochenstunden' : number,
+  'erfassungsModus' : string,
+  'vertraglicheZusatzferienTage' : number,
+  'gesetzlicheWochenhochstarbeitszeit' : number,
+  'gesetzlicherFerienanspruchWochen' : number,
 }
 export interface UpdateCustomerInput {
   'rechnungsadresse' : [] | [Rechnungsadresse],
@@ -532,7 +1231,9 @@ export interface UpdateEmploymentInput {
 export interface UpdateExpenseInput {
   'date' : [] | [string],
   'description' : [] | [string],
+  'projektId' : [] | [bigint],
   'billableCHF' : [] | [number],
+  'kundeId' : [] | [bigint],
   'reimbursementCHF' : [] | [number],
   'expenseTypeId' : [] | [ExpenseTypeId],
   'receiptBlobId' : [] | [string],
@@ -548,6 +1249,19 @@ export interface UpdateHolidayInput {
   'date' : [] | [string],
   'name' : [] | [string],
 }
+export interface UpdateInvoiceInput {
+  'status' : [] | [InvoiceStatus],
+  'fusstext' : [] | [string],
+  'positionen' : [] | [Array<InvoicePositionInput>],
+  'faelligkeitsdatum' : [] | [string],
+  'qrAktiv' : [] | [boolean],
+  'mwstSatz' : [] | [number],
+  'rabatt' : [] | [number],
+  'kopftext' : [] | [string],
+  'kundeId' : [] | [CustomerId],
+  'datum' : [] | [string],
+  'skonto' : [] | [number],
+}
 export interface UpdateProjectInput {
   'status' : [] | [ProjectStatus],
   'erfassungsart' : [] | [Erfassungsart],
@@ -557,6 +1271,7 @@ export interface UpdateProjectInput {
   'name' : [] | [string],
   'customerId' : [] | [CustomerId],
   'kurzbezeichnung' : [] | [string],
+  'kostendachCHF' : [] | [number],
   'projektleiter' : [] | [EmployeeId],
 }
 export interface UpdateServiceTypeInput {
@@ -587,6 +1302,12 @@ export interface UpdateVacationBalanceInput {
   'kalenderjahr' : [] | [bigint],
   'dauer' : [] | [bigint],
 }
+export interface UserNotification {
+  'isDeleted' : boolean,
+  'notification' : Notification,
+  'isRead' : boolean,
+  'readAt' : [] | [bigint],
+}
 export interface UserNotificationSettings {
   'emailNewVacationRequest' : boolean,
   'emailOnApproval' : boolean,
@@ -603,6 +1324,23 @@ export interface VacationBalance {
   'kalenderjahr' : bigint,
   'dauer' : bigint,
   'companyId' : CompanyId,
+}
+export interface VacationLedger {
+  'id' : bigint,
+  'serviceYearStart' : bigint,
+  'verbleibendeFerientage' : number,
+  'laengsterZusammenhangenderBlock' : bigint,
+  'lastUpdatedAt' : bigint,
+  'bezogeneFerientage' : number,
+  'employeeId' : bigint,
+  'calendarYearKey' : string,
+  'serviceYearEnd' : bigint,
+  'serviceYearKey' : string,
+  'gesetzlicheFerientage' : number,
+  'twoWeekBlockSatisfied' : boolean,
+  'geplanteFerientage' : number,
+  'vertraglicheZusatzferienTage' : number,
+  'companyId' : bigint,
 }
 export interface WorkTimeBalance {
   'istStunden' : bigint,
@@ -644,144 +1382,487 @@ export interface _SERVICE {
   >,
   '_immutableObjectStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControl' : ActorMethod<[], undefined>,
-  'approveAbsence' : ActorMethod<[AbsenceId], Result_15>,
-  'approveExpense' : ActorMethod<[ExpenseId], Result_8>,
-  'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
-  'assignEmployeeToProject' : ActorMethod<[EmployeeId, ProjectId], Result_26>,
-  'createAbsence' : ActorMethod<[CreateAbsenceInput], Result_15>,
-  'createAbsenceType' : ActorMethod<[CreateAbsenceTypeInput], Result_14>,
-  'createCustomer' : ActorMethod<[CreateCustomerInput], Result_11>,
-  'createEmployee' : ActorMethod<[CreateEmployeeInput], Result_10>,
-  'createEmployment' : ActorMethod<
-    [EmployeeId, CreateEmploymentInput],
-    Result_9
+  'applyPlanChange' : ActorMethod<[bigint, string, BillingModel], Result_21>,
+  'approveAbsence' : ActorMethod<[AbsenceId], Result_19>,
+  'approveAbsenceApproval' : ActorMethod<
+    [AbsenceId, AbsenceApprovalInput],
+    Result_5
   >,
-  'createExpense' : ActorMethod<[CreateExpenseInput], Result_8>,
-  'createExpenseType' : ActorMethod<[CreateExpenseTypeInput], Result_7>,
-  'createHoliday' : ActorMethod<[CreateHolidayInput], Result_6>,
-  'createProject' : ActorMethod<[CreateProjectInput], Result_5>,
-  'createServiceType' : ActorMethod<[CreateServiceTypeInput], Result_4>,
-  'createTimeBalanceCorrection' : ActorMethod<
-    [EmployeeId, CreateTimeBalanceCorrectionInput],
+  'approveExpense' : ActorMethod<[ExpenseId], Result_11>,
+  'approveTimeEntry' : ActorMethod<
+    [TimeEntryId, TimeEntryApprovalInput],
     Result_3
   >,
-  'createTimeEntry' : ActorMethod<[CreateTimeEntryInput], Result_2>,
+  'archiveNotification' : ActorMethod<
+    [string],
+    { 'ok' : null } |
+      { 'err' : string }
+  >,
+  'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'assignEmployeeToProject' : ActorMethod<[EmployeeId, ProjectId], Result_46>,
+  'assignSubscriptionPlan' : ActorMethod<[string, string], Result_5>,
+  'calculateMonthlyBilling' : ActorMethod<
+    [bigint, bigint],
+    Array<MonthlyBillingEntry>
+  >,
+  'calculateProRataAdjustment' : ActorMethod<[bigint, string], Result_45>,
+  'cancelInvoice' : ActorMethod<[bigint], Result_8>,
+  'cancelStripeSubscription' : ActorMethod<[bigint], Result_20>,
+  'checkFeatureAccess' : ActorMethod<[FeatureKey], FeatureAccessResult>,
+  'checkPlanChangeNeeded' : ActorMethod<[bigint], Result_44>,
+  'compareStripeSubscriptionStatus' : ActorMethod<[bigint], Result_43>,
+  'createAbsence' : ActorMethod<[CreateAbsenceInput], Result_19>,
+  'createAbsenceType' : ActorMethod<[CreateAbsenceTypeInput], Result_18>,
+  'createCustomer' : ActorMethod<[CreateCustomerInput], Result_15>,
+  'createEmployee' : ActorMethod<[CreateEmployeeInput], Result_13>,
+  'createEmployment' : ActorMethod<
+    [EmployeeId, CreateEmploymentInput],
+    Result_12
+  >,
+  'createExpense' : ActorMethod<[CreateExpenseInput], Result_11>,
+  'createExpenseType' : ActorMethod<[CreateExpenseTypeInput], Result_10>,
+  'createHoliday' : ActorMethod<[CreateHolidayInput], Result_9>,
+  'createInvoice' : ActorMethod<[CreateInvoiceInput], Result_8>,
+  'createNotificationDraft' : ActorMethod<
+    [
+      string,
+      string,
+      NotificationFormat,
+      NotificationPriority,
+      bigint,
+      [] | [bigint],
+      NotificationTargetType,
+      Array<string>,
+      Array<string>,
+      Array<string>,
+    ],
+    { 'ok' : Notification } |
+      { 'err' : string }
+  >,
+  'createOrUpdateInvoiceTemplate' : ActorMethod<
+    [InvoiceTemplateInput],
+    Result_42
+  >,
+  'createPauseOverride' : ActorMethod<
+    [CreatePauseOverrideInput],
+    { 'ok' : PauseOverride } |
+      { 'err' : string }
+  >,
+  'createProject' : ActorMethod<[CreateProjectInput], Result_7>,
+  'createServiceType' : ActorMethod<[CreateServiceTypeInput], Result_6>,
+  'createStripeCheckoutLinkForCompany' : ActorMethod<
+    [bigint, string, BillingModel],
+    Result_38
+  >,
+  'createStripeCheckoutLinkForCompanyWithPrice' : ActorMethod<
+    [bigint, string, BillingModel, string],
+    Result_38
+  >,
+  'createStripeCheckoutSession' : ActorMethod<
+    [bigint, string, BillingModel],
+    Result_38
+  >,
+  'createStripeCheckoutSessionWithPrice' : ActorMethod<
+    [bigint, string, BillingModel, string],
+    Result_38
+  >,
+  'createStripeCustomerPortalSession' : ActorMethod<[bigint], Result_37>,
+  'createTimeBalanceCorrection' : ActorMethod<
+    [EmployeeId, CreateTimeBalanceCorrectionInput],
+    Result_4
+  >,
+  'createTimeEntry' : ActorMethod<[CreateTimeEntryInput], Result_3>,
   'createVacationBalance' : ActorMethod<
     [EmployeeId, CreateVacationBalanceInput],
-    Result
+    Result_1
   >,
-  'deleteAbsence' : ActorMethod<[AbsenceId], Result_16>,
-  'deleteAbsenceType' : ActorMethod<[AbsenceTypeId], Result_16>,
-  'deleteCustomer' : ActorMethod<[CustomerId], Result_16>,
-  'deleteEmployee' : ActorMethod<[EmployeeId], Result_16>,
-  'deleteEmployment' : ActorMethod<[EmployeeId, string], Result_16>,
-  'deleteExpense' : ActorMethod<[ExpenseId], Result_16>,
-  'deleteExpenseType' : ActorMethod<[ExpenseTypeId], Result_16>,
-  'deleteHoliday' : ActorMethod<[HolidayId], Result_16>,
-  'deleteProject' : ActorMethod<[ProjectId], Result_16>,
-  'deleteServiceType' : ActorMethod<[ServiceTypeId], Result_16>,
-  'deleteTimeBalanceCorrection' : ActorMethod<[EmployeeId, string], Result_16>,
-  'deleteTimeEntry' : ActorMethod<[TimeEntryId], Result_16>,
-  'deleteVacationBalance' : ActorMethod<[EmployeeId, string], Result_16>,
-  'generateInviteCode' : ActorMethod<[EmployeeId], Result_25>,
+  'deleteAbsence' : ActorMethod<[AbsenceId], Result_5>,
+  'deleteAbsenceType' : ActorMethod<[AbsenceTypeId], Result_5>,
+  'deleteCustomer' : ActorMethod<[CustomerId], Result_5>,
+  'deleteEmployee' : ActorMethod<[EmployeeId], Result_5>,
+  'deleteEmployment' : ActorMethod<[EmployeeId, string], Result_5>,
+  'deleteExpense' : ActorMethod<[ExpenseId], Result_5>,
+  'deleteExpenseType' : ActorMethod<[ExpenseTypeId], Result_5>,
+  'deleteHoliday' : ActorMethod<[HolidayId], Result_5>,
+  'deleteInvoice' : ActorMethod<[bigint], Result_5>,
+  'deleteMyNotification' : ActorMethod<
+    [string],
+    { 'ok' : null } |
+      { 'err' : string }
+  >,
+  'deletePauseOverride' : ActorMethod<
+    [bigint],
+    { 'ok' : null } |
+      { 'err' : string }
+  >,
+  'deleteProject' : ActorMethod<[ProjectId], Result_5>,
+  'deleteServiceType' : ActorMethod<[ServiceTypeId], Result_5>,
+  'deleteSubscriptionPlan' : ActorMethod<[string], Result_5>,
+  'deleteTimeBalanceCorrection' : ActorMethod<[EmployeeId, string], Result_5>,
+  'deleteTimeEntry' : ActorMethod<[TimeEntryId], Result_5>,
+  'deleteVacationBalance' : ActorMethod<[EmployeeId, string], Result_5>,
+  'duplicateNotification' : ActorMethod<
+    [string],
+    { 'ok' : Notification } |
+      { 'err' : string }
+  >,
+  'generateInviteCode' : ActorMethod<[EmployeeId], Result_21>,
+  'getAbsenceApprovalStatus' : ActorMethod<
+    [AbsenceId],
+    [] | [
+      {
+        'status' : TimeEntryStatus,
+        'approvedBy' : [] | [Principal],
+        'reason' : [] | [string],
+      }
+    ]
+  >,
+  'getAllCompanySubscriptions' : ActorMethod<[], Array<[string, string]>>,
+  'getAllSubscriptionPlans' : ActorMethod<[], Array<SubscriptionPlan>>,
+  'getApprovalRecord' : ActorMethod<
+    [TimeEntryId],
+    [] | [
+      {
+        'status' : TimeEntryStatus,
+        'approvedBy' : [] | [Principal],
+        'reason' : [] | [string],
+      }
+    ]
+  >,
+  'getBackendCanisterId' : ActorMethod<[], string>,
   'getCalendarEntries' : ActorMethod<[string, bigint], CalendarData>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
-  'getCompanySettings' : ActorMethod<[], Result_12>,
+  'getCanisterStatusInfo' : ActorMethod<[], CanisterStatusInfo>,
+  'getCompanyBillingModel' : ActorMethod<[bigint], Result_36>,
+  'getCompanyCalendarAbsences' : ActorMethod<
+    [CompanyId, bigint, bigint],
+    Array<MaskedCalendarAbsence>
+  >,
+  'getCompanyEmployeesForBilling' : ActorMethod<[CompanyId], Array<Employee>>,
+  'getCompanySettings' : ActorMethod<[], Result_16>,
+  'getCompanySubscription' : ActorMethod<[string], [] | [string]>,
+  'getCompanySubscriptionPlan' : ActorMethod<[bigint], [] | [SubscriptionPlan]>,
+  'getComplianceCockpitKPI' : ActorMethod<[bigint], ComplianceCockpitKPI>,
+  'getComplianceCockpitRows' : ActorMethod<
+    [bigint],
+    Array<ComplianceCockpitRow>
+  >,
+  'getComplianceFindings' : ActorMethod<
+    [bigint, [] | [CompliancePeriodeTyp], [] | [Array<ComplianceStatus>]],
+    Array<ComplianceFinding>
+  >,
+  'getComplianceProfile' : ActorMethod<
+    [bigint],
+    [] | [EmployeeComplianceProfile]
+  >,
+  'getCostDashboardData' : ActorMethod<
+    [[] | [bigint], [] | [bigint]],
+    CostDashboardData
+  >,
+  'getCostSettings' : ActorMethod<[], CostSettings>,
+  'getCycleSnapshots' : ActorMethod<
+    [[] | [bigint], [] | [bigint]],
+    Array<CycleSnapshot>
+  >,
+  'getCycleStatus' : ActorMethod<[], CycleStatus>,
   'getDashboardStats' : ActorMethod<[], DashboardStats>,
+  'getDefaultWorkHours' : ActorMethod<[], DefaultWorkHours>,
   'getEmployeeWorkTimeBalance' : ActorMethod<
     [EmployeeId, string, string],
-    Result_24
+    Result_35
   >,
-  'getEmployeeWorkTimeBalanceFromStart' : ActorMethod<[EmployeeId], Result_24>,
-  'getEmploymentForDate' : ActorMethod<[EmployeeId, string], Result_23>,
-  'getMyCompany' : ActorMethod<[], Result_13>,
-  'getMyEmployee' : ActorMethod<[], Result_10>,
-  'getMyStandardarbeitszeiten' : ActorMethod<[], Result_21>,
-  'getProjectMembers' : ActorMethod<[ProjectId], Result_22>,
+  'getEmployeeWorkTimeBalanceFromStart' : ActorMethod<[EmployeeId], Result_35>,
+  'getEmploymentForDate' : ActorMethod<[EmployeeId, string], Result_34>,
+  'getFrontendCyclesManual' : ActorMethod<[], bigint>,
+  'getInvoiceById' : ActorMethod<[bigint], Result_8>,
+  'getInvoiceTemplate' : ActorMethod<[], Result_33>,
+  'getInvoices' : ActorMethod<[], Result_32>,
+  'getMonthlyBillingOverview' : ActorMethod<
+    [bigint, bigint],
+    Array<MonthlyBillingEntry>
+  >,
+  'getMyCompany' : ActorMethod<[], Result_17>,
+  'getMyComplianceFindings' : ActorMethod<
+    [[] | [CompliancePeriodeTyp]],
+    Array<ComplianceFinding>
+  >,
+  'getMyComplianceProfile' : ActorMethod<[], [] | [EmployeeComplianceProfile]>,
+  'getMyEmployee' : ActorMethod<[], Result_13>,
+  'getMyPlanFeatures' : ActorMethod<[], Array<FeatureKey>>,
+  'getMyStandardarbeitszeiten' : ActorMethod<[], Result_28>,
+  'getMyVacationLedger' : ActorMethod<[string], [] | [VacationLedger]>,
+  'getPauseComplianceForDay' : ActorMethod<
+    [bigint, string],
+    DayPauseComplianceResult
+  >,
+  'getPauseOverridesForDay' : ActorMethod<
+    [bigint, string],
+    Array<PauseOverride>
+  >,
+  'getPausesForDay' : ActorMethod<[bigint, string], Array<DetectedPause>>,
+  'getPlatformAdminConfig' : ActorMethod<[], PlatformAdminConfigPublic>,
+  'getPlatformAdminInfo' : ActorMethod<
+    [],
+    [] | [{ 'principal' : string, 'createdAt' : bigint }]
+  >,
+  'getProjectAufwendungen' : ActorMethod<[ProjectId], Result_31>,
+  'getProjectBudgetReport' : ActorMethod<
+    [ProjectId, string, string],
+    Result_30
+  >,
+  'getProjectMembers' : ActorMethod<[ProjectId], Result_29>,
   'getReportData' : ActorMethod<[ReportFilter], ReportData>,
-  'getStandardarbeitszeitenForEmployee' : ActorMethod<[EmployeeId], Result_21>,
-  'getTimeBalance' : ActorMethod<[EmployeeId], Result_20>,
-  'getUserNotificationSettings' : ActorMethod<[], Result_1>,
+  'getServiceYears' : ActorMethod<[bigint], Array<string>>,
+  'getSnapshotInterval' : ActorMethod<[], bigint>,
+  'getStandardarbeitszeitenForEmployee' : ActorMethod<[EmployeeId], Result_28>,
+  'getStripeConfigStatus' : ActorMethod<
+    [],
+    {
+      'hasPublishableKey' : boolean,
+      'testMode' : boolean,
+      'configured' : boolean,
+    }
+  >,
+  'getStripeEvents' : ActorMethod<[[] | [bigint], bigint], Array<StripeEvent>>,
+  'getStripeInvoicesForCompany' : ActorMethod<[bigint], Array<StripeInvoice>>,
+  'getStripePublishableKey' : ActorMethod<[], [] | [string]>,
+  'getSubscriptionPlans' : ActorMethod<[], Array<SubscriptionPlan>>,
+  'getSystemStats' : ActorMethod<
+    [],
+    { 'totalEmployees' : bigint, 'totalCompanies' : bigint }
+  >,
+  'getTenantCostBreakdown' : ActorMethod<[], Array<TenantCostEntry>>,
+  'getTimeBalance' : ActorMethod<[EmployeeId], Result_27>,
+  'getTimeEntryApprovalStatus' : ActorMethod<
+    [TimeEntryId],
+    [] | [TimeEntryStatus]
+  >,
+  'getUnbilledEntries' : ActorMethod<[[] | [bigint]], Result_26>,
+  'getUnbilledEntriesWithRates' : ActorMethod<[[] | [bigint]], Result_25>,
+  'getUnreadCount' : ActorMethod<[], bigint>,
+  'getUserNotificationSettings' : ActorMethod<[], Result_2>,
+  'getUsersForCompany' : ActorMethod<
+    [CompanyId],
+    Array<PlatformAdminUserEntry>
+  >,
+  'getVacationLedger' : ActorMethod<[bigint, string], [] | [VacationLedger]>,
+  'getVacationLedgerAll' : ActorMethod<[bigint], Array<VacationLedger>>,
+  'handleStripeWebhook' : ActorMethod<[string, string], Result_21>,
+  'initAllVacationLedgers' : ActorMethod<
+    [bigint],
+    { 'ok' : bigint } |
+      { 'err' : string }
+  >,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'isPlatformAdmin' : ActorMethod<[], boolean>,
   'isRegistered' : ActorMethod<[], boolean>,
   'listAbsenceTypes' : ActorMethod<[], Array<AbsenceType>>,
   'listAbsences' : ActorMethod<[AbsenceFilter], Array<Absence>>,
+  'listAllCompaniesForPlatformAdmin' : ActorMethod<
+    [],
+    Array<
+      {
+        'id' : string,
+        'name' : string,
+        'createdAt' : bigint,
+        'inactiveEmployeeCount' : bigint,
+        'isActive' : boolean,
+        'address' : [] | [string],
+        'activeEmployeeCount' : bigint,
+      }
+    >
+  >,
+  'listAllNotifications' : ActorMethod<[], Array<Notification>>,
+  'listApprovalAuditLog' : ActorMethod<[], Array<TimeEntryApprovalAuditEntry>>,
   'listAuditLog' : ActorMethod<
     [[] | [string], [] | [bigint]],
     Array<AuditEntry>
   >,
+  'listAuditLogs' : ActorMethod<[AuditLogFilter], Array<AuditLogEntry>>,
   'listCustomers' : ActorMethod<[], Array<Customer>>,
   'listEmployees' : ActorMethod<[], Array<Employee>>,
-  'listEmployments' : ActorMethod<[EmployeeId], Result_19>,
+  'listEmployments' : ActorMethod<[EmployeeId], Result_24>,
   'listExpenseTypes' : ActorMethod<[], Array<ExpenseType>>,
   'listExpenses' : ActorMethod<[ExpenseFilter], Array<Expense>>,
   'listHolidays' : ActorMethod<[], Array<Holiday>>,
+  'listMyNotifications' : ActorMethod<[], Array<UserNotification>>,
   'listProjectAssignments' : ActorMethod<[], Array<ProjectAssignment>>,
   'listProjects' : ActorMethod<[], Array<Project>>,
   'listServiceTypes' : ActorMethod<[], Array<ServiceType>>,
-  'listTimeBalanceCorrections' : ActorMethod<[EmployeeId], Result_18>,
+  'listSubmittedTimeEntries' : ActorMethod<[], Array<TimeEntry>>,
+  'listTimeBalanceCorrections' : ActorMethod<[EmployeeId], Result_23>,
   'listTimeEntries' : ActorMethod<[TimeEntryFilter], Array<TimeEntry>>,
-  'listVacationBalances' : ActorMethod<[EmployeeId], Result_17>,
-  'redeemInviteCode' : ActorMethod<[string], Result_10>,
-  'registerCompany' : ActorMethod<[string, string, string, string], Result_13>,
-  'rejectAbsence' : ActorMethod<[AbsenceId, string], Result_15>,
-  'rejectExpense' : ActorMethod<[ExpenseId, [] | [string]], Result_8>,
-  'removeEmployeeFromProject' : ActorMethod<[EmployeeId, ProjectId], Result_16>,
-  'resetAbsenceToAusstehend' : ActorMethod<[AbsenceId, string], Result_15>,
-  'resetExpenseToAusstehend' : ActorMethod<[ExpenseId, string], Result_8>,
-  'revokeInviteCode' : ActorMethod<[string], Result_16>,
-  'setMyStandardarbeitszeiten' : ActorMethod<
-    [Standardarbeitszeiten],
-    Result_16
+  'listVacationBalances' : ActorMethod<[EmployeeId], Result_22>,
+  'manuallyTriggerStripeSync' : ActorMethod<[bigint], Result_21>,
+  'markAllNotificationsRead' : ActorMethod<
+    [],
+    { 'ok' : bigint } |
+      { 'err' : string }
   >,
+  'markFakturiert' : ActorMethod<
+    [bigint, Array<bigint>, Array<bigint>],
+    Result_5
+  >,
+  'markNotificationRead' : ActorMethod<
+    [string],
+    { 'ok' : null } |
+      { 'err' : string }
+  >,
+  'purgeEmployee' : ActorMethod<[EmployeeId], Result_5>,
+  'reactivateStripeSubscription' : ActorMethod<[bigint], Result_20>,
+  'recordCycleSnapshot' : ActorMethod<[bigint, bigint], undefined>,
+  'recoverSubscriptionPlans' : ActorMethod<[], Result_21>,
+  'redeemInviteCode' : ActorMethod<[string], Result_13>,
+  'registerCompany' : ActorMethod<[string, string, string, string], Result_17>,
+  'rejectAbsence' : ActorMethod<[AbsenceId, string], Result_19>,
+  'rejectAbsenceApproval' : ActorMethod<
+    [AbsenceId, AbsenceApprovalInput],
+    Result_5
+  >,
+  'rejectExpense' : ActorMethod<[ExpenseId, [] | [string]], Result_11>,
+  'rejectTimeEntry' : ActorMethod<
+    [TimeEntryId, TimeEntryApprovalInput],
+    Result_3
+  >,
+  'relinkStripeCustomer' : ActorMethod<[bigint, string], Result_21>,
+  'removeEmployeeFromProject' : ActorMethod<[EmployeeId, ProjectId], Result_5>,
+  'reprocessStripeEvent' : ActorMethod<[string], Result_21>,
+  'resetAbsenceApprovalToDraft' : ActorMethod<
+    [AbsenceId, [] | [string]],
+    Result_5
+  >,
+  'resetAbsenceToAusstehend' : ActorMethod<[AbsenceId, string], Result_19>,
+  'resetExpenseToAusstehend' : ActorMethod<[ExpenseId, string], Result_11>,
+  'resetTimeEntryToDraft' : ActorMethod<[TimeEntryId, [] | [string]], Result_3>,
+  'resolveFinding' : ActorMethod<
+    [ResolveFindingInput],
+    { 'ok' : ComplianceFinding } |
+      { 'err' : string }
+  >,
+  'restoreDefaultPlansIfMissing' : ActorMethod<[], Result_21>,
+  'revokeInviteCode' : ActorMethod<[string], Result_5>,
+  'runWeeklyComplianceCheck' : ActorMethod<
+    [bigint],
+    { 'ok' : bigint } |
+      { 'err' : string }
+  >,
+  'saveAndSendNotification' : ActorMethod<
+    [
+      string,
+      string,
+      NotificationFormat,
+      NotificationPriority,
+      bigint,
+      [] | [bigint],
+      NotificationTargetType,
+      Array<string>,
+      Array<string>,
+      Array<string>,
+    ],
+    { 'ok' : Notification } |
+      { 'err' : string }
+  >,
+  'sendNotification' : ActorMethod<
+    [string],
+    { 'ok' : null } |
+      { 'err' : string }
+  >,
+  'setCompanyActive' : ActorMethod<
+    [bigint, boolean],
+    { 'ok' : null } |
+      { 'err' : string }
+  >,
+  'setCompanyBillingModel' : ActorMethod<[bigint, BillingModel], Result_5>,
+  'setEmployeeActive' : ActorMethod<[EmployeeId, boolean], Result_13>,
+  'setFrontendCanisterId' : ActorMethod<[string], undefined>,
+  'setFrontendCyclesManual' : ActorMethod<[bigint], undefined>,
+  'setMyStandardarbeitszeiten' : ActorMethod<[Standardarbeitszeiten], Result_5>,
+  'setPlatformAdminConfig' : ActorMethod<[PlatformAdminConfig], Result_5>,
   'setProjectMembers' : ActorMethod<
     [ProjectId, Array<ProjectMemberAssignment>],
-    Result_16
+    Result_5
   >,
+  'setSnapshotInterval' : ActorMethod<[bigint], undefined>,
   'setStandardarbeitszeitenForEmployee' : ActorMethod<
     [EmployeeId, Standardarbeitszeiten],
-    Result_16
+    Result_5
   >,
-  'updateAbsence' : ActorMethod<[AbsenceId, UpdateAbsenceInput], Result_15>,
+  'setStripeConfig' : ActorMethod<[string, string, string], Result_21>,
+  'setUserActiveForCompany' : ActorMethod<
+    [CompanyId, EmployeeId, boolean],
+    Result_5
+  >,
+  'setUserRoleForCompany' : ActorMethod<
+    [CompanyId, EmployeeId, Role],
+    Result_5
+  >,
+  'startSnapshotTimer' : ActorMethod<[], undefined>,
+  'submitAbsenceForApproval' : ActorMethod<[AbsenceId], Result_5>,
+  'submitTimeEntryForApproval' : ActorMethod<[TimeEntryId], Result_3>,
+  'syncStripeSubscription' : ActorMethod<[bigint], Result_20>,
+  'testStripeConnection' : ActorMethod<
+    [],
+    {
+      'apiConnectionOk' : boolean,
+      'apiConnectionMessage' : string,
+      'customerPortalOk' : boolean,
+      'customerPortalMessage' : string,
+    }
+  >,
+  'transformStripeResponse' : ActorMethod<
+    [HttpTransformArgs],
+    HttpRequestResult
+  >,
+  'updateAbsence' : ActorMethod<[AbsenceId, UpdateAbsenceInput], Result_19>,
   'updateAbsenceType' : ActorMethod<
     [AbsenceTypeId, UpdateAbsenceTypeInput],
-    Result_14
+    Result_18
   >,
-  'updateCompany' : ActorMethod<[UpdateCompanyInput], Result_13>,
-  'updateCompanySettings' : ActorMethod<[CompanySettings], Result_12>,
-  'updateCustomer' : ActorMethod<[CustomerId, UpdateCustomerInput], Result_11>,
-  'updateEmployee' : ActorMethod<[EmployeeId, UpdateEmployeeInput], Result_10>,
+  'updateCompany' : ActorMethod<[UpdateCompanyInput], Result_17>,
+  'updateCompanySettings' : ActorMethod<[CompanySettings], Result_16>,
+  'updateComplianceProfile' : ActorMethod<
+    [UpdateComplianceProfileInput],
+    { 'ok' : EmployeeComplianceProfile } |
+      { 'err' : string }
+  >,
+  'updateCostSettings' : ActorMethod<[CostSettings], undefined>,
+  'updateCustomer' : ActorMethod<[CustomerId, UpdateCustomerInput], Result_15>,
+  'updateDefaultWorkHours' : ActorMethod<[DefaultWorkHours], Result_14>,
+  'updateEmployee' : ActorMethod<[EmployeeId, UpdateEmployeeInput], Result_13>,
   'updateEmployment' : ActorMethod<
     [EmployeeId, string, UpdateEmploymentInput],
-    Result_9
+    Result_12
   >,
-  'updateExpense' : ActorMethod<[ExpenseId, UpdateExpenseInput], Result_8>,
+  'updateExpense' : ActorMethod<[ExpenseId, UpdateExpenseInput], Result_11>,
   'updateExpenseType' : ActorMethod<
     [ExpenseTypeId, UpdateExpenseTypeInput],
-    Result_7
+    Result_10
   >,
-  'updateHoliday' : ActorMethod<[HolidayId, UpdateHolidayInput], Result_6>,
-  'updateProject' : ActorMethod<[ProjectId, UpdateProjectInput], Result_5>,
+  'updateHoliday' : ActorMethod<[HolidayId, UpdateHolidayInput], Result_9>,
+  'updateInvoice' : ActorMethod<[bigint, UpdateInvoiceInput], Result_8>,
+  'updateProject' : ActorMethod<[ProjectId, UpdateProjectInput], Result_7>,
   'updateServiceType' : ActorMethod<
     [ServiceTypeId, UpdateServiceTypeInput],
-    Result_4
+    Result_6
   >,
+  'updateStripeSubscriptionQuantity' : ActorMethod<[bigint, bigint], Result_5>,
   'updateTimeBalanceCorrection' : ActorMethod<
     [EmployeeId, string, UpdateTimeBalanceCorrectionInput],
-    Result_3
+    Result_4
   >,
   'updateTimeEntry' : ActorMethod<
     [TimeEntryId, UpdateTimeEntryInput],
-    Result_2
+    Result_3
   >,
   'updateUserNotificationSettings' : ActorMethod<
     [UserNotificationSettings],
-    Result_1
+    Result_2
   >,
   'updateVacationBalance' : ActorMethod<
     [EmployeeId, string, UpdateVacationBalanceInput],
-    Result
+    Result_1
   >,
+  'upsertSubscriptionPlan' : ActorMethod<[SubscriptionPlan], Result>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

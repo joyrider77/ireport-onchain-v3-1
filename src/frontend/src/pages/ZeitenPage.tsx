@@ -38,6 +38,7 @@ import {
   useCompanyTimezone,
 } from "@/hooks/useCompanyTimezone";
 import {
+  countVacationDaysProportional,
   getActiveEmploymentForDate,
   getEmploymentMinutesForDate,
   getMostRecentEmploymentBefore,
@@ -74,11 +75,13 @@ import type {
   AbsenceType,
   Employee,
   Employment,
+  Holiday,
   Project,
   ProjectMemberAssignment,
   ServiceType,
   TimeEntry,
   UpdateAbsenceInput,
+  VacationBalance,
   WorkTimeBalance,
 } from "../backend.d";
 
@@ -119,6 +122,8 @@ interface StdHoursForm {
 interface StandardTimeBlock {
   von: string;
   bis: string;
+  projektId?: number | null;
+  leistungsartId?: number | null;
 }
 
 // Legacy type — kept for fallback code path only
@@ -213,19 +218,7 @@ function daysBetween(from: string, to: string): number {
   return Math.max(diff, 1);
 }
 
-/** Map UTC day index (0=Sun) to weekday name for display */
-function getWeekdayName(utcDayIndex: number): string {
-  const names = [
-    "Sonntag",
-    "Montag",
-    "Dienstag",
-    "Mittwoch",
-    "Donnerstag",
-    "Freitag",
-    "Samstag",
-  ];
-  return names[utcDayIndex] ?? "";
-}
+/** Map UTC day index (0=Sun) to weekday name for display — kept for future use */
 
 const DAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const DAY_KEYS: DayKey[] = [
@@ -258,6 +251,54 @@ const UTC_DAY_TO_KEY: DayKey[] = [
   "saturday",
 ];
 
+// ─── TimeInput Sub-component ──────────────────────────────────────────────────
+// Holds local state so parent re-renders (from other field changes) don't
+// destroy the input mid-typing. Parent is only notified on blur.
+
+interface TimeInputProps {
+  value: string;
+  placeholder?: string;
+  onCommit: (normalized: string) => void;
+  className?: string;
+  "data-ocid"?: string;
+}
+
+function TimeInput({
+  value,
+  placeholder,
+  onCommit,
+  className,
+  "data-ocid": dataOcid,
+}: TimeInputProps) {
+  const [local, setLocal] = useState(value);
+
+  // Sync external value changes (e.g. when parent loads saved data) but NOT
+  // while the user is typing (avoids refocusing). We only sync when the
+  // incoming value is a fully-normalised hh:mm string that differs from local.
+  const prevValue = useRef(value);
+  if (prevValue.current !== value && isValidHHMM(value)) {
+    prevValue.current = value;
+    setLocal(value);
+  }
+
+  return (
+    <Input
+      type="text"
+      placeholder={placeholder}
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => {
+        const normalized = normalizeTimeInput(local) || local;
+        setLocal(normalized);
+        onCommit(normalized);
+      }}
+      className={className}
+      maxLength={5}
+      data-ocid={dataOcid}
+    />
+  );
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function EntryRow({
@@ -275,6 +316,17 @@ function EntryRow({
   onDelete: () => void;
   readOnly?: boolean;
 }) {
+  const isZeitBlock =
+    project?.erfassungsart === "zeitBlock" && (entry.von || entry.bis);
+  const timeDisplay = isZeitBlock
+    ? `${entry.von ?? ""}\u2013${entry.bis ?? ""}`
+    : formatHours(Number(entry.hours));
+  // Approved entries cannot be edited by employees — hide the edit button
+  const isApproved =
+    String(
+      (entry as unknown as Record<string, unknown>).status ?? "",
+    ).toLowerCase() === "approved";
+
   return (
     <div
       className="flex items-center gap-3 py-3 px-4 rounded-lg border border-border bg-card hover:bg-accent/30 transition-colors group"
@@ -310,19 +362,26 @@ function EntryRow({
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <span className="text-sm font-semibold text-primary tabular-nums">
-          {formatHours(Number(entry.hours))}
+          {timeDisplay}
         </span>
+        {isZeitBlock && (
+          <span className="text-xs text-muted-foreground ml-1">
+            ({formatHours(Number(entry.hours))})
+          </span>
+        )}
         {!readOnly && (
           <>
-            <button
-              type="button"
-              onClick={onEdit}
-              className="ml-2 p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
-              aria-label="Bearbeiten"
-              data-ocid="entry-edit-btn"
-            >
-              <Edit2 className="w-3.5 h-3.5" />
-            </button>
+            {!isApproved && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="ml-2 p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100"
+                aria-label="Bearbeiten"
+                data-ocid="entry-edit-btn"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+              </button>
+            )}
             <button
               type="button"
               onClick={onDelete}
@@ -361,272 +420,34 @@ function statusBadge(status: AbsenceStatus) {
   return <Badge variant="secondary">Ausstehend</Badge>;
 }
 
-// ─── Standardarbeitszeit-Dialog ───────────────────────────────────────────────
-
-interface StdZeitErfassenDialogProps {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  blocks: StandardTimeBlock[];
-  todayStr: string;
-  projects: Project[];
-  projectMembers: Map<string, ProjectMemberAssignment[]>;
-  serviceTypes: ServiceType[];
-  employeeId: string | number | null;
-  actor: unknown;
-  onSaved: () => void;
+/** Returns the employment's Soll-minutes for the weekday of the given dateStr */
+function getWeekdaySollMinsFromEmp(emp: Employment, dateStr: string): number {
+  const d = new Date(`${dateStr}T12:00:00Z`);
+  const dow = d.getUTCDay(); // 0=Sun
+  const vals: Record<number, bigint> = {
+    0: emp.stundenSo,
+    1: emp.stundenMo,
+    2: emp.stundenDi,
+    3: emp.stundenMi,
+    4: emp.stundenDo,
+    5: emp.stundenFr,
+    6: emp.stundenSa,
+  };
+  return Number(vals[dow] ?? 0);
 }
 
-function StdZeitErfassenDialog({
-  open,
-  onOpenChange,
-  blocks,
-  todayStr,
-  projects,
-  projectMembers,
-  serviceTypes,
-  employeeId,
-  actor,
-  onSaved,
-}: StdZeitErfassenDialogProps) {
-  const todayDate = new Date(`${todayStr}T12:00:00Z`);
-  const utcDay = todayDate.getUTCDay();
-  const weekdayName = getWeekdayName(utcDay);
-
-  const [projectId, setProjectId] = useState("");
-  const [serviceTypeId, setServiceTypeId] = useState("");
-  const [description, setDescription] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    if (open) {
-      setProjectId("");
-      setServiceTypeId("");
-      setDescription("");
-      setErrors({});
-    }
-  }, [open]);
-
-  const assignedProjects = useMemo(() => {
-    if (!employeeId) return projects;
-    return projects.filter((p) => {
-      const members = projectMembers.get(String(p.id)) ?? [];
-      return members.some((m) => String(m.employeeId) === String(employeeId));
-    });
-  }, [projects, projectMembers, employeeId]);
-
-  const filteredServiceTypes = useMemo(() => {
-    if (!projectId || !employeeId) return [];
-    const members = projectMembers.get(projectId) ?? [];
-    const myAssignments = members.filter(
-      (m) => String(m.employeeId) === String(employeeId),
-    );
-    const myServiceTypeIds = new Set(
-      myAssignments.map((m) => String(m.serviceTypeId)),
-    );
-    return serviceTypes.filter(
-      (st) => st.aktiv && myServiceTypeIds.has(String(st.id)),
-    );
-  }, [projectId, projectMembers, serviceTypes, employeeId]);
-
-  const currentStundensatz = useMemo(() => {
-    if (!projectId || !serviceTypeId || !employeeId) return 0;
-    const members = projectMembers.get(projectId) ?? [];
-    const myAssignment = members.find(
-      (m) =>
-        String(m.employeeId) === String(employeeId) &&
-        String(m.serviceTypeId) === serviceTypeId,
-    );
-    return myAssignment?.stundensatz ?? 0;
-  }, [projectId, serviceTypeId, projectMembers, employeeId]);
-
-  function handleProjectChange(pid: string) {
-    setProjectId(pid);
-    setServiceTypeId("");
-  }
-
-  function validate(): boolean {
-    const e: Record<string, string> = {};
-    if (!projectId) e.projectId = "Pflichtfeld";
-    if (!serviceTypeId) e.serviceTypeId = "Pflichtfeld";
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  }
-
-  async function handleSave() {
-    if (!validate() || !actor) return;
-    setIsSaving(true);
-    const a = toAny(actor);
-    try {
-      for (const block of blocks) {
-        const vonMin = hhmmToMinutes(block.von);
-        const bisMin = hhmmToMinutes(block.bis);
-        const hours = (bisMin - vonMin) / 60;
-        const billable = currentStundensatz > 0;
-        const res = (await a.createTimeEntry({
-          date: todayStr,
-          projectId: BigInt(projectId),
-          serviceTypeId: BigInt(serviceTypeId),
-          hours,
-          von: block.von,
-          bis: block.bis,
-          description,
-          billable,
-        })) as { __kind__: string; err?: string };
-        if (res.__kind__ === "err") throw new Error(res.err);
-      }
-      toast.success(`${blocks.length} Zeiteinträge gespeichert`);
-      onOpenChange(false);
-      onSaved();
-    } catch (err) {
-      toast.error(
-        `Fehler: ${err instanceof Error ? err.message : "Unbekannter Fehler"}`,
-      );
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="max-w-md max-h-[90vh] overflow-y-auto"
-        data-ocid="std-zeit-dialog"
-      >
-        <DialogHeader>
-          <DialogTitle>
-            Standardarbeitszeit erfassen – {weekdayName},{" "}
-            {formatDateDE(todayStr)}
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4 py-2">
-          {/* Time blocks read-only display */}
-          <div className="rounded-lg bg-muted/50 border border-border p-3 space-y-1">
-            <p className="text-xs font-medium text-muted-foreground mb-2">
-              Zeitblöcke (werden als Einträge gespeichert):
-            </p>
-            {blocks.map((b, i) => {
-              const vonMin = hhmmToMinutes(b.von);
-              const bisMin = hhmmToMinutes(b.bis);
-              const dur = bisMin - vonMin;
-              return (
-                <div
-                  key={`block-preview-${i}-${b.von}-${b.bis}`}
-                  className="flex items-center justify-between text-sm"
-                >
-                  <span className="font-mono text-foreground">
-                    {b.von} – {b.bis}
-                  </span>
-                  <span className="text-muted-foreground">
-                    {dur > 0 ? minutesToHHMM(dur) : "–"}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Projekt */}
-          <div className="space-y-1.5">
-            <Label htmlFor="std-proj">
-              Projekt <span className="text-destructive">*</span>
-            </Label>
-            <Select value={projectId} onValueChange={handleProjectChange}>
-              <SelectTrigger
-                id="std-proj"
-                className={errors.projectId ? "border-destructive" : ""}
-                data-ocid="std-project-select"
-              >
-                <SelectValue placeholder="Projekt wählen…" />
-              </SelectTrigger>
-              <SelectContent>
-                {assignedProjects.map((p) => (
-                  <SelectItem key={String(p.id)} value={String(p.id)}>
-                    [{p.code}] {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.projectId && (
-              <p className="text-xs text-destructive">{errors.projectId}</p>
-            )}
-          </div>
-
-          {/* Leistungsart */}
-          <div className="space-y-1.5">
-            <Label htmlFor="std-service">
-              Leistungsart <span className="text-destructive">*</span>
-            </Label>
-            <Select
-              value={serviceTypeId}
-              onValueChange={setServiceTypeId}
-              disabled={!projectId}
-            >
-              <SelectTrigger
-                id="std-service"
-                className={errors.serviceTypeId ? "border-destructive" : ""}
-                data-ocid="std-service-select"
-              >
-                <SelectValue
-                  placeholder={
-                    projectId ? "Leistungsart wählen…" : "Erst Projekt wählen"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredServiceTypes.map((st) => (
-                  <SelectItem key={String(st.id)} value={String(st.id)}>
-                    {st.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.serviceTypeId && (
-              <p className="text-xs text-destructive">{errors.serviceTypeId}</p>
-            )}
-          </div>
-
-          {/* Beschreibung */}
-          <div className="space-y-1.5">
-            <Label htmlFor="std-desc">
-              Beschreibung{" "}
-              <span className="text-muted-foreground font-normal text-xs">
-                (optional)
-              </span>
-            </Label>
-            <Textarea
-              id="std-desc"
-              placeholder="Tätigkeit beschreiben…"
-              rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              data-ocid="std-description-input"
-            />
-          </div>
-        </div>
-
-        <DialogFooter className="gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isSaving}
-            data-ocid="std-cancel-btn"
-          >
-            Abbrechen
-          </Button>
-          <Button
-            type="button"
-            onClick={handleSave}
-            disabled={isSaving}
-            data-ocid="std-save-btn"
-          >
-            {isSaving ? "Speichern…" : "Speichern"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+/** Normalises legacy feiertagsberechnungsart values to the new canonical values */
+function normaliseFeiertag(v: string): string {
+  if (
+    v === "keineGutschrift" ||
+    v === "wochentag_sollzeit" ||
+    v === "durchschnittssoll"
+  )
+    return v;
+  if (v === "exakt" || v === "entschaedigt") return "keineGutschrift";
+  if (v === "exaktWochentag") return "wochentag_sollzeit";
+  if (v === "prozentual") return "durchschnittssoll";
+  return "keineGutschrift";
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -655,8 +476,9 @@ export default function ZeitenPage() {
     toDateStringInTz(new Date(), "Europe/Zurich"),
   );
 
-  const [selectedEmployeeFilter, setSelectedEmployeeFilter] =
-    useState<string>("all");
+  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState<string>(
+    () => employeeId ?? "all",
+  );
 
   // ─── Time Entry Data ───────────────────────────────────────────────────────
   const [entries, setEntries] = useState<TimeEntry[]>([]);
@@ -671,7 +493,6 @@ export default function ZeitenPage() {
   // ─── Employment Data (for Soll-hours in ganztaetig absences) ──────────────
   const [employments, setEmployments] = useState<Employment[]>([]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: load once on actor/employee change
   useEffect(() => {
     if (!actor || isFetching || !employeeId) return;
     const empId =
@@ -683,7 +504,19 @@ export default function ZeitenPage() {
         if (r.__kind__ === "ok") setEmployments(r.ok ?? []);
       })
       .catch(() => setEmployments([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actor, isFetching, employeeId, selectedEmployeeFilter]);
+
+  // ─── Holiday Data ──────────────────────────────────────────────────────────
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
+
+  useEffect(() => {
+    if (!actor || isFetching) return;
+    toAny(actor)
+      .listHolidays()
+      .then((res) => setHolidays((res as Holiday[]) ?? []))
+      .catch(() => setHolidays([]));
+  }, [actor, isFetching]);
 
   // ─── Absence Data ──────────────────────────────────────────────────────────
   const [absenceTypes, setAbsenceTypes] = useState<AbsenceType[]>([]);
@@ -716,8 +549,12 @@ export default function ZeitenPage() {
   const [timeDialogDate, setTimeDialogDate] = useState<string>("");
 
   // ─── Std-Zeit-Erfassen Dialog ──────────────────────────────────────────────
-  const [stdZeitDialogOpen, setStdZeitDialogOpen] = useState(false);
-  const [stdZeitBlocks, setStdZeitBlocks] = useState<StandardTimeBlock[]>([]);
+  const [stdZeitMessage, setStdZeitMessage] = useState<string | null>(null);
+
+  function showStdZeitMsg(msg: string) {
+    setStdZeitMessage(msg);
+    setTimeout(() => setStdZeitMessage(null), 5000);
+  }
 
   // ─── Absence Dialog ────────────────────────────────────────────────────────
   const [showAbsenceDialog, setShowAbsenceDialog] = useState(false);
@@ -911,7 +748,69 @@ export default function ZeitenPage() {
     void loadStdRef.current();
   }, [actor, isFetching, employeeId]);
 
-  // ─── Derived Data ─────────────────────────────────────────────────────────
+  // ─── Holiday helpers ───────────────────────────────────────────────────────
+
+  /** Returns holidays that fall on a given dateStr */
+  const holidaysForDay = useCallback(
+    (dateStr: string): Holiday[] => holidays.filter((h) => h.date === dateStr),
+    [holidays],
+  );
+
+  /**
+   * Calculate Ist-minutes for holidays on a given date, using the employee's
+   * Feiertagsberechnungsart from the active employment.
+   */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const holidayIstMinutesForDay = useCallback(
+    (dateStr: string): number => {
+      const dayHolidays = holidays.filter((h) => h.date === dateStr);
+      if (dayHolidays.length === 0) return 0;
+      const emp =
+        getActiveEmploymentForDate(employments, dateStr) ??
+        getMostRecentEmploymentBefore(employments, dateStr);
+      if (!emp) return 0;
+
+      const berechnungsart = normaliseFeiertag(
+        String(emp.feiertagsberechnungsart ?? "keineGutschrift"),
+      );
+
+      // Pre-compute weekly average for "durchschnittssoll"
+      let avgDailyMins = 0;
+      if (berechnungsart === "durchschnittssoll") {
+        const dayVals = [
+          Number(emp.stundenMo ?? 0),
+          Number(emp.stundenDi ?? 0),
+          Number(emp.stundenMi ?? 0),
+          Number(emp.stundenDo ?? 0),
+          Number(emp.stundenFr ?? 0),
+          Number(emp.stundenSa ?? 0),
+          Number(emp.stundenSo ?? 0),
+        ];
+        const workDays = dayVals.filter((v) => v > 0).length;
+        const weekTotal = dayVals.reduce((a, b) => a + b, 0);
+        avgDailyMins = workDays > 0 ? weekTotal / workDays : 0;
+      }
+
+      let total = 0;
+      for (const h of dayHolidays) {
+        const factor = h.ganztaegig ? 1 : 0.5;
+
+        if (berechnungsart === "keineGutschrift") {
+          // No credit at all
+          total += 0;
+        } else if (berechnungsart === "wochentag_sollzeit") {
+          // Credit = Soll-minutes of the specific weekday
+          const weekdaySoll = getWeekdaySollMinsFromEmp(emp, dateStr);
+          total += Math.round(weekdaySoll * factor);
+        } else if (berechnungsart === "durchschnittssoll") {
+          // Credit = average daily Soll-minutes
+          total += Math.round(avgDailyMins * factor);
+        }
+      }
+      return total;
+    },
+    [holidays, employments],
+  );
 
   const vacationType = useMemo(
     () =>
@@ -1026,6 +925,8 @@ export default function ZeitenPage() {
         total += Number(a.dauer) / 60;
       }
     }
+    // Add holiday Ist-hours
+    total += holidayIstMinutesForDay(dateStr) / 60;
     return total;
   };
 
@@ -1073,6 +974,10 @@ export default function ZeitenPage() {
         }
       }
     }
+    // Add holiday Ist-hours for each day of the week
+    for (const day of weekDays) {
+      total += holidayIstMinutesForDay(toDateString(day)) / 60;
+    }
     return total;
   }, [
     weekDays,
@@ -1081,6 +986,7 @@ export default function ZeitenPage() {
     entriesByDate,
     employments,
     selectedEmployeeFilter,
+    holidayIstMinutesForDay,
   ]);
 
   const weekTarget = useMemo(() => {
@@ -1237,6 +1143,13 @@ export default function ZeitenPage() {
   }
 
   async function handleDeleteEntry(entry: TimeEntry) {
+    const statusVal = String(
+      (entry as unknown as Record<string, unknown>).status ?? "",
+    ).toLowerCase();
+    if (statusVal === "approved" && !isAdminOrManager) {
+      setShowZeitenApprovedDeleteWarning(true);
+      return;
+    }
     setDeleteTarget({ kind: "timeEntry", entry });
   }
 
@@ -1262,19 +1175,85 @@ export default function ZeitenPage() {
   }
 
   // ─── Standardarbeitszeit erfassen handler ─────────────────────────────────
-  function handleStdZeitErfassen() {
-    const todayDate = new Date(`${todayStr}T12:00:00Z`);
-    const utcDay = todayDate.getUTCDay();
+  async function handleStdZeitErfassen() {
+    // Determine current date: day view uses selectedDayStr, week view uses today
+    const targetDate = viewMode === "day" ? selectedDayStr : todayStr;
+    const targetDateObj = new Date(`${targetDate}T12:00:00Z`);
+    const utcDay = targetDateObj.getUTCDay();
     const dayKey = UTC_DAY_TO_KEY[utcDay];
     const blocks = stdBlocks[dayKey] ?? [];
+    const weekdayName = DAY_NAMES[dayKey];
 
     if (blocks.length === 0) {
-      toast.info("Für heute sind keine Standardarbeitszeiten hinterlegt.");
+      showStdZeitMsg(`Keine Standardarbeitszeiten für ${weekdayName} erfasst.`);
       return;
     }
 
-    setStdZeitBlocks(blocks);
-    setStdZeitDialogOpen(true);
+    // Check for existing entries on target date
+    const existingEntries = entriesByDate[targetDate] ?? [];
+    if (existingEntries.length > 0) {
+      const confirmed = window.confirm(
+        "Für diesen Tag sind bereits Zeiteinträge vorhanden. Trotzdem Standardarbeitszeit erfassen?",
+      );
+      if (!confirmed) return;
+    }
+
+    if (!actor) return;
+    const a = toAny(actor);
+    let created = 0;
+    const skipped: string[] = [];
+
+    for (let i = 0; i < blocks.length; i++) {
+      const block = blocks[i];
+      if (!block.projektId || !block.leistungsartId) {
+        skipped.push(
+          `Block ${i + 1} (${block.von}–${block.bis}): Kein Projekt/Leistungsart hinterlegt`,
+        );
+        continue;
+      }
+      const vonMin = hhmmToMinutes(block.von);
+      const bisMin = hhmmToMinutes(block.bis);
+      if (vonMin === null || bisMin === null || bisMin <= vonMin) {
+        skipped.push(`Block ${i + 1}: Ungültige Zeiten`);
+        continue;
+      }
+      const hours = (bisMin - vonMin) / 60;
+      // Determine if project uses zeitBlock mode
+      const proj = projects.find(
+        (p) => String(p.id) === String(block.projektId),
+      );
+      const isZeitBlock = proj?.erfassungsart === "zeitBlock";
+      try {
+        const res = (await a.createTimeEntry({
+          date: targetDate,
+          projectId: BigInt(block.projektId),
+          serviceTypeId: BigInt(block.leistungsartId),
+          hours,
+          von: isZeitBlock ? block.von : "",
+          bis: isZeitBlock ? block.bis : "",
+          description: "",
+          billable: false,
+        })) as { __kind__: string; err?: string };
+        if ("err" in res) throw new Error(res.err);
+        created++;
+      } catch (err) {
+        skipped.push(
+          `Block ${i + 1}: ${err instanceof Error ? err.message : "Fehler"}`,
+        );
+      }
+    }
+
+    if (skipped.length > 0) {
+      for (const msg of skipped) toast.warning(msg);
+    }
+    if (created > 0) {
+      toast.success(`${created} Zeiteintrag${created > 1 ? "e" : ""} erfasst`);
+      void loadTimeDataRef.current();
+    } else if (skipped.length > 0) {
+      showStdZeitMsg(
+        "Keine Einträge gespeichert. Bitte Projekt und Leistungsart in den Standardarbeitszeiten hinterlegen.",
+      );
+    }
   }
 
   // ─── Absence Helpers ───────────────────────────────────────────────────────
@@ -1422,13 +1401,201 @@ export default function ZeitenPage() {
   }
 
   async function submitVacation() {
-    if (!validateVacationForm() || !actor) return;
-    if (!vacationType) {
-      toast.error("Keine Ferienabwesenheitsart konfiguriert");
-      return;
-    }
+    // Guard must be set BEFORE any async work — disables the button immediately
     setIsSavingVacation(true);
     try {
+      if (!validateVacationForm() || !actor) return;
+      if (!vacationType) {
+        toast.error("Keine Ferienabwesenheitsart konfiguriert");
+        return;
+      }
+
+      // ── Feriensaldo-Prüfung ─────────────────────────────────────────────────
+      // Check for new vacation entries (not edits).
+      // Errors during the check block saving — no silent fallthrough.
+      if (!editVacation) {
+        const currentYear = new Date(
+          `${vacationForm.dateFrom}T12:00:00`,
+        ).getFullYear();
+        const empIdForBalance = BigInt(
+          selectedEmployeeFilter !== "all"
+            ? selectedEmployeeFilter
+            : (employeeId ?? "0"),
+        );
+
+        let checkPassed = false;
+        let balanceCheckError: string | null = null;
+
+        try {
+          const [balancesRes, absencesRes, typesRes, employmentsRes] =
+            await Promise.all([
+              toAny(actor).listVacationBalances(empIdForBalance) as Promise<{
+                __kind__: string;
+                ok?: VacationBalance[];
+              }>,
+              toAny(actor).listAbsences({
+                employeeId: empIdForBalance,
+              }) as Promise<
+                Array<{
+                  dateFrom: string;
+                  dateTo: string;
+                  status: string;
+                  absenceTypeId: bigint;
+                  ganztaetig: boolean;
+                  dauer: bigint;
+                  employeeId: bigint;
+                }>
+              >,
+              toAny(actor).listAbsenceTypes() as Promise<
+                Array<{ id: bigint; requiresApproval: boolean }>
+              >,
+              toAny(actor).listEmployments(empIdForBalance) as Promise<{
+                __kind__: string;
+                ok?: Employment[];
+              }>,
+            ]);
+
+          // Resolve fresh employments for the balance-check employee
+          const freshEmployments =
+            (employmentsRes as { __kind__: string; ok?: Employment[] })
+              .__kind__ === "ok"
+              ? ((employmentsRes as { __kind__: string; ok?: Employment[] })
+                  .ok ?? [])
+              : employments; // fall back to already-loaded state
+
+          const balances =
+            (balancesRes as { __kind__: string; ok?: VacationBalance[] })
+              .__kind__ === "ok"
+              ? ((balancesRes as { __kind__: string; ok?: VacationBalance[] })
+                  .ok ?? [])
+              : [];
+
+          const vacTypeIds = new Set(
+            (typesRes ?? [])
+              .filter((t) => t.requiresApproval)
+              .map((t) => String(t.id)),
+          );
+
+          const totalGranted = (balances as VacationBalance[])
+            .filter((b) => Number(b.kalenderjahr) === currentYear)
+            .reduce((sum, b) => sum + Number(b.dauer) / 100, 0);
+
+          const usedDays = ((absencesRes as unknown[]) ?? [])
+            .filter(
+              (a: unknown) =>
+                vacTypeIds.has(
+                  String(
+                    (
+                      a as {
+                        absenceTypeId: bigint;
+                        status: string;
+                        employeeId: bigint;
+                      }
+                    ).absenceTypeId,
+                  ),
+                ) &&
+                // Include approved, submitted and pending — all non-rejected statuses count against balance
+                ((
+                  a as {
+                    absenceTypeId: bigint;
+                    status: string;
+                    employeeId: bigint;
+                  }
+                ).status === "approved" ||
+                  (
+                    a as {
+                      absenceTypeId: bigint;
+                      status: string;
+                      employeeId: bigint;
+                    }
+                  ).status === "submitted" ||
+                  (
+                    a as {
+                      absenceTypeId: bigint;
+                      status: string;
+                      employeeId: bigint;
+                    }
+                  ).status === "pending") &&
+                String(
+                  (
+                    a as {
+                      absenceTypeId: bigint;
+                      status: string;
+                      employeeId: bigint;
+                    }
+                  ).employeeId,
+                ) === String(empIdForBalance),
+            )
+            .reduce((sum: number, rawA) => {
+              const a = rawA as {
+                dateFrom: string;
+                dateTo: string;
+                ganztaetig: boolean;
+                dauer: bigint;
+              };
+              const yFrom = new Date(`${a.dateFrom}T12:00:00`).getFullYear();
+              const yTo = new Date(`${a.dateTo}T12:00:00`).getFullYear();
+              if (yFrom !== currentYear && yTo !== currentYear) return sum;
+              const effFrom =
+                yFrom < currentYear ? `${currentYear}-01-01` : a.dateFrom;
+              const effTo =
+                yTo > currentYear ? `${currentYear}-12-31` : a.dateTo;
+              // Use fresh employments for accurate day counting
+              const days = countVacationDaysProportional(
+                effFrom,
+                effTo,
+                a.ganztaetig,
+                Number(a.dauer),
+                freshEmployments,
+              );
+              // Fallback: if fresh employments unavailable, count calendar days
+              return sum + (days > 0 ? days : daysBetween(effFrom, effTo));
+            }, 0);
+
+          // Calculate days requested in this vacation entry
+          const dauerMinsForBalance = vacationForm.ganztaetig
+            ? 0
+            : (hhmmToMinutes(vacationForm.dauerInput) ?? 0);
+
+          let requestedDays = countVacationDaysProportional(
+            vacationForm.dateFrom,
+            vacationForm.dateTo,
+            vacationForm.ganztaetig,
+            dauerMinsForBalance,
+            freshEmployments,
+          );
+          // Fallback: no employment data → use calendar days (conservative)
+          if (requestedDays === 0 && freshEmployments.length === 0) {
+            requestedDays = daysBetween(
+              vacationForm.dateFrom,
+              vacationForm.dateTo,
+            );
+          }
+
+          const availableDays = Math.max(totalGranted - usedDays, 0);
+
+          if (requestedDays > availableDays + 0.001) {
+            balanceCheckError = `Nicht genügend Feriensaldo. Verfügbar: ${availableDays.toFixed(1)} Tage, benötigt: ${requestedDays.toFixed(1)} Tage.`;
+          } else {
+            checkPassed = true;
+          }
+        } catch (err) {
+          // Balance check failed due to a network/backend error — always set error, never allow silent bypass
+          balanceCheckError = `Feriensaldo konnte nicht geprüft werden. Bitte versuche es erneut. (${err instanceof Error ? err.message : "Unbekannter Fehler"})`;
+        }
+
+        if (balanceCheckError) {
+          toast.error(balanceCheckError);
+          return;
+        }
+        if (!checkPassed) {
+          toast.error(
+            "Feriensaldo-Prüfung fehlgeschlagen. Bitte versuche es erneut.",
+          );
+          return;
+        }
+      }
+
       const dauerMinutes = vacationForm.ganztaetig
         ? 0
         : (hhmmToMinutes(vacationForm.dauerInput) ?? 0);
@@ -1463,12 +1630,19 @@ export default function ZeitenPage() {
         `Fehler: ${err instanceof Error ? err.message : "Unbekannter Fehler"}`,
       );
     } finally {
+      // Always reset the saving flag, regardless of success, error, or early return
       setIsSavingVacation(false);
     }
   }
 
-  async function deleteAbsenceEntry(id: bigint) {
-    setDeleteTarget({ kind: "absence", id });
+  async function deleteAbsenceEntry(absence: { id: bigint; status: string }) {
+    if (absence.status === "approved" && !isAdminOrManager) {
+      toast.error(
+        "Dieser Eintrag wurde bereits genehmigt. Bitte den Vorgesetzten bitten, die Genehmigung zuerst zurückzusetzen.",
+      );
+      return;
+    }
+    setDeleteTarget({ kind: "absence", id: absence.id });
   }
 
   async function executeDeleteAbsence(id: bigint) {
@@ -1502,6 +1676,19 @@ export default function ZeitenPage() {
     );
   };
 
+  // State and handler for approved-entry delete warning dialog
+  const [showZeitenApprovedDeleteWarning, setShowZeitenApprovedDeleteWarning] =
+    useState(false);
+
+  const handleDeleteAbsenceEntryClick = (a: Absence) => {
+    const statusVal = String(a.status ?? "").toLowerCase();
+    if (statusVal === "approved" && !isAdminOrManager) {
+      setShowZeitenApprovedDeleteWarning(true);
+      return;
+    }
+    void deleteAbsenceEntry(a);
+  };
+
   function getTypeName(id: bigint): string {
     return absenceTypes.find((t) => t.id === id)?.name ?? String(id);
   }
@@ -1511,7 +1698,10 @@ export default function ZeitenPage() {
   function addBlock(day: DayKey) {
     setStdBlocks((prev) => ({
       ...prev,
-      [day]: [...prev[day], { von: "", bis: "" }],
+      [day]: [
+        ...prev[day],
+        { von: "", bis: "", projektId: null, leistungsartId: null },
+      ],
     }));
   }
 
@@ -1525,25 +1715,21 @@ export default function ZeitenPage() {
   function updateBlock(
     day: DayKey,
     index: number,
-    field: "von" | "bis",
-    value: string,
+    field: "von" | "bis" | "projektId" | "leistungsartId",
+    value: string | number | null,
   ) {
     setStdBlocks((prev) => {
-      const updated = prev[day].map((b, i) =>
-        i === index ? { ...b, [field]: value } : b,
-      );
-      return { ...prev, [day]: updated };
-    });
-  }
-
-  function normalizeBlock(day: DayKey, index: number, field: "von" | "bis") {
-    setStdBlocks((prev) => {
-      const block = prev[day][index];
-      if (!block) return prev;
-      const normalized = normalizeTimeInput(block[field]);
-      const updated = prev[day].map((b, i) =>
-        i === index ? { ...b, [field]: normalized } : b,
-      );
+      const updated = prev[day].map((b, i) => {
+        if (i !== index) return b;
+        if (field === "projektId") {
+          return {
+            ...b,
+            projektId: value as number | null,
+            leistungsartId: null,
+          };
+        }
+        return { ...b, [field]: value };
+      });
       return { ...prev, [day]: updated };
     });
   }
@@ -1553,6 +1739,7 @@ export default function ZeitenPage() {
     const normalized = { ...stdBlocks };
     for (const day of DAY_KEYS) {
       normalized[day] = stdBlocks[day].map((b) => ({
+        ...b,
         von: normalizeTimeInput(b.von) || b.von,
         bis: normalizeTimeInput(b.bis) || b.bis,
       }));
@@ -1723,9 +1910,9 @@ export default function ZeitenPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={handleStdZeitErfassen}
+                  onClick={() => void handleStdZeitErfassen()}
                   data-ocid="std-zeit-erfassen-btn"
-                  title="Heutige Standardarbeitszeiten als Zeiteinträge erfassen"
+                  title="Standardarbeitszeiten als Zeiteinträge erfassen"
                 >
                   <Timer className="w-4 h-4 mr-1" />
                   Standardarbeitszeit erfassen
@@ -1740,6 +1927,13 @@ export default function ZeitenPage() {
                 </Button>
               </div>
             </div>
+
+            {/* Inline message for std-zeit */}
+            {stdZeitMessage && (
+              <div className="rounded-lg bg-muted/60 border border-border px-4 py-2 text-sm text-muted-foreground">
+                {stdZeitMessage}
+              </div>
+            )}
 
             {/* Read-only notice when viewing another employee */}
             {isViewingOtherEmployee && (
@@ -1958,7 +2152,12 @@ export default function ZeitenPage() {
                         const dateStr = toDateString(day);
                         const dayEntries = entriesByDate[dateStr] ?? [];
                         const dayAbsences = absencesByDate[dateStr] ?? [];
-                        if (dayEntries.length === 0 && dayAbsences.length === 0)
+                        const dayHolidays = holidaysForDay(dateStr);
+                        if (
+                          dayEntries.length === 0 &&
+                          dayAbsences.length === 0 &&
+                          dayHolidays.length === 0
+                        )
                           return null;
                         return (
                           <div key={dateStr}>
@@ -1971,6 +2170,35 @@ export default function ZeitenPage() {
                                 {formatHours(totalHoursForDay(dateStr))}
                               </span>
                             </div>
+                            {/* Holiday rows (read-only) */}
+                            {dayHolidays.length > 0 && (
+                              <div className="flex flex-col gap-1 mb-2">
+                                {dayHolidays.map((h) => {
+                                  const hMins =
+                                    holidayIstMinutesForDay(dateStr);
+                                  return (
+                                    <div
+                                      key={String(h.id)}
+                                      className="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium bg-[#006066]/8 text-[#006066] border border-[#006066]/25 dark:bg-[#006066]/20 dark:text-teal-200 dark:border-[#006066]/40"
+                                      data-ocid="holiday-row"
+                                    >
+                                      <CalendarDays className="w-3 h-3 flex-shrink-0" />
+                                      <span>{h.name}</span>
+                                      <span className="text-[10px] opacity-60 ml-1">
+                                        {h.ganztaegig
+                                          ? "ganztägig"
+                                          : "halbtägig"}
+                                      </span>
+                                      {hMins > 0 && (
+                                        <span className="ml-auto tabular-nums font-semibold">
+                                          {minutesToHHMM(hMins)}
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                             {dayAbsences.length > 0 && (
                               <div className="flex flex-col gap-1 mb-2">
                                 {dayAbsences.map((a) => {
@@ -2073,6 +2301,9 @@ export default function ZeitenPage() {
                   const dayHours = totalHoursForDay(selectedDayStr);
                   const dayEntries = entriesByDate[selectedDayStr] ?? [];
                   const dayAbsences = absencesByDate[selectedDayStr] ?? [];
+                  const dayHolidays = holidaysForDay(selectedDayStr);
+                  const dayHolidayMins =
+                    holidayIstMinutesForDay(selectedDayStr);
                   return (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between bg-card border border-border rounded-xl px-5 py-3">
@@ -2085,6 +2316,30 @@ export default function ZeitenPage() {
                           {formatHours(dayHours)} / 08:00
                         </span>
                       </div>
+
+                      {/* Holiday rows (read-only) */}
+                      {dayHolidays.length > 0 && (
+                        <div className="flex flex-col gap-1">
+                          {dayHolidays.map((h) => (
+                            <div
+                              key={String(h.id)}
+                              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-[#006066]/8 text-[#006066] border border-[#006066]/25 dark:bg-[#006066]/20 dark:text-teal-200 dark:border-[#006066]/40"
+                              data-ocid="holiday-row-day"
+                            >
+                              <CalendarDays className="w-4 h-4 flex-shrink-0" />
+                              <span>{h.name}</span>
+                              <span className="text-xs opacity-60 ml-1">
+                                {h.ganztaegig ? "ganztägig" : "halbtägig"}
+                              </span>
+                              {dayHolidayMins > 0 && (
+                                <span className="ml-auto tabular-nums font-semibold text-sm">
+                                  {minutesToHHMM(dayHolidayMins)}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
                       {dayAbsences.length > 0 && (
                         <div className="flex flex-col gap-1">
@@ -2246,29 +2501,29 @@ export default function ZeitenPage() {
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
                                 {canEditAbsence(a) && (
-                                  <>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => openEditVacationDialog(a)}
-                                      data-ocid={`btn-edit-vacation-${a.id}`}
-                                    >
-                                      <Pencil className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="text-destructive hover:text-destructive"
-                                      onClick={() => deleteAbsenceEntry(a.id)}
-                                      aria-label="Antrag zurückziehen"
-                                      data-ocid={`btn-delete-vacation-${a.id}`}
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                  </>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => openEditVacationDialog(a)}
+                                    data-ocid={`btn-edit-vacation-${a.id}`}
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
                                 )}
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() =>
+                                    handleDeleteAbsenceEntryClick(a)
+                                  }
+                                  aria-label="Antrag zurückziehen"
+                                  data-ocid={`btn-delete-vacation-${a.id}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -2364,28 +2619,28 @@ export default function ZeitenPage() {
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
                                 {canEditAbsence(a) && (
-                                  <>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => openEditAbsenceDialog(a)}
-                                      data-ocid={`btn-edit-absence-${a.id}`}
-                                    >
-                                      <Pencil className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="text-destructive hover:text-destructive"
-                                      onClick={() => deleteAbsenceEntry(a.id)}
-                                      data-ocid={`btn-delete-absence-${a.id}`}
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                  </>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => openEditAbsenceDialog(a)}
+                                    data-ocid={`btn-edit-absence-${a.id}`}
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
                                 )}
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() =>
+                                    handleDeleteAbsenceEntryClick(a)
+                                  }
+                                  data-ocid={`btn-delete-absence-${a.id}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -2440,69 +2695,186 @@ export default function ZeitenPage() {
                             Keine Zeitblöcke definiert.
                           </p>
                         ) : (
-                          <div className="space-y-2">
-                            {blocks.map((block, i) => (
-                              <div
-                                key={`${day}-block-${i}-${block.von}-${block.bis}`}
-                                className="flex items-center gap-2"
-                                data-ocid={`std-block-row-${day}-${i}`}
-                              >
-                                <div className="flex items-center gap-1.5 flex-1">
-                                  <Label className="text-xs text-muted-foreground w-6 shrink-0">
-                                    Von
-                                  </Label>
-                                  <Input
-                                    type="text"
-                                    placeholder="08:00"
-                                    value={block.von}
-                                    onChange={(e) =>
-                                      updateBlock(day, i, "von", e.target.value)
-                                    }
-                                    onBlur={() => normalizeBlock(day, i, "von")}
-                                    className="h-8 text-sm w-24"
-                                    data-ocid={`std-block-von-${day}-${i}`}
-                                  />
-                                </div>
-                                <div className="flex items-center gap-1.5 flex-1">
-                                  <Label className="text-xs text-muted-foreground w-6 shrink-0">
-                                    Bis
-                                  </Label>
-                                  <Input
-                                    type="text"
-                                    placeholder="17:00"
-                                    value={block.bis}
-                                    onChange={(e) =>
-                                      updateBlock(day, i, "bis", e.target.value)
-                                    }
-                                    onBlur={() => normalizeBlock(day, i, "bis")}
-                                    className="h-8 text-sm w-24"
-                                    data-ocid={`std-block-bis-${day}-${i}`}
-                                  />
-                                </div>
-                                {block.von &&
-                                  block.bis &&
-                                  isValidHHMM(block.von) &&
-                                  isValidHHMM(block.bis) &&
-                                  hhmmToMinutes(block.bis) >
-                                    hhmmToMinutes(block.von) && (
-                                    <span className="text-xs text-muted-foreground tabular-nums w-12 text-right shrink-0">
-                                      {minutesToHHMM(
-                                        hhmmToMinutes(block.bis) -
-                                          hhmmToMinutes(block.von),
-                                      )}
-                                    </span>
-                                  )}
-                                <button
-                                  type="button"
-                                  onClick={() => removeBlock(day, i)}
-                                  className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
-                                  aria-label={`Block ${i + 1} löschen`}
-                                  data-ocid={`std-block-delete-${day}-${i}`}
+                          <div className="space-y-3">
+                            {blocks.map((block, i) => {
+                              // Projects assigned to current user
+                              const assignedProjs = projects.filter((p) => {
+                                if (!employeeId) return true;
+                                const members =
+                                  projectMembers.get(String(p.id)) ?? [];
+                                return members.some(
+                                  (m) =>
+                                    String(m.employeeId) === String(employeeId),
+                                );
+                              });
+                              // Service types for this block's project
+                              const blockServiceTypes = block.projektId
+                                ? (() => {
+                                    const members =
+                                      projectMembers.get(
+                                        String(block.projektId),
+                                      ) ?? [];
+                                    const myAssignments = members.filter(
+                                      (m) =>
+                                        String(m.employeeId) ===
+                                        String(employeeId),
+                                    );
+                                    const myStIds = new Set(
+                                      myAssignments.map((m) =>
+                                        String(m.serviceTypeId),
+                                      ),
+                                    );
+                                    return serviceTypes.filter(
+                                      (st) =>
+                                        st.aktiv && myStIds.has(String(st.id)),
+                                    );
+                                  })()
+                                : [];
+                              return (
+                                <div
+                                  key={`${day}-block-${i}-${block.projektId ?? "x"}-${block.leistungsartId ?? "x"}`}
+                                  className="rounded-lg border border-border bg-muted/20 p-3 space-y-2"
+                                  data-ocid={`std-block-row-${day}-${i}`}
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            ))}
+                                  {/* Projekt dropdown */}
+                                  <div className="flex items-center gap-2">
+                                    <Label className="text-xs text-muted-foreground w-20 shrink-0">
+                                      Projekt
+                                    </Label>
+                                    <Select
+                                      value={
+                                        block.projektId != null
+                                          ? String(block.projektId)
+                                          : ""
+                                      }
+                                      onValueChange={(v) =>
+                                        updateBlock(
+                                          day,
+                                          i,
+                                          "projektId",
+                                          v ? Number(v) : null,
+                                        )
+                                      }
+                                    >
+                                      <SelectTrigger
+                                        className="h-8 text-sm flex-1"
+                                        data-ocid={`std-block-projekt-${day}-${i}`}
+                                      >
+                                        <SelectValue placeholder="Projekt wählen…" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {assignedProjs.map((p) => (
+                                          <SelectItem
+                                            key={String(p.id)}
+                                            value={String(p.id)}
+                                          >
+                                            [{p.code}] {p.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  {/* Leistungsart dropdown */}
+                                  <div className="flex items-center gap-2">
+                                    <Label className="text-xs text-muted-foreground w-20 shrink-0">
+                                      Leistungsart
+                                    </Label>
+                                    <Select
+                                      value={
+                                        block.leistungsartId != null
+                                          ? String(block.leistungsartId)
+                                          : ""
+                                      }
+                                      onValueChange={(v) =>
+                                        updateBlock(
+                                          day,
+                                          i,
+                                          "leistungsartId",
+                                          v ? Number(v) : null,
+                                        )
+                                      }
+                                      disabled={!block.projektId}
+                                    >
+                                      <SelectTrigger
+                                        className="h-8 text-sm flex-1"
+                                        data-ocid={`std-block-leistungsart-${day}-${i}`}
+                                      >
+                                        <SelectValue
+                                          placeholder={
+                                            block.projektId
+                                              ? "Leistungsart wählen…"
+                                              : "Erst Projekt wählen"
+                                          }
+                                        />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {blockServiceTypes.map((st) => (
+                                          <SelectItem
+                                            key={String(st.id)}
+                                            value={String(st.id)}
+                                          >
+                                            {st.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  {/* Von / Bis row */}
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-1.5">
+                                      <Label className="text-xs text-muted-foreground w-6 shrink-0">
+                                        Von
+                                      </Label>
+                                      <TimeInput
+                                        placeholder="08:00"
+                                        value={block.von}
+                                        onCommit={(v) =>
+                                          updateBlock(day, i, "von", v)
+                                        }
+                                        className="h-8 text-sm w-28"
+                                        data-ocid={`std-block-von-${day}-${i}`}
+                                      />
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      <Label className="text-xs text-muted-foreground w-6 shrink-0">
+                                        Bis
+                                      </Label>
+                                      <TimeInput
+                                        placeholder="17:00"
+                                        value={block.bis}
+                                        onCommit={(v) =>
+                                          updateBlock(day, i, "bis", v)
+                                        }
+                                        className="h-8 text-sm w-28"
+                                        data-ocid={`std-block-bis-${day}-${i}`}
+                                      />
+                                    </div>
+                                    {block.von &&
+                                      block.bis &&
+                                      isValidHHMM(block.von) &&
+                                      isValidHHMM(block.bis) &&
+                                      hhmmToMinutes(block.bis) >
+                                        hhmmToMinutes(block.von) && (
+                                        <span className="text-xs text-muted-foreground tabular-nums shrink-0 ml-auto">
+                                          {minutesToHHMM(
+                                            hhmmToMinutes(block.bis) -
+                                              hhmmToMinutes(block.von),
+                                          )}
+                                        </span>
+                                      )}
+                                    <button
+                                      type="button"
+                                      onClick={() => removeBlock(day, i)}
+                                      className="ml-auto p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+                                      aria-label={`Block ${i + 1} löschen`}
+                                      data-ocid={`std-block-delete-${day}-${i}`}
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
 
@@ -2550,24 +2922,8 @@ export default function ZeitenPage() {
         }}
         editEntry={editingEntry}
         initialValues={editingEntry ? undefined : { date: timeDialogDate }}
-        onSaved={() => void loadTimeDataRef.current()}
+        onSaved={() => setTimeout(() => void loadTimeDataRef.current(), 100)}
         title={editingEntry ? "Zeiteintrag bearbeiten" : "Neuer Zeiteintrag"}
-      />
-
-      {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* DIALOG: STANDARDARBEITSZEIT ERFASSEN                                  */}
-      {/* ══════════════════════════════════════════════════════════════════════ */}
-      <StdZeitErfassenDialog
-        open={stdZeitDialogOpen}
-        onOpenChange={setStdZeitDialogOpen}
-        blocks={stdZeitBlocks}
-        todayStr={todayStr}
-        projects={projects}
-        projectMembers={projectMembers}
-        serviceTypes={serviceTypes}
-        employeeId={employeeId}
-        actor={actor}
-        onSaved={() => void loadTimeDataRef.current()}
       />
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
@@ -2938,6 +3294,29 @@ export default function ZeitenPage() {
         onCancel={() => setDeleteTarget(null)}
         isDeleting={isDeleting}
       />
+
+      {/* ── Approved-entry delete warning ── */}
+      {showZeitenApprovedDeleteWarning && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card rounded-lg p-6 max-w-md mx-4 shadow-xl border border-border">
+            <h3 className="text-lg font-semibold mb-3 text-foreground">
+              Eintrag genehmigt
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Dieser Eintrag wurde bereits genehmigt. Bitte den Vorgesetzten
+              bitten, die Genehmigung zuerst zurückzusetzen, bevor der Eintrag
+              gelöscht werden kann.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowZeitenApprovedDeleteWarning(false)}
+              className="px-4 py-2 bg-[#006066] text-white rounded text-sm hover:opacity-90 transition-opacity"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

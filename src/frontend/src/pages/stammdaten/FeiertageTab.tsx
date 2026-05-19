@@ -67,19 +67,48 @@ export function FeiertageTab() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!actor) throw new Error("Kein Actor");
+      // Access the underlying raw ICP actor stored in the Backend wrapper class.
+      // We need this because the generated wrapper uses a truthy check for opt bool fields
+      // (value.ganztaegig ? candid_some(v) : candid_none()) which incorrectly sends
+      // candid_none() when ganztaegig === false. Using the raw actor lets us pass [false].
+      type RawActor = {
+        createHoliday: (input: {
+          ganztaegig: [boolean] | [];
+          date: string;
+          name: string;
+        }) => Promise<
+          { __kind__: "ok"; ok: Holiday } | { __kind__: "err"; err: string }
+        >;
+        updateHoliday: (
+          id: bigint,
+          input: {
+            ganztaegig: [boolean] | [];
+            date?: [string] | [];
+            name?: [string] | [];
+          },
+        ) => Promise<
+          { __kind__: "ok"; ok: Holiday } | { __kind__: "err"; err: string }
+        >;
+      };
+      const rawActor = Object.assign(
+        {},
+        actor as unknown as { actor: RawActor },
+      ).actor;
+      // Candid opt bool: [true] = ganztägig, [false] = halbtägig
+      const ganztaegigCandid: [boolean] = [form.ganztaegig];
       if (editItem) {
-        const res = await actor.updateHoliday(editItem.id, {
-          name: form.name,
-          date: form.date,
-          ganztaegig: form.ganztaegig,
+        const res = await rawActor.updateHoliday(editItem.id, {
+          name: [form.name],
+          date: [form.date],
+          ganztaegig: ganztaegigCandid,
         });
         if (res.__kind__ === "err") throw new Error(res.err);
         return res.ok;
       }
-      const res = await actor.createHoliday({
+      const res = await rawActor.createHoliday({
         name: form.name,
         date: form.date,
-        ganztaegig: form.ganztaegig,
+        ganztaegig: ganztaegigCandid,
       });
       if (res.__kind__ === "err") throw new Error(res.err);
       return res.ok;

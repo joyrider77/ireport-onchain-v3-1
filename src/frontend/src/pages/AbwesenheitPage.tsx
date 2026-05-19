@@ -37,10 +37,18 @@ import {
   getActiveEmploymentForDate,
   getEmploymentMinutesForDate,
 } from "@/lib/employmentUtils";
+import { countVacationDaysProportional } from "@/lib/employmentUtils";
 import { useActor } from "@caffeineai/core-infrastructure";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { CalendarDays, Info, Pencil, PlusCircle, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarDays,
+  Info,
+  Pencil,
+  PlusCircle,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { createActor } from "../backend";
@@ -52,6 +60,7 @@ import type {
   CreateAbsenceInput,
   Employment,
   UpdateAbsenceInput,
+  VacationBalance,
 } from "../backend";
 import { hhmmToMinutes, minutesToHhMm } from "./stammdaten/shared";
 
@@ -94,7 +103,7 @@ interface VacationFormState {
 
 export default function AbwesenheitPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, companyId, employeeId } = useAuth();
+  const { isAuthenticated, companyId, employeeId, role } = useAuth();
   const { actor, isFetching } = useActor(createActor);
   const queryClient = useQueryClient();
 
@@ -117,6 +126,8 @@ export default function AbwesenheitPage() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [deleteConfirmId, setDeleteConfirmId] = useState<bigint | null>(null);
+  const [showApprovedDeleteWarning, setShowApprovedDeleteWarning] =
+    useState(false);
 
   useEffect(() => {
     if (!isAuthenticated || !companyId) navigate({ to: "/" });
@@ -150,6 +161,23 @@ export default function AbwesenheitPage() {
     staleTime: 60_000,
   });
 
+  // ─── Fetch vacation balances for balance check ────────────────────────────
+  const { data: vacationBalances = [] } = useQuery<VacationBalance[]>({
+    queryKey: ["vacationBalances-abwesenheit", String(employeeId)],
+    queryFn: async () => {
+      if (!actor || !employeeId) return [];
+      const res = await toAny(actor).listVacationBalances(BigInt(employeeId));
+      const r = res as {
+        __kind__: string;
+        ok?: VacationBalance[];
+        err?: string;
+      };
+      return r.__kind__ === "ok" ? (r.ok ?? []) : [];
+    },
+    enabled: enabled && !!employeeId,
+    staleTime: 0, // ROOT-CAUSE 1: always fresh so balance check uses current data
+  });
+
   // ─── Ganztägig preview hours for single day ───────────────────────────────
   const isSingleDay =
     vacationForm.dateFrom &&
@@ -163,16 +191,10 @@ export default function AbwesenheitPage() {
   })();
 
   // Vacation type: the system-managed "Ferien" type.
-  // Identified strictly: name is "ferien" (case-insensitive) with requiresApproval,
-  // OR falls back to first type with requiresApproval + name containing "feri".
-  const vacationType =
-    absenceTypes.find(
-      (t) => t.name.toLowerCase() === "ferien" && t.requiresApproval,
-    ) ??
-    absenceTypes.find(
-      (t) => t.requiresApproval && t.name.toLowerCase().includes("feri"),
-    ) ??
-    absenceTypes.find((t) => t.requiresApproval);
+  // Identified strictly by name only — never by requiresApproval.
+  const vacationType = absenceTypes.find(
+    (t) => t.name.toLowerCase() === "ferien",
+  );
   // nonVacationTypes: exclude the system Ferien type AND inactive types
   const nonVacationTypes = absenceTypes.filter(
     (t) => t.id !== vacationType?.id && t.aktiv,
@@ -209,9 +231,18 @@ export default function AbwesenheitPage() {
       if (result.__kind__ === "err") throw new Error(result.err);
       return result;
     },
-    onSuccess: () => {
+    onSuccess: (_data, input) => {
       queryClient.invalidateQueries({ queryKey: ["myAbsences"] });
-      toast.success("Abwesenheit erfasst");
+      queryClient.invalidateQueries({
+        queryKey: ["vacationBalances-abwesenheit"],
+      }); // ROOT-CAUSE 2
+      // Show approval-pending toast when the selected absence type requires approval
+      const absType = absenceTypes.find((t) => t.id === input.absenceTypeId);
+      if (absType?.requiresApproval) {
+        toast.success("Abwesenheit eingereicht – wartet auf Genehmigung");
+      } else {
+        toast.success("Abwesenheit erfasst");
+      }
       setShowAbsenceDialog(false);
       setShowVacationDialog(false);
       resetForms();
@@ -234,6 +265,9 @@ export default function AbwesenheitPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["myAbsences"] });
+      queryClient.invalidateQueries({
+        queryKey: ["vacationBalances-abwesenheit"],
+      }); // ROOT-CAUSE 2
       toast.success("Erfolgreich gespeichert");
       setShowAbsenceDialog(false);
       setShowVacationDialog(false);
@@ -380,6 +414,95 @@ export default function AbwesenheitPage() {
       toast.error("Keine Ferienabwesenheitsart konfiguriert");
       return;
     }
+
+    // ── Feriensaldo-Prüfung ──────────────────────────────────────────────────
+    // Only check for new vacation entries (not edits of existing ones)
+    if (!editVacation) {
+      const currentYear = new Date(vacationForm.dateFrom).getFullYear();
+
+      // Total granted days for the relevant year
+      const totalGranted = (vacationBalances ?? [])
+        .filter((b) => Number(b.kalenderjahr) === currentYear)
+        .reduce((sum, b) => sum + Number(b.dauer) / 100, 0);
+
+      // Already used days: all non-rejected vacation absences in the same year
+      // ROOT-CAUSE 3: include "submitted"/"pending" so they count against balance
+      const usedDays = (vacationAbsences ?? [])
+        .filter(
+          (a) =>
+            a.status === "approved" ||
+            a.status === "submitted" ||
+            a.status === ("pending" as AbsenceStatus),
+        )
+        .reduce((sum, a) => {
+          const yFrom = new Date(`${a.dateFrom}T12:00:00`).getFullYear();
+          const yTo = new Date(`${a.dateTo}T12:00:00`).getFullYear();
+          if (yFrom !== currentYear && yTo !== currentYear) return sum;
+          const effFrom =
+            yFrom < currentYear ? `${currentYear}-01-01` : a.dateFrom;
+          const effTo = yTo > currentYear ? `${currentYear}-12-31` : a.dateTo;
+          return (
+            sum +
+            countVacationDaysProportional(
+              effFrom,
+              effTo,
+              a.ganztaetig,
+              Number(a.dauer),
+              employments,
+            )
+          );
+        }, 0);
+
+      // Days requested in this new entry
+      const dauerMinsForCheck = vacationForm.ganztaetig
+        ? 0
+        : (hhmmToMinutes(vacationForm.dauerInput) ?? 0);
+      let requestedDays = countVacationDaysProportional(
+        vacationForm.dateFrom,
+        vacationForm.dateTo,
+        vacationForm.ganztaetig,
+        dauerMinsForCheck,
+        employments,
+      );
+      // Fallback: if no employments loaded yet or no active employment covers these
+      // dates, countVacationDaysProportional returns 0 — skip it by using calendar
+      // days so the balance check always fires when saldo is insufficient.
+      if (requestedDays <= 0) {
+        if (vacationForm.ganztaetig) {
+          requestedDays = daysBetween(
+            vacationForm.dateFrom,
+            vacationForm.dateTo,
+          );
+        } else if (dauerMinsForCheck > 0) {
+          // Partial day: use fraction of 1 day based on standard 8h day
+          requestedDays = Math.max(dauerMinsForCheck / 480, 0.01);
+        }
+      }
+
+      const availableDays = Math.max(totalGranted - usedDays, 0);
+
+      if (requestedDays > availableDays + 0.001) {
+        const avail =
+          availableDays % 1 === 0
+            ? availableDays.toFixed(0)
+            : availableDays.toFixed(1);
+        const needed =
+          requestedDays % 1 === 0
+            ? requestedDays.toFixed(0)
+            : requestedDays.toFixed(1);
+        const msg = `Nicht genügend Feriensaldo. Verfügbar: ${avail} Tage, benötigt: ${needed} Tage.`;
+        // ROOT-CAUSE 4+5: show both inline error AND toast so the message is guaranteed visible
+        setErrors((prev) => ({ ...prev, vacationBalance: msg }));
+        toast.error(msg);
+        return;
+      }
+      // Clear any previous balance error
+      setErrors((prev) => {
+        const { vacationBalance: _removed, ...rest } = prev;
+        return rest;
+      });
+    }
+
     const dauerMinutes = vacationForm.ganztaetig
       ? (ganztaetigPreviewMinutes ?? 0)
       : (hhmmToMinutes(vacationForm.dauerInput) ?? 0);
@@ -409,6 +532,17 @@ export default function AbwesenheitPage() {
 
   const canEdit = (a: Absence) =>
     a.status === "submitted" || a.status === ("pending" as AbsenceStatus);
+
+  const handleDeleteAbsenceClick = (absence: Absence) => {
+    const isApproved = absence.status === "approved";
+    const isAdminOrManager =
+      role === "admin" || role === "manager" || role === "platform_admin";
+    if (isApproved && !isAdminOrManager) {
+      setShowApprovedDeleteWarning(true);
+      return;
+    }
+    setDeleteConfirmId(absence.id);
+  };
 
   function getTypeName(id: bigint): string {
     return absenceTypes.find((t) => t.id === id)?.name ?? String(id);
@@ -517,28 +651,26 @@ export default function AbwesenheitPage() {
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
                                 {canEdit(a) && (
-                                  <>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => openEditAbsence(a)}
-                                      data-ocid={`btn-edit-absence-${a.id}`}
-                                    >
-                                      <Pencil className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="text-destructive hover:text-destructive"
-                                      onClick={() => setDeleteConfirmId(a.id)}
-                                      data-ocid={`btn-delete-absence-${a.id}`}
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                  </>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => openEditAbsence(a)}
+                                    data-ocid={`btn-edit-absence-${a.id}`}
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
                                 )}
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => handleDeleteAbsenceClick(a)}
+                                  data-ocid={`btn-delete-absence-${a.id}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -633,29 +765,27 @@ export default function AbwesenheitPage() {
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">
                                 {canEdit(a) && (
-                                  <>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => openEditVacation(a)}
-                                      data-ocid={`btn-edit-vacation-${a.id}`}
-                                    >
-                                      <Pencil className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="text-destructive hover:text-destructive"
-                                      onClick={() => setDeleteConfirmId(a.id)}
-                                      aria-label="Antrag zurückziehen"
-                                      data-ocid={`btn-delete-vacation-${a.id}`}
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                  </>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => openEditVacation(a)}
+                                    data-ocid={`btn-edit-vacation-${a.id}`}
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
                                 )}
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => handleDeleteAbsenceClick(a)}
+                                  aria-label="Antrag zurückziehen"
+                                  data-ocid={`btn-delete-vacation-${a.id}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -819,6 +949,14 @@ export default function AbwesenheitPage() {
                   : "Ferienantrag stellen"}
               </DialogTitle>
             </DialogHeader>
+
+            {/* Inline error: insufficient vacation balance */}
+            {errors.vacationBalance && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-3 text-red-700 text-sm flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-500" />
+                <span>{errors.vacationBalance}</span>
+              </div>
+            )}
 
             <div className="space-y-4 py-2">
               {/* ── Datum von / bis ──────────────────────────────────── */}
@@ -1011,6 +1149,29 @@ export default function AbwesenheitPage() {
         onCancel={() => setDeleteConfirmId(null)}
         isDeleting={deleteMutation.isPending}
       />
+
+      {/* ── Approved-entry delete warning ── */}
+      {showApprovedDeleteWarning && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card rounded-lg p-6 max-w-md mx-4 shadow-xl border border-border">
+            <h3 className="text-lg font-semibold mb-3 text-foreground">
+              Eintrag genehmigt
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Dieser Eintrag wurde bereits genehmigt. Bitte den Vorgesetzten
+              bitten, die Genehmigung zuerst zurückzusetzen, bevor der Eintrag
+              gelöscht werden kann.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowApprovedDeleteWarning(false)}
+              className="px-4 py-2 bg-[#006066] text-white rounded text-sm hover:opacity-90 transition-opacity"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

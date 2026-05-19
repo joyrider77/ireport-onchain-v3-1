@@ -9,6 +9,7 @@ import { KundenTab } from "./stammdaten/KundenTab";
 import { LeistungsArtenTab } from "./stammdaten/LeistungsArtenTab";
 import { MitarbeiterTab } from "./stammdaten/MitarbeiterTab";
 import { ProjekteTab } from "./stammdaten/ProjekteTab";
+import { RechnungsvorlagenTab } from "./stammdaten/RechnungsvorlagenTab";
 import { SpesenArtenTab } from "./stammdaten/SpesenArtenTab";
 
 type StammdatenTab =
@@ -19,7 +20,8 @@ type StammdatenTab =
   | "leistungsarten"
   | "spesenarten"
   | "abwesenheitsarten"
-  | "feiertage";
+  | "feiertage"
+  | "rechnungsvorlagen";
 
 const TAB_LABELS: Record<StammdatenTab, string> = {
   firma: "Firma",
@@ -30,6 +32,7 @@ const TAB_LABELS: Record<StammdatenTab, string> = {
   spesenarten: "Spesenarten",
   abwesenheitsarten: "Abwesenheitsarten",
   feiertage: "Feiertage",
+  rechnungsvorlagen: "Rechnungsvorlagen",
 };
 
 const VALID_TABS: StammdatenTab[] = [
@@ -41,6 +44,7 @@ const VALID_TABS: StammdatenTab[] = [
   "spesenarten",
   "abwesenheitsarten",
   "feiertage",
+  "rechnungsvorlagen",
 ];
 
 export default function StammdatenPage() {
@@ -78,6 +82,7 @@ export default function StammdatenPage() {
           {activeTab === "spesenarten" && <SpesenArtenTab />}
           {activeTab === "abwesenheitsarten" && <AbsenceTypenTab />}
           {activeTab === "feiertage" && <FeiertageTab />}
+          {activeTab === "rechnungsvorlagen" && <RechnungsvorlagenTab />}
         </div>
       </div>
     </Layout>

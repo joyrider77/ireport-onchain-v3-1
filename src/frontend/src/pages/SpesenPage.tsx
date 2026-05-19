@@ -47,16 +47,19 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { createActor } from "../backend";
 import type {
+  Customer,
   Employee,
   Expense,
   ExpenseFilter,
   ExpenseStatus,
   ExpenseType,
   ExpenseTypeId,
+  Project,
+  ProjectMemberAssignment,
   UpdateExpenseInput,
 } from "../backend.d";
 
@@ -436,10 +439,15 @@ interface ExpenseFormDialogProps {
   open: boolean;
   onClose: () => void;
   expenseTypes: ExpenseType[];
+  projects: Project[];
+  customers: Customer[];
+  projectMembers: Map<string, ProjectMemberAssignment[]>;
+  loggedInEmployeeId: string | null;
   onSubmit: (
     data: ExpenseFormData,
     file: File | null,
     fileDataUrl: string | null,
+    selectedProjektId: number | null,
   ) => Promise<void>;
   isLoading: boolean;
   editExpense?: Expense | null;
@@ -450,6 +458,10 @@ function ExpenseFormDialog({
   open,
   onClose,
   expenseTypes,
+  projects,
+  customers,
+  projectMembers,
+  loggedInEmployeeId,
   onSubmit,
   isLoading,
   editExpense,
@@ -463,14 +475,51 @@ function ExpenseFormDialog({
     reimbursementCHF: 0,
     description: "",
   });
+  const [selectedProjektId, setSelectedProjektId] = useState<number | null>(
+    null,
+  );
   const [file, setFile] = useState<File | null>(null);
   const [fileDataUrl, setFileDataUrl] = useState<string | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [fileSizeWarning, setFileSizeWarning] = useState("");
   const [errors, setErrors] = useState<
-    Partial<Record<keyof ExpenseFormData, string>>
+    Partial<Record<keyof ExpenseFormData | "projektId", string>>
   >({});
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Derive selected ExpenseType for conditional field display
+  const selectedExpenseType = useMemo(
+    () =>
+      form.expenseTypeId
+        ? expenseTypes.find((t) => String(t.id) === form.expenseTypeId)
+        : undefined,
+    [form.expenseTypeId, expenseTypes],
+  );
+  const showBillable = selectedExpenseType?.billable ?? true;
+  const showReimbursable = selectedExpenseType?.reimbursable ?? true;
+
+  // Assigned projects for the logged-in employee
+  const assignedProjects = useMemo(() => {
+    if (!loggedInEmployeeId) return [];
+    return projects.filter((p) => {
+      if (!p.active) return false;
+      const members = projectMembers.get(String(p.id)) ?? [];
+      return members.some(
+        (m) => String(m.employeeId) === String(loggedInEmployeeId),
+      );
+    });
+  }, [projects, projectMembers, loggedInEmployeeId]);
+
+  // Build combined Kunde.Projekt options
+  const projektOptions = useMemo(() => {
+    return assignedProjects.map((p) => {
+      const kunde = customers.find(
+        (c) => String(c.id) === String(p.customerId),
+      );
+      const label = kunde ? `${kunde.name}.${p.name}` : p.name;
+      return { value: Number(p.id), label };
+    });
+  }, [assignedProjects, customers]);
 
   // Initialize form from editExpense when dialog opens
   useEffect(() => {
@@ -483,6 +532,10 @@ function ExpenseFormDialog({
         reimbursementCHF: editExpense.reimbursementCHF,
         description: editExpense.description ?? "",
       });
+      // Pre-select projekt if set on existing expense
+      setSelectedProjektId(
+        editExpense.projektId != null ? Number(editExpense.projektId) : null,
+      );
       setFile(null);
       setFileDataUrl(null);
       setFilePreview(null);
@@ -495,6 +548,7 @@ function ExpenseFormDialog({
         reimbursementCHF: 0,
         description: "",
       });
+      setSelectedProjektId(null);
       setFile(null);
       setFileDataUrl(null);
       setFilePreview(null);
@@ -511,6 +565,7 @@ function ExpenseFormDialog({
       reimbursementCHF: 0,
       description: "",
     });
+    setSelectedProjektId(null);
     setFile(null);
     setFileDataUrl(null);
     setFilePreview(null);
@@ -572,9 +627,12 @@ function ExpenseFormDialog({
   };
 
   const validate = (): boolean => {
-    const errs: Partial<Record<keyof ExpenseFormData, string>> = {};
+    const errs: Partial<Record<keyof ExpenseFormData | "projektId", string>> =
+      {};
     if (!form.date) errs.date = "Datum ist erforderlich";
     if (!form.expenseTypeId) errs.expenseTypeId = "Spesenart ist erforderlich";
+    if (selectedProjektId == null)
+      errs.projektId = "Kunde.Projekt ist erforderlich";
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -582,7 +640,7 @@ function ExpenseFormDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    await onSubmit(form, file, fileDataUrl);
+    await onSubmit(form, file, fileDataUrl, selectedProjektId);
     handleClose();
   };
 
@@ -601,6 +659,34 @@ function ExpenseFormDialog({
           <DialogTitle>{dialogTitle}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
+          {/* Kunde.Projekt — REQUIRED, shown above Spesenart */}
+          <div className="space-y-1.5">
+            <Label htmlFor="expense-projekt">
+              Kunde.Projekt <span className="text-destructive">*</span>
+            </Label>
+            <Select
+              value={selectedProjektId != null ? String(selectedProjektId) : ""}
+              onValueChange={(v) => setSelectedProjektId(v ? Number(v) : null)}
+            >
+              <SelectTrigger
+                id="expense-projekt"
+                data-ocid="expense.projekt_select"
+              >
+                <SelectValue placeholder="Kunde.Projekt auswählen…" />
+              </SelectTrigger>
+              <SelectContent>
+                {projektOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={String(opt.value)}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.projektId && (
+              <p className="text-xs text-destructive">{errors.projektId}</p>
+            )}
+          </div>
+
           {/* Datum */}
           <div className="space-y-1.5">
             <Label htmlFor="expense-date">
@@ -625,9 +711,17 @@ function ExpenseFormDialog({
             </Label>
             <Select
               value={form.expenseTypeId}
-              onValueChange={(v) =>
-                setForm((p) => ({ ...p, expenseTypeId: v }))
-              }
+              onValueChange={(v) => {
+                const expType = expenseTypes.find((t) => String(t.id) === v);
+                setForm((p) => ({
+                  ...p,
+                  expenseTypeId: v,
+                  // Reset amounts when switching type if the field is hidden
+                  billableCHF: expType?.billable === false ? 0 : p.billableCHF,
+                  reimbursementCHF:
+                    expType?.reimbursable === false ? 0 : p.reimbursementCHF,
+                }));
+              }}
             >
               <SelectTrigger id="expense-type" data-ocid="expense.type_select">
                 <SelectValue placeholder="Spesenart auswählen…" />
@@ -645,43 +739,50 @@ function ExpenseFormDialog({
             )}
           </div>
 
-          {/* Beträge */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="expense-billable">Verrechenbar CHF</Label>
-              <Input
-                id="expense-billable"
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.billableCHF}
-                onChange={(e) =>
-                  setForm((p) => ({
-                    ...p,
-                    billableCHF: Number.parseFloat(e.target.value) || 0,
-                  }))
-                }
-                data-ocid="expense.billable_input"
-              />
+          {/* Beträge — shown only when ExpenseType flags allow */}
+          {(showBillable || showReimbursable) && (
+            <div className="grid grid-cols-2 gap-4">
+              {showBillable && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="expense-billable">Verrechenbar CHF</Label>
+                  <Input
+                    id="expense-billable"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.billableCHF}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        billableCHF: Number.parseFloat(e.target.value) || 0,
+                      }))
+                    }
+                    data-ocid="expense.billable_input"
+                  />
+                </div>
+              )}
+              {showReimbursable && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="expense-reimburse">Rückerstattung CHF</Label>
+                  <Input
+                    id="expense-reimburse"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.reimbursementCHF}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        reimbursementCHF:
+                          Number.parseFloat(e.target.value) || 0,
+                      }))
+                    }
+                    data-ocid="expense.reimburse_input"
+                  />
+                </div>
+              )}
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="expense-reimburse">Rückerstattung CHF</Label>
-              <Input
-                id="expense-reimburse"
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.reimbursementCHF}
-                onChange={(e) =>
-                  setForm((p) => ({
-                    ...p,
-                    reimbursementCHF: Number.parseFloat(e.target.value) || 0,
-                  }))
-                }
-                data-ocid="expense.reimburse_input"
-              />
-            </div>
-          </div>
+          )}
 
           {/* Beschreibung */}
           <div className="space-y-1.5">
@@ -927,13 +1028,74 @@ export default function SpesenPage() {
     staleTime: 120_000,
   });
 
+  const { data: allProjects = [] } = useQuery<import("../backend.d").Project[]>(
+    {
+      queryKey: ["projects", companyId],
+      queryFn: async () => {
+        if (!actor) return [];
+        try {
+          const result = await toAny(actor).listProjects();
+          return (result as import("../backend.d").Project[]).filter(
+            (p) => p.active,
+          );
+        } catch {
+          return [];
+        }
+      },
+      enabled: !!actor && !isFetching && isAuthenticated && !!companyId,
+      staleTime: 120_000,
+    },
+  );
+
+  const { data: allCustomers = [] } = useQuery<Customer[]>({
+    queryKey: ["customers", companyId],
+    queryFn: async () => {
+      if (!actor) return [];
+      try {
+        const result = await toAny(actor).listCustomers();
+        return result as Customer[];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!actor && !isFetching && isAuthenticated && !!companyId,
+    staleTime: 120_000,
+  });
+
+  // Load project members to filter by employee assignment
+  const [projectMembers, setProjectMembers] = useState<
+    Map<string, ProjectMemberAssignment[]>
+  >(new Map());
+
+  useEffect(() => {
+    if (!actor || isFetching || allProjects.length === 0) return;
+    const memberMap = new Map<string, ProjectMemberAssignment[]>();
+    void Promise.all(
+      allProjects.map(async (p) => {
+        try {
+          const res = (await toAny(actor).getProjectMembers(p.id)) as
+            | { __kind__: "ok"; ok: ProjectMemberAssignment[] }
+            | { __kind__: "err"; err: string };
+          if (res.__kind__ === "ok") memberMap.set(String(p.id), res.ok);
+        } catch {
+          /* ignore */
+        }
+      }),
+    ).then(() => setProjectMembers(new Map(memberMap)));
+  }, [actor, isFetching, allProjects]);
+
   // ─── Mutations ─────────────────────────────────────────────────────────────
 
   const createMutation = useMutation({
     mutationFn: async ({
       data,
       fileDataUrl,
-    }: { data: ExpenseFormData; fileDataUrl: string | null }) => {
+      selectedProjektId,
+    }: {
+      data: ExpenseFormData;
+      fileDataUrl: string | null;
+      selectedProjektId: number | null;
+    }) => {
       if (!actor) throw new Error("Nicht verbunden");
 
       let receiptBlobId: string | undefined;
@@ -942,6 +1104,14 @@ export default function SpesenPage() {
         receiptBlobId = fileDataUrl;
       }
 
+      // Resolve kundeId from the selected project
+      const selProject = allProjects.find(
+        (p) => Number(p.id) === selectedProjektId,
+      );
+      const kundeId = selProject ? BigInt(selProject.customerId) : undefined;
+      const projektId =
+        selectedProjektId != null ? BigInt(selectedProjektId) : undefined;
+
       const input = {
         date: data.date,
         description: data.description || "",
@@ -949,16 +1119,21 @@ export default function SpesenPage() {
         reimbursementCHF: data.reimbursementCHF,
         expenseTypeId: BigInt(data.expenseTypeId) as ExpenseTypeId,
         ...(receiptBlobId !== undefined ? { receiptBlobId } : {}),
+        ...(kundeId !== undefined ? { kundeId } : {}),
+        ...(projektId !== undefined ? { projektId } : {}),
       };
 
       const result = await toAny(actor).createExpense(input);
       const res = result as { __kind__: string; err?: string };
-      if (res.__kind__ === "err")
-        throw new Error(res.err ?? "Fehler beim Speichern");
+      if ("err" in res) throw new Error(res.err ?? "Fehler beim Speichern");
     },
     onSuccess: () => {
       toast.success("Spesen erfolgreich gespeichert");
-      queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      queryClient.invalidateQueries({
+        queryKey: ["expenses"],
+        refetchType: "active",
+      });
+      setShowForm(false);
     },
     onError: (err: Error) => {
       toast.error(`Fehler: ${err.message}`);
@@ -970,7 +1145,13 @@ export default function SpesenPage() {
       id,
       data,
       fileDataUrl,
-    }: { id: bigint; data: ExpenseFormData; fileDataUrl: string | null }) => {
+      selectedProjektId,
+    }: {
+      id: bigint;
+      data: ExpenseFormData;
+      fileDataUrl: string | null;
+      selectedProjektId: number | null;
+    }) => {
       if (!actor) throw new Error("Nicht verbunden");
 
       let receiptBlobId: string | undefined;
@@ -979,6 +1160,14 @@ export default function SpesenPage() {
         receiptBlobId = fileDataUrl;
       }
 
+      // Resolve kundeId from the selected project
+      const selProject = allProjects.find(
+        (p) => Number(p.id) === selectedProjektId,
+      );
+      const kundeId = selProject ? BigInt(selProject.customerId) : undefined;
+      const projektId =
+        selectedProjektId != null ? BigInt(selectedProjektId) : undefined;
+
       const input: UpdateExpenseInput = {
         date: data.date,
         description: data.description || "",
@@ -986,12 +1175,13 @@ export default function SpesenPage() {
         reimbursementCHF: data.reimbursementCHF,
         expenseTypeId: BigInt(data.expenseTypeId) as ExpenseTypeId,
         ...(receiptBlobId !== undefined ? { receiptBlobId } : {}),
+        ...(kundeId !== undefined ? { kundeId } : {}),
+        ...(projektId !== undefined ? { projektId } : {}),
       };
 
       const result = await toAny(actor).updateExpense(id, input);
       const res = result as { __kind__: string; err?: string };
-      if (res.__kind__ === "err")
-        throw new Error(res.err ?? "Fehler beim Aktualisieren");
+      if ("err" in res) throw new Error(res.err ?? "Fehler beim Aktualisieren");
     },
     onSuccess: () => {
       toast.success("Spesen aktualisiert");
@@ -1083,15 +1273,21 @@ export default function SpesenPage() {
     data: ExpenseFormData,
     _file: File | null,
     fileDataUrl: string | null,
+    selectedProjektId: number | null,
   ) => {
     if (editExpense) {
       await updateMutation.mutateAsync({
         id: editExpense.id,
         data,
         fileDataUrl,
+        selectedProjektId,
       });
     } else {
-      await createMutation.mutateAsync({ data, fileDataUrl });
+      await createMutation.mutateAsync({
+        data,
+        fileDataUrl,
+        selectedProjektId,
+      });
     }
   };
 
@@ -1452,6 +1648,10 @@ export default function SpesenPage() {
           setEditExpense(null);
         }}
         expenseTypes={activeExpenseTypes}
+        projects={allProjects}
+        customers={allCustomers}
+        projectMembers={projectMembers}
+        loggedInEmployeeId={employeeId ?? null}
         onSubmit={handleSubmitExpense}
         isLoading={isFormLoading}
         editExpense={editExpense}

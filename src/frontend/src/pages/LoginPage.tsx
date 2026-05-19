@@ -17,24 +17,35 @@ type BackendResult<T> =
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, identity } = useInternetIdentity();
+  const { login, clear, identity } = useInternetIdentity();
   const { actor, isFetching: isActorFetching } = useActor(createActor);
-  const { isAuthenticated, role, companyId, setAuthenticated, setLoading } =
-    useAuthStore();
+  const {
+    isAuthenticated,
+    role,
+    companyId,
+    setAuthenticated,
+    setLoading,
+    setPlatformAdmin,
+    logout,
+  } = useAuthStore();
 
   const [backendError, setBackendError] = useState<string | null>(null);
   const [timedOut, setTimedOut] = useState(false);
+  const [accountDisabled, setAccountDisabled] = useState(false);
   const isInitializing = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Redirect once auth store is fully populated ──────────────────────────
+  // IMPORTANT: accountDisabled must block this redirect. If the employee is
+  // deactivated, we must NOT navigate to /dashboard even if isAuthenticated=true.
   useEffect(() => {
+    if (accountDisabled) return; // Never redirect a deactivated user
     if (isAuthenticated && role && companyId) {
       navigate({ to: "/dashboard" });
     } else if (isAuthenticated && (!role || !companyId)) {
       navigate({ to: "/register" });
     }
-  }, [isAuthenticated, role, companyId, navigate]);
+  }, [isAuthenticated, role, companyId, navigate, accountDisabled]);
 
   // ── After II success: load user data from backend ────────────────────────
   const initializeSession = useCallback(async () => {
@@ -43,6 +54,7 @@ export default function LoginPage() {
     setLoading(true);
     setBackendError(null);
     setTimedOut(false);
+    setAccountDisabled(false);
 
     // Start 10-second safety timeout
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -89,6 +101,28 @@ export default function LoginPage() {
 
       const company = companyResult.ok;
       const employee = employeeResult.ok;
+
+      // Block deactivated employees from logging in.
+      // CRITICAL ORDER: set accountDisabled=true FIRST, THEN call logout/clear.
+      // This ensures the redirect useEffect (which checks accountDisabled)
+      // sees the flag before isAuthenticated changes trigger a re-render.
+      if (!employee.active) {
+        clearTimeout(timeoutRef.current!);
+        setAccountDisabled(true); // ← must be first
+        setLoading(false);
+        isInitializing.current = false;
+        // Now clear II session and store — the redirect guard is already up
+        logout();
+        clear();
+        // Also clear localStorage to prevent cached session from being reused
+        try {
+          localStorage.removeItem("ireport-auth");
+        } catch {
+          // ignore
+        }
+        return;
+      }
+
       const principal = identity?.getPrincipal().toString() ?? "";
       const appRole = employee.role as "admin" | "manager" | "employee";
 
@@ -101,6 +135,16 @@ export default function LoginPage() {
         `${employee.firstName} ${employee.lastName}`,
         company.logoUrl ?? null,
       );
+      // Check Platform Admin status after authentication
+      try {
+        const platformAdminResult = (await toAny(
+          actor,
+        ).isPlatformAdmin()) as boolean;
+        setPlatformAdmin(platformAdminResult);
+      } catch (e) {
+        console.warn("isPlatformAdmin check fehlgeschlagen:", e);
+        setPlatformAdmin(false);
+      }
       // Navigate immediately — do NOT rely on useEffect to trigger this
       navigate({ to: "/dashboard" });
     } catch (err) {
@@ -117,8 +161,11 @@ export default function LoginPage() {
     isActorFetching,
     identity,
     setAuthenticated,
+    setPlatformAdmin,
     setLoading,
     navigate,
+    clear,
+    logout,
   ]);
 
   // Trigger session init whenever identity AND actor are both ready.
@@ -139,6 +186,7 @@ export default function LoginPage() {
   const handleLogin = () => {
     setBackendError(null);
     setTimedOut(false);
+    setAccountDisabled(false);
     isInitializing.current = false;
     login();
   };
@@ -147,6 +195,7 @@ export default function LoginPage() {
     isInitializing.current = false;
     setBackendError(null);
     setTimedOut(false);
+    setAccountDisabled(false);
     void initializeSession();
   };
 
@@ -154,12 +203,17 @@ export default function LoginPage() {
     isInitializing.current = false;
     setBackendError(null);
     setTimedOut(false);
+    setAccountDisabled(false);
     navigate({ to: "/" });
   };
 
   // Show spinner while identity is set (II popup resolved) but session isn't ready yet
   const showSpinner =
-    !!identity && !isAuthenticated && !backendError && !timedOut;
+    !!identity &&
+    !isAuthenticated &&
+    !backendError &&
+    !timedOut &&
+    !accountDisabled;
 
   return (
     <div
@@ -231,6 +285,30 @@ export default function LoginPage() {
                   size="sm"
                 >
                   Zurück zur Startseite
+                </Button>
+              </div>
+            ) : accountDisabled ? (
+              <div
+                className="w-full flex flex-col items-center gap-3"
+                data-ocid="login-account-disabled"
+              >
+                <div className="w-full rounded-md bg-destructive/10 border border-destructive/30 p-4">
+                  <p className="text-sm text-destructive text-center leading-relaxed font-medium">
+                    Dein Konto ist deaktiviert.
+                  </p>
+                  <p className="text-sm text-destructive/80 text-center leading-relaxed mt-1">
+                    Bitte wende dich an deinen Vorgesetzten oder den
+                    iReport-Verantwortlichen deiner Firma.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleLogin}
+                  data-ocid="login-button-after-disabled"
+                  variant="outline"
+                  className="w-full"
+                  size="lg"
+                >
+                  Mit anderem Konto anmelden
                 </Button>
               </div>
             ) : backendError ? (

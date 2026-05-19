@@ -23,11 +23,23 @@ const ZeitenPage = lazy(() => import("./pages/ZeitenPage"));
 const SpesenPage = lazy(() => import("./pages/SpesenPage"));
 const AuswertungenPage = lazy(() => import("./pages/AuswertungenPage"));
 const FakturierungPage = lazy(() => import("./pages/FakturierungPage"));
+const InvoiceEditorPage = lazy(() => import("./pages/InvoiceEditorPage"));
 const StammdatenPage = lazy(() => import("./pages/StammdatenPage"));
 const EinstellungenPage = lazy(() => import("./pages/EinstellungenPage"));
 const GenehmigungsPage = lazy(() => import("./pages/GenehmigungsPage"));
 const AbwesenheitPage = lazy(() => import("./pages/AbwesenheitPage"));
 const LogoutPage = lazy(() => import("./pages/LogoutPage"));
+const PlatformAdminPage = lazy(() => import("./pages/PlatformAdminPage"));
+const CostDashboardPage = lazy(() => import("./pages/CostDashboardPage"));
+const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
+const HrCompliancePage = lazy(() => import("./pages/HrCompliancePage"));
+const NotificationAdminPage = lazy(
+  () => import("./pages/platformadmin/NotificationAdminPage"),
+);
+const StripeSuccessPage = lazy(
+  () => import("./pages/stripe/StripeSuccessPage"),
+);
+const StripeCancelPage = lazy(() => import("./pages/stripe/StripeCancelPage"));
 
 // Page loader fallback
 function PageLoader() {
@@ -123,6 +135,23 @@ const fakturierungRoute = createRoute({
   component: FakturierungPage,
 });
 
+const invoiceNeuRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/fakturierung/rechnung/neu",
+  validateSearch: (search: Record<string, unknown>) => ({
+    zeitIds: (search.zeitIds as string) ?? "",
+    speseIds: (search.speseIds as string) ?? "",
+    kundeId: (search.kundeId as string) ?? "",
+  }),
+  component: InvoiceEditorPage,
+});
+
+const invoiceEditRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/fakturierung/rechnung/$id",
+  component: InvoiceEditorPage,
+});
+
 const stammdatenRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/stammdaten",
@@ -143,6 +172,11 @@ const genehmigungsRoute = createRoute({
   path: "/genehmigungen",
   component: GenehmigungsPage,
 });
+const hrComplianceRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/hr-compliance",
+  component: HrCompliancePage,
+});
 
 const abwesenheitRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -154,6 +188,42 @@ const logoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/logout",
   component: LogoutPage,
+});
+
+const platformAdminRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/platform-admin",
+  component: PlatformAdminPage,
+});
+
+const costDashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/kosten-dashboard",
+  component: CostDashboardPage,
+});
+
+const notificationsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/benachrichtigungen",
+  component: NotificationsPage,
+});
+
+const notificationAdminRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/platform-admin/benachrichtigungen",
+  component: NotificationAdminPage,
+});
+
+const stripeSuccessRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/abo/success",
+  component: StripeSuccessPage,
+});
+
+const stripeCancelRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/abo/cancel",
+  component: StripeCancelPage,
 });
 
 const routeTree = rootRoute.addChildren([
@@ -168,11 +238,20 @@ const routeTree = rootRoute.addChildren([
   spesenRoute,
   auswertungenRoute,
   fakturierungRoute,
+  invoiceNeuRoute,
+  invoiceEditRoute,
   stammdatenRoute,
   einstellungenRoute,
   genehmigungsRoute,
+  hrComplianceRoute,
   abwesenheitRoute,
   logoutRoute,
+  platformAdminRoute,
+  costDashboardRoute,
+  notificationsRoute,
+  notificationAdminRoute,
+  stripeSuccessRoute,
+  stripeCancelRoute,
 ]);
 
 const router = createRouter({ routeTree });
