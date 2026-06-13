@@ -17,7 +17,13 @@ import {
 } from "@/components/ui/table";
 import { useAuth } from "@/hooks/useAuthStore";
 import { useActor } from "@caffeineai/core-infrastructure";
-import { Loader2, PlayCircle, ShieldAlert } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  PlayCircle,
+  ShieldAlert,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { createActor } from "../../backend";
 import type {
@@ -87,6 +93,16 @@ export default function ComplianceCockpit() {
   } | null>(null);
   const [filterEmployee, setFilterEmployee] = useState("");
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("alle");
+  const [selectedWeekDate, setSelectedWeekDate] = useState<Date>(() => {
+    // Set to Monday of the current week
+    const today = new Date();
+    const dow = today.getDay(); // 0=Sun, 1=Mon...
+    const diff = dow === 0 ? -6 : 1 - dow; // days to Monday
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + diff);
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  });
 
   const enabled = !!actor && !isFetching && isAuthenticated && !!companyId;
 
@@ -121,6 +137,36 @@ export default function ComplianceCockpit() {
     }
   }
 
+  function getISOWeekNumber(date: Date): number {
+    const d = new Date(
+      Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
+    );
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  }
+
+  function formatWeekLabel(date: Date): string {
+    const kw = getISOWeekNumber(date);
+    return `KW ${kw} (${date.getFullYear()})`;
+  }
+
+  function navigateWeek(delta: number) {
+    setSelectedWeekDate((prev) => {
+      const next = new Date(prev);
+      next.setDate(prev.getDate() + delta * 7);
+      return next;
+    });
+  }
+
+  function formatDateYMD(date: Date): string {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
   async function handleRunWeeklyCheck() {
     if (!actor || !companyId) return;
     setRunningCheck(true);
@@ -133,17 +179,28 @@ export default function ComplianceCockpit() {
       } catch {
         // Non-blocking
       }
-      const result = (await toAny(actor).runWeeklyComplianceCheck(cid)) as {
-        ok?: bigint;
+      const weekDateStr = formatDateYMD(selectedWeekDate);
+      const result = (await toAny(actor).runWeeklyComplianceCheck(
+        cid,
+        weekDateStr,
+      )) as {
+        ok?: { newFindings: bigint; existingFindings: bigint };
         err?: string;
       };
       if (result.err !== undefined) {
         setCheckMessage({ type: "error", text: result.err });
       } else {
-        setCheckMessage({
-          type: "success",
-          text: `Wochenkontrolle abgeschlossen. ${result.ok !== undefined ? `${Number(result.ok)} Befunde erzeugt.` : ""}`,
-        });
+        const newCount =
+          result.ok !== undefined ? Number(result.ok.newFindings) : 0;
+        const existingCount =
+          result.ok !== undefined ? Number(result.ok.existingFindings) : 0;
+        let msg = "Wochenkontrolle abgeschlossen. ";
+        if (newCount === 0 && existingCount === 0) {
+          msg += "Keine Befunde gefunden.";
+        } else {
+          msg += `${newCount} neue Befunde erzeugt. ${existingCount} bestehende Befunde für KW ${getISOWeekNumber(selectedWeekDate)} (${selectedWeekDate.getFullYear()}) gefunden.`;
+        }
+        setCheckMessage({ type: "success", text: msg });
         await loadData();
       }
     } catch (e) {
@@ -203,6 +260,37 @@ export default function ComplianceCockpit() {
           value={Number(kpi.pausenVerstoesse)}
           status={Number(kpi.pausenVerstoesse) > 0 ? "yellow" : "green"}
         />
+      </div>
+
+      {/* Week Selector */}
+      <div
+        className="flex items-center gap-2 bg-card border border-border rounded-lg px-4 py-2.5 w-fit"
+        data-ocid="compliance.week_selector"
+      >
+        <button
+          type="button"
+          onClick={() => navigateWeek(-1)}
+          aria-label="Vorherige Woche"
+          className="p-0.5 rounded hover:bg-muted transition-colors"
+          data-ocid="compliance.week_prev_button"
+        >
+          <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+        </button>
+        <span
+          className="text-sm font-medium text-foreground min-w-[120px] text-center"
+          data-ocid="compliance.week_label"
+        >
+          {formatWeekLabel(selectedWeekDate)}
+        </span>
+        <button
+          type="button"
+          onClick={() => navigateWeek(1)}
+          aria-label="Nächste Woche"
+          className="p-0.5 rounded hover:bg-muted transition-colors"
+          data-ocid="compliance.week_next_button"
+        >
+          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+        </button>
       </div>
 
       {/* Action + Status message */}

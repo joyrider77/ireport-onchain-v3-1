@@ -7,6 +7,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuthStore } from "@/hooks/useAuthStore";
 import { useActor, useInternetIdentity } from "@caffeineai/core-infrastructure";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
   BarChart3,
@@ -22,9 +23,11 @@ import {
   Receipt,
   Shield,
   Users,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createActor } from "../backend";
+import type { SubscriptionPlan } from "../backend.d";
 import type { Company, Employee } from "../backend.d";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -93,52 +96,25 @@ const BENEFITS = [
     icon: Globe,
     title: "Dezentralisiert",
     desc: "Daten leben auf dem Internet Computer – keine zentrale Server-Infrastruktur, keine Single Points of Failure.",
+    accentColor: "#006066",
+    accentLight: "rgba(0,96,102,0.10)",
+    waveColor: "rgba(0,96,102,0.07)",
   },
   {
     icon: Shield,
     title: "Datensicherheit",
     desc: "Keine Drittserver, keine Abhängigkeiten von Cloud-Anbietern. Deine Daten gehören dir.",
+    accentColor: "#0A4A75",
+    accentLight: "rgba(10,74,117,0.10)",
+    waveColor: "rgba(10,74,117,0.07)",
   },
   {
     icon: Eye,
     title: "Transparenz",
     desc: "Unveränderliche Blockchain-Protokollierung schafft vollständige Nachvollziehbarkeit.",
-  },
-];
-
-const PRICING = [
-  {
-    tier: "Basis",
-    desc: "Bis 2 Mitarbeitende",
-    price: "Kostenlos",
-    priceNote: "Für immer gratis",
-    priceExtra: null as string | null,
-    highlight: false,
-    features: [
-      "Zeiterfassung",
-      "Kalenderübersicht",
-      "Spesenmanagement",
-      "Bis 2 Mitarbeitende",
-      "Internet Identity Login",
-    ],
-    cta: "Jetzt starten",
-  },
-  {
-    tier: "Professional",
-    desc: "Ab 2 Mitarbeitende",
-    price: "CHF 6.00",
-    priceNote: "pro Mitarbeiter / Monat im Jahres-Abonnement",
-    priceExtra: "CHF 7.00 pro Mitarbeiter / Monat im Monats-Abonnement",
-    highlight: true,
-    features: [
-      "Alle Basis-Features",
-      "Unbegrenzte Mitarbeitende",
-      "Genehmigungsworkflows",
-      "Fakturierungsübersicht",
-      "Auswertungen & Reports",
-      "Prioritäts-Support",
-    ],
-    cta: "Jetzt starten",
+    accentColor: "#006066",
+    accentLight: "rgba(0,96,102,0.10)",
+    waveColor: "rgba(0,96,102,0.07)",
   },
 ];
 
@@ -479,7 +455,7 @@ function HeroSection({
           >
             <img
               src="/assets/image-019d8d05-c956-7542-9dcf-ada97404d7da.png"
-              alt="Mitarbeiterin nutzt iReport auf dem Tablet"
+              alt="iReport HR Dashboard"
               style={{
                 display: "block",
                 objectFit: "contain",
@@ -859,6 +835,8 @@ function NoInstallSection() {
 }
 
 function BenefitsSection() {
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
   return (
     <section
       className="w-full py-20 bg-white"
@@ -877,50 +855,276 @@ function BenefitsSection() {
             den Vorteilen der Blockchain-Technologie.
           </p>
         </div>
-        <div className="grid md:grid-cols-3 gap-8">
-          {BENEFITS.map(({ icon: Icon, title, desc }, i) => (
-            <div
-              key={title}
-              className="flex flex-col gap-4 p-8 rounded-2xl border"
-              style={{
-                borderColor: "rgba(10,74,117,0.10)",
-                backgroundColor: "#fafcff",
-              }}
-              data-ocid={`landing.benefits.item.${i + 1}`}
-            >
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {BENEFITS.map(
+            (
+              { icon: Icon, title, desc, accentColor, accentLight, waveColor },
+              i,
+            ) => (
               <div
-                className="w-12 h-12 rounded-full flex items-center justify-center"
-                style={{ backgroundColor: "#0A4A75" }}
+                key={title}
+                className="relative flex flex-col overflow-hidden rounded-2xl shadow-lg"
+                style={{
+                  backgroundColor: "#fafcff",
+                  border: "1px solid rgba(10,74,117,0.08)",
+                }}
+                data-ocid={`landing.benefits.item.${i + 1}`}
               >
-                <Icon size={22} style={{ color: "#ffffff" }} />
+                {/* Decorative wave */}
+                <svg
+                  className="absolute top-0 left-0 w-full"
+                  height="54"
+                  viewBox="0 0 300 54"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M0,0 L300,0 L300,30 Q225,54 150,38 Q75,22 0,46 Z"
+                    fill={waveColor}
+                  />
+                </svg>
+                <div className="relative z-10 flex flex-col gap-4 p-7 pt-10">
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center shadow-sm"
+                    style={{ backgroundColor: accentLight }}
+                  >
+                    <Icon size={22} style={{ color: accentColor }} />
+                  </div>
+                  <h3
+                    className="text-base font-bold"
+                    style={{
+                      color: "#0A4A75",
+                      fontFamily: "'Play', sans-serif",
+                    }}
+                  >
+                    {title}
+                  </h3>
+                  <p
+                    className="text-sm leading-relaxed"
+                    style={{ color: "#64748b" }}
+                  >
+                    {desc}
+                  </p>
+                </div>
+              </div>
+            ),
+          )}
+
+          {/* 4th card — Onepager / Technologie */}
+          <button
+            type="button"
+            className="relative flex flex-col overflow-hidden rounded-2xl shadow-lg cursor-pointer group text-left w-full"
+            style={{
+              backgroundColor: "#fafcff",
+              border: "1px solid rgba(10,74,117,0.08)",
+            }}
+            onClick={() => setLightboxOpen(true)}
+            data-ocid="landing.benefits.item.4"
+            aria-label="Technologie-Onepager anzeigen"
+          >
+            {/* Decorative wave */}
+            <svg
+              className="absolute top-0 left-0 w-full"
+              height="54"
+              viewBox="0 0 300 54"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M0,0 L300,0 L300,30 Q225,54 150,38 Q75,22 0,46 Z"
+                fill="rgba(0,96,102,0.07)"
+              />
+            </svg>
+            <div className="relative z-10 flex flex-col gap-3 p-7 pt-10">
+              {/* Thumbnail */}
+              <div
+                className="w-full rounded-lg overflow-hidden shadow-sm ring-1 ring-black/5 group-hover:shadow-md transition-shadow duration-200"
+                style={{ aspectRatio: "4/3", backgroundColor: "#e8f0f0" }}
+              >
+                <img
+                  src="/assets/onepager_hreport_2.png"
+                  alt="Technologie-Onepager Vorschau"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const el = e.currentTarget as HTMLImageElement;
+                    el.style.display = "none";
+                    const parent = el.parentElement;
+                    if (parent && !parent.querySelector(".onepager-fallback")) {
+                      const fb = document.createElement("div");
+                      fb.className =
+                        "onepager-fallback w-full h-full flex items-center justify-center text-sm font-semibold";
+                      fb.style.color = "#006066";
+                      fb.textContent = "Onepager";
+                      parent.appendChild(fb);
+                    }
+                  }}
+                />
               </div>
               <h3
-                className="text-lg font-bold"
+                className="text-base font-bold"
                 style={{ color: "#0A4A75", fontFamily: "'Play', sans-serif" }}
               >
-                {title}
+                Technologie
               </h3>
               <p
                 className="text-sm leading-relaxed"
                 style={{ color: "#64748b" }}
               >
-                {desc}
+                Erfahre mehr über die Technologie hinter iReport.
               </p>
+              <span
+                className="text-xs font-semibold mt-1"
+                style={{ color: "#006066" }}
+              >
+                Onepager anzeigen &rarr;
+              </span>
             </div>
-          ))}
+          </button>
         </div>
       </div>
+
+      {/* Lightbox */}
+      {lightboxOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(0,0,0,0.85)" }}
+          onClick={() => setLightboxOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setLightboxOpen(false);
+          }}
+          data-ocid="landing.benefits.onepager.dialog"
+          aria-modal="true"
+          aria-label="Technologie-Onepager"
+        >
+          <button
+            type="button"
+            className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center"
+            style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setLightboxOpen(false);
+            }}
+            aria-label="Schliessen"
+            data-ocid="landing.benefits.onepager.close_button"
+          >
+            <X size={20} style={{ color: "#fff" }} />
+          </button>
+          <img
+            src="/assets/onepager_hreport_2.png"
+            alt="Technologie-Onepager"
+            className="max-w-full max-h-[90vh] rounded-xl shadow-2xl object-contain"
+          />
+        </div>
+      )}
     </section>
   );
 }
 
 function PricingSection({
-  onLogin,
-  isLoggingIn,
+  onRegister,
 }: {
-  onLogin: () => void;
-  isLoggingIn: boolean;
+  onRegister: (planId: string, billing: string) => void;
 }) {
+  const { actor, isFetching } = useActor(createActor);
+  const [billingMode, setBillingMode] = useState<"monatlich" | "jaehrlich">(
+    "jaehrlich",
+  );
+
+  const FEATURE_LABELS: Record<string, string> = {
+    dashboard: "Dashboard",
+    "time-tracking": "Zeiterfassung",
+    "expense-tracking": "Spesenerfassung",
+    calendar: "Kalenderübersicht",
+    reports: "Auswertungen",
+    invoicing: "Fakturierung",
+    "master-data": "Stammdaten",
+    approvals: "Genehmigungen",
+    "hr-compliance": "HR & Compliance",
+    settings: "Einstellungen",
+  };
+
+  const { data: backendPlans, isLoading } = useQuery<SubscriptionPlan[]>({
+    queryKey: ["publicSubscriptionPlans"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (
+        (await (
+          actor as unknown as Record<string, () => Promise<SubscriptionPlan[]>>
+        ).getSubscriptionPlans()) ?? []
+      );
+    },
+    enabled: !!actor && !isFetching,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  type PricingCard = {
+    id: string;
+    tier: string;
+    description: string;
+    priceMonthly: number;
+    priceYearly: number;
+    isFree: boolean;
+    highlight: boolean;
+    features: string[];
+    cta: string;
+  };
+
+  // No fallback to static PRICING — if no active plans, show nothing
+  const mappedPlans: PricingCard[] =
+    backendPlans && backendPlans.length > 0
+      ? backendPlans.map((plan) => {
+          // Only include features that have a known label — skip raw keys without a mapping
+          const featureLabels = plan.features
+            .filter((k) => k in FEATURE_LABELS)
+            .map((k) => FEATURE_LABELS[k]);
+          const featureLabelsLower = featureLabels.map((l: string) =>
+            l.toLowerCase().trim(),
+          );
+          const additionalDeduped = (plan.additionalFeatures ?? []).filter(
+            (a: string) => !featureLabelsLower.includes(a.toLowerCase().trim()),
+          );
+          // Strict deduplication via Set so no label appears twice
+          const allFeatures = [
+            ...new Set(
+              [...featureLabels, ...additionalDeduped]
+                .map((t: string) => t.trim())
+                .filter(Boolean),
+            ),
+          ];
+          const isFree =
+            plan.pricePerMonthCHF === 0 && plan.pricePerYearCHF === 0;
+          return {
+            id: plan.id,
+            tier: plan.name,
+            description: plan.description ?? "",
+            priceMonthly: plan.pricePerMonthCHF,
+            priceYearly: plan.pricePerYearCHF,
+            isFree,
+            highlight: plan.isRecommended ?? false,
+            features: allFeatures,
+            cta: "Jetzt starten",
+          };
+        })
+      : [];
+
+  const getPriceDisplay = (plan: PricingCard) => {
+    if (plan.isFree) return { main: "Kostenlos", note: "Für immer gratis" };
+    if (billingMode === "monatlich") {
+      return {
+        main: `CHF ${plan.priceMonthly.toFixed(2)}`,
+        note: "pro Mitarbeiter / Monat im Monats-Abonnement",
+      };
+    }
+    return {
+      main: `CHF ${plan.priceYearly.toFixed(2)}`,
+      note: "pro Mitarbeiter / Monat im Jahres-Abonnement",
+    };
+  };
+
+  const handleCtaClick = (plan: PricingCard) => {
+    onRegister(plan.id, billingMode === "jaehrlich" ? "yearly" : "monthly");
+  };
+
   return (
     <section
       id="preise"
@@ -929,7 +1133,7 @@ function PricingSection({
       data-ocid="landing.pricing.section"
     >
       <div className="max-w-[1280px] mx-auto px-6">
-        <div className="text-center mb-14">
+        <div className="text-center mb-10">
           <h2
             className="text-3xl md:text-4xl font-bold mb-4"
             style={{ color: "#0A4A75", fontFamily: "'Play', sans-serif" }}
@@ -941,149 +1145,237 @@ function PricingSection({
             Gebühren.
           </p>
         </div>
-        <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
-          {PRICING.map((plan, i) => (
+
+        {/* Billing toggle — only shown when there are paid plans */}
+        {!isLoading && mappedPlans.some((p) => !p.isFree) && (
+          <div className="flex justify-center mb-8">
             <div
-              key={plan.tier}
-              className="flex flex-col gap-6 p-8 rounded-2xl border"
+              className="inline-flex items-center rounded-xl p-1 gap-0.5"
               style={{
-                backgroundColor: plan.highlight ? "#0A4A75" : "#ffffff",
-                borderColor: plan.highlight
-                  ? "#0A4A75"
-                  : "rgba(10,74,117,0.12)",
-                boxShadow: plan.highlight
-                  ? "0 8px 24px rgba(10,74,117,0.25)"
-                  : "0 1px 4px rgba(10,74,117,0.06)",
+                backgroundColor: "#e2eaf2",
+                border: "1px solid rgba(10,74,117,0.12)",
               }}
-              data-ocid={`landing.pricing.item.${i + 1}`}
+              aria-label="Abrechnungsmodell wählen"
             >
-              {plan.highlight && (
-                <span
-                  className="inline-flex w-fit px-3 py-1 rounded-full text-xs font-bold"
-                  style={{
-                    backgroundColor: "#5090C1",
-                    color: "#ffffff",
-                    fontFamily: "'Play', sans-serif",
-                  }}
-                >
-                  Empfohlen
-                </span>
-              )}
-              <div>
-                <p
-                  className="text-xs font-semibold mb-0.5 uppercase tracking-wide"
-                  style={{
-                    color: plan.highlight
-                      ? "rgba(255,255,255,0.55)"
-                      : "#1F6495",
-                    fontFamily: "'Play', sans-serif",
-                  }}
-                >
-                  {plan.desc}
-                </p>
-                <p
-                  className="text-sm font-semibold mb-1"
-                  style={{
-                    color: plan.highlight
-                      ? "rgba(255,255,255,0.65)"
-                      : "#1F6495",
-                    fontFamily: "'Play', sans-serif",
-                  }}
-                >
-                  {plan.tier}
-                </p>
-                <p
-                  className="text-3xl font-bold"
-                  style={{
-                    color: plan.highlight ? "#ffffff" : "#0A4A75",
-                    fontFamily: "'Play', sans-serif",
-                  }}
-                >
-                  {plan.price}
-                </p>
-                <p
-                  className="text-sm mt-0.5"
-                  style={{
-                    color: plan.highlight
-                      ? "rgba(255,255,255,0.55)"
-                      : "#94a3b8",
-                  }}
-                >
-                  {plan.priceNote}
-                </p>
-                {plan.priceExtra && (
-                  <p
-                    className="text-xs mt-1"
-                    style={{
-                      color: plan.highlight
-                        ? "rgba(255,255,255,0.45)"
-                        : "#b0bec5",
-                    }}
-                  >
-                    {plan.priceExtra}
-                  </p>
-                )}
-              </div>
-              <ul className="flex flex-col gap-2.5">
-                {plan.features.map((f) => (
-                  <li
-                    key={f}
-                    className="flex items-center gap-2.5 text-sm"
-                    style={{
-                      color: plan.highlight
-                        ? "rgba(255,255,255,0.85)"
-                        : "#4a5568",
-                    }}
-                  >
-                    <Check
-                      size={14}
-                      style={{
-                        color: plan.highlight ? "#5090C1" : "#1F6495",
-                        flexShrink: 0,
-                      }}
-                    />
-                    {f}
-                  </li>
-                ))}
-              </ul>
               <button
                 type="button"
-                onClick={onLogin}
-                disabled={isLoggingIn}
-                className="w-full py-3 rounded-lg text-sm font-bold transition-all duration-200 disabled:opacity-60"
+                onClick={() => setBillingMode("monatlich")}
+                className="px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-200"
                 style={{
-                  backgroundColor: plan.highlight ? "#5090C1" : "transparent",
-                  color: plan.highlight ? "#ffffff" : "#0A4A75",
-                  border: plan.highlight ? "none" : "2px solid #0A4A75",
+                  backgroundColor:
+                    billingMode === "monatlich" ? "#ffffff" : "transparent",
+                  color: billingMode === "monatlich" ? "#0A4A75" : "#6b7a8d",
+                  boxShadow:
+                    billingMode === "monatlich"
+                      ? "0 1px 4px rgba(10,74,117,0.12)"
+                      : "none",
                   fontFamily: "'Play', sans-serif",
                 }}
-                onMouseEnter={(e) => {
-                  if (!isLoggingIn) {
-                    if (plan.highlight) {
-                      e.currentTarget.style.backgroundColor = "#1F6495";
-                    } else {
-                      e.currentTarget.style.backgroundColor = "#0A4A75";
-                      e.currentTarget.style.color = "#ffffff";
-                    }
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isLoggingIn) {
-                    if (plan.highlight) {
-                      e.currentTarget.style.backgroundColor = "#5090C1";
-                    } else {
-                      e.currentTarget.style.backgroundColor = "transparent";
-                      e.currentTarget.style.color = "#0A4A75";
-                    }
-                  }
-                }}
-                data-ocid={`landing.pricing.cta.${i + 1}`}
+                data-ocid="landing.pricing.billing_monthly_toggle"
               >
-                {plan.cta}
+                Monatlich
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingMode("jaehrlich")}
+                className="px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-200"
+                style={{
+                  backgroundColor:
+                    billingMode === "jaehrlich" ? "#ffffff" : "transparent",
+                  color: billingMode === "jaehrlich" ? "#0A4A75" : "#6b7a8d",
+                  boxShadow:
+                    billingMode === "jaehrlich"
+                      ? "0 1px 4px rgba(10,74,117,0.12)"
+                      : "none",
+                  fontFamily: "'Play', sans-serif",
+                }}
+                data-ocid="landing.pricing.billing_yearly_toggle"
+              >
+                Jährlich
+                {billingMode === "jaehrlich" && (
+                  <span
+                    className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{
+                      backgroundColor: "#006066",
+                      color: "#ffffff",
+                    }}
+                  >
+                    Günstig
+                  </span>
+                )}
               </button>
             </div>
-          ))}
-        </div>
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
+            {[1, 2].map((i) => (
+              <div
+                key={i}
+                className="flex flex-col gap-6 p-8 rounded-2xl border"
+                style={{
+                  backgroundColor: "#ffffff",
+                  borderColor: "rgba(10,74,117,0.12)",
+                  minHeight: 360,
+                }}
+              >
+                <div className="h-4 w-24 bg-slate-200 rounded animate-pulse" />
+                <div className="h-8 w-32 bg-slate-200 rounded animate-pulse" />
+                <div className="flex flex-col gap-2">
+                  {[1, 2, 3, 4].map((j) => (
+                    <div
+                      key={j}
+                      className="h-3 w-full bg-slate-100 rounded animate-pulse"
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : mappedPlans.length === 0 ? null : (
+          <div
+            className={`grid gap-8 max-w-3xl mx-auto ${
+              mappedPlans.length === 1
+                ? "md:grid-cols-1 max-w-sm"
+                : "md:grid-cols-2"
+            }`}
+          >
+            {mappedPlans.map((plan, i) => {
+              const { main: priceMain, note: priceNote } =
+                getPriceDisplay(plan);
+              return (
+                <div
+                  key={plan.tier}
+                  className="flex flex-col gap-5 p-8 rounded-2xl border"
+                  style={{
+                    backgroundColor: plan.highlight ? "#0A4A75" : "#ffffff",
+                    borderColor: plan.highlight
+                      ? "#0A4A75"
+                      : "rgba(10,74,117,0.12)",
+                    boxShadow: plan.highlight
+                      ? "0 8px 24px rgba(10,74,117,0.25)"
+                      : "0 1px 4px rgba(10,74,117,0.06)",
+                  }}
+                  data-ocid={`landing.pricing.item.${i + 1}`}
+                >
+                  {plan.highlight && (
+                    <span
+                      className="inline-flex w-fit px-3 py-1 rounded-full text-xs font-bold"
+                      style={{
+                        backgroundColor: "#5090C1",
+                        color: "#ffffff",
+                        fontFamily: "'Play', sans-serif",
+                      }}
+                    >
+                      Empfohlen
+                    </span>
+                  )}
+                  <div>
+                    <p
+                      className="text-sm font-semibold mb-1"
+                      style={{
+                        color: plan.highlight
+                          ? "rgba(255,255,255,0.65)"
+                          : "#1F6495",
+                        fontFamily: "'Play', sans-serif",
+                      }}
+                    >
+                      {plan.tier}
+                    </p>
+                    <p
+                      className="text-4xl font-bold"
+                      style={{
+                        color: plan.highlight ? "#ffffff" : "#0A4A75",
+                        fontFamily: "'Play', sans-serif",
+                      }}
+                    >
+                      {priceMain}
+                    </p>
+                    <p
+                      className="text-sm mt-1"
+                      style={{
+                        color: plan.highlight
+                          ? "rgba(255,255,255,0.55)"
+                          : "#94a3b8",
+                      }}
+                    >
+                      {priceNote}
+                    </p>
+                    {/* Plan description below price */}
+                    {plan.description && (
+                      <p
+                        className="text-sm mt-2"
+                        style={{
+                          color: plan.highlight
+                            ? "rgba(255,255,255,0.70)"
+                            : "#4a5568",
+                        }}
+                      >
+                        {plan.description}
+                      </p>
+                    )}
+                  </div>
+                  <ul className="flex flex-col gap-2.5">
+                    {plan.features.map((f) => (
+                      <li
+                        key={f}
+                        className="flex items-center gap-2.5 text-sm"
+                        style={{
+                          color: plan.highlight
+                            ? "rgba(255,255,255,0.85)"
+                            : "#4a5568",
+                        }}
+                      >
+                        <Check
+                          size={14}
+                          style={{
+                            color: plan.highlight ? "#5090C1" : "#1F6495",
+                            flexShrink: 0,
+                          }}
+                        />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    type="button"
+                    onClick={() => handleCtaClick(plan)}
+                    disabled={false}
+                    className="w-full py-3 rounded-lg text-sm font-bold transition-all duration-200"
+                    style={{
+                      backgroundColor: plan.highlight
+                        ? "#5090C1"
+                        : "transparent",
+                      color: plan.highlight ? "#ffffff" : "#0A4A75",
+                      border: plan.highlight ? "none" : "2px solid #0A4A75",
+                      fontFamily: "'Play', sans-serif",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (plan.highlight) {
+                        e.currentTarget.style.backgroundColor = "#1F6495";
+                      } else {
+                        e.currentTarget.style.backgroundColor = "#0A4A75";
+                        e.currentTarget.style.color = "#ffffff";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (plan.highlight) {
+                        e.currentTarget.style.backgroundColor = "#5090C1";
+                      } else {
+                        e.currentTarget.style.backgroundColor = "transparent";
+                        e.currentTarget.style.color = "#0A4A75";
+                      }
+                    }}
+                    data-ocid={`landing.pricing.cta.${i + 1}`}
+                  >
+                    {plan.cta}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -1203,7 +1495,7 @@ function LandingFooter() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
-  const { login, identity, isLoggingIn: iiLoggingIn } = useInternetIdentity();
+  const { identity, isLoggingIn: iiLoggingIn, login } = useInternetIdentity();
   const { actor, isFetching: isActorFetching } = useActor(createActor);
   const { isAuthenticated, setAuthenticated, setLoading } = useAuthStore();
   const navigate = useNavigate();
@@ -1235,10 +1527,11 @@ export default function LandingPage() {
       const registered = (await toAny(actor).isRegistered()) as boolean;
 
       if (!registered) {
+        // Unregistered users stay on the landing page so they can browse plans
+        // and click "Jetzt starten" to begin registration.
         setLoading(false);
         setSessionLoading(false);
         isInitializing.current = false;
-        navigate({ to: "/register" });
         return;
       }
 
@@ -1308,15 +1601,32 @@ export default function LandingPage() {
   }, [identity]);
 
   const handleLogin = () => {
-    if (isLoggingIn) return;
-    // If already authenticated (stale session), go directly to dashboard
+    // "Anmelden" triggers Internet Identity directly for existing users.
+    // New users must register via "Jetzt starten" on the pricing section.
     if (isAuthenticated) {
       navigate({ to: "/dashboard" });
       return;
     }
-    isInitializing.current = false;
     login();
   };
+
+  const handleRegister = (planId: string, billing: string) => {
+    navigate({
+      to: "/register",
+      search: { planId, billing },
+    });
+  };
+
+  // Scroll to pricing section if ?scroll=pricing is present
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("scroll") === "pricing") {
+      const el = document.getElementById("preise");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  }, []);
 
   return (
     <div
@@ -1332,7 +1642,7 @@ export default function LandingPage() {
         <AvailabilitySection />
         <NoInstallSection />
         <BenefitsSection />
-        <PricingSection onLogin={handleLogin} isLoggingIn={isLoggingIn} />
+        <PricingSection onRegister={handleRegister} />
         <FaqSection />
       </main>
       <LandingFooter />

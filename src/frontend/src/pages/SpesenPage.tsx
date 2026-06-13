@@ -1,3 +1,4 @@
+import { ClosedPeriodBanner } from "@/components/ClosedPeriodBanner";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { Layout } from "@/components/Layout";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuthStore";
+import { useGetPeriodStatus } from "@/hooks/usePeriodClose";
 import { useActor } from "@caffeineai/core-infrastructure";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -932,7 +934,17 @@ export default function SpesenPage() {
   const queryClient = useQueryClient();
 
   const isAdminOrManager = role === "admin" || role === "manager";
-  const isMitarbeiter = role !== "admin" && role !== "manager";
+  const isMitarbeiter = role === "employee";
+
+  const currentMonth = new Date().getMonth() + 1;
+  const currentYear = new Date().getFullYear();
+  const { data: periodCloseStatus } = useGetPeriodStatus(
+    companyId ? BigInt(companyId) : undefined,
+    employeeId ? BigInt(employeeId) : undefined,
+    currentMonth,
+    currentYear,
+  );
+  const isPeriodClosed = periodCloseStatus?.status === "closed";
 
   // Filters
   const [dateFrom, setDateFrom] = useState("");
@@ -1245,6 +1257,12 @@ export default function SpesenPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: bigint) => {
+      if (isPeriodClosed) {
+        toast.error(
+          "Diese Periode ist abgeschlossen. Löschen ist nicht mehr möglich.",
+        );
+        throw new Error("Periode abgeschlossen");
+      }
       if (!actor) throw new Error("Nicht verbunden");
       const result = await toAny(actor).deleteExpense(id);
       const res = result as { __kind__: string; err?: string };
@@ -1275,6 +1293,12 @@ export default function SpesenPage() {
     fileDataUrl: string | null,
     selectedProjektId: number | null,
   ) => {
+    if (isPeriodClosed) {
+      toast.error(
+        "Diese Periode ist abgeschlossen. Änderungen sind nicht mehr möglich.",
+      );
+      return;
+    }
     if (editExpense) {
       await updateMutation.mutateAsync({
         id: editExpense.id,
@@ -1323,11 +1347,19 @@ export default function SpesenPage() {
             }}
             data-ocid="expense.primary_button"
             className="shrink-0"
+            disabled={isPeriodClosed && isMitarbeiter}
           >
             <Plus className="w-4 h-4 mr-1.5" />
             Neuer Speseneintrag
           </Button>
         </div>
+
+        {isPeriodClosed && (
+          <ClosedPeriodBanner
+            closedAt={periodCloseStatus?.closedAt}
+            canReopen={false}
+          />
+        )}
 
         {/* Filter Bar */}
         <div className="bg-card border border-border rounded-lg p-4 space-y-3">
@@ -1597,6 +1629,12 @@ export default function SpesenPage() {
                               size="sm"
                               className="text-muted-foreground hover:text-foreground p-1"
                               onClick={() => {
+                                if (isPeriodClosed) {
+                                  toast.error(
+                                    "Diese Periode ist abgeschlossen. Bearbeiten ist nicht mehr möglich.",
+                                  );
+                                  return;
+                                }
                                 setEditExpense(expense);
                                 setShowForm(true);
                               }}

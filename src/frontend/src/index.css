@@ -59,6 +59,15 @@
     --landing-light-bg: 0.97 0.01 254; /* Light neutral for sections */
     --landing-text: 0.15 0.02 250; /* Dark text */
     --landing-text-secondary: 0.45 0.02 250; /* Medium-dark text */
+
+    --period-open: 0.94 0.01 220;
+    --period-open-foreground: 0.4 0.01 220;
+    --period-ready: 0.75 0.12 80;
+    --period-ready-foreground: 0.99 0 0;
+    --period-closed: 0.58 0.15 20;
+    --period-closed-foreground: 0.99 0 0;
+    --period-reopened: 0.42 0.085 196;
+    --period-reopened-foreground: 0.99 0 0;
   }
 
   .dark {
@@ -101,6 +110,15 @@
     --sidebar-accent-foreground: 0.82 0.02 250;
     --sidebar-border: 0.24 0.01 254;
     --sidebar-ring: 0.6 0.12 203;
+
+    --period-open: 0.24 0.01 254;
+    --period-open-foreground: 0.65 0.02 250;
+    --period-ready: 0.68 0.16 80;
+    --period-ready-foreground: 0.12 0.01 254;
+    --period-closed: 0.65 0.19 22;
+    --period-closed-foreground: 0.12 0.01 254;
+    --period-reopened: 0.6 0.12 203;
+    --period-reopened-foreground: 0.12 0.01 254;
   }
 
   * {
@@ -234,4 +252,52 @@
     box-shadow: 0 2px 4px 0 rgba(10, 74, 117, 0.08), 0 4px 12px 0
       rgba(10, 74, 117, 0.12);
   }
+}
+
+.period-badge {
+  @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-smooth;
+}
+
+.period-badge-open {
+  @apply bg-[oklch(var(--period-open))] text-[oklch(var(--period-open-foreground))];
+}
+
+.period-badge-ready {
+  @apply bg-[oklch(var(--period-ready))] text-[oklch(var(--period-ready-foreground))];
+}
+
+.period-badge-closed {
+  @apply bg-[oklch(var(--period-closed))] text-[oklch(var(--period-closed-foreground))];
+}
+
+.period-badge-reopened {
+  @apply bg-[oklch(var(--period-reopened))] text-[oklch(var(--period-reopened-foreground))];
+}
+
+.period-lock-row {
+  @apply bg-muted/30 opacity-70;
+}
+
+.period-lock-indicator {
+  @apply inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[0.625rem] font-medium text-muted-foreground bg-muted;
+}
+
+.period-precheck-panel {
+  @apply border-l-4 border-l-primary px-4 py-3 rounded-md bg-card text-sm space-y-2 mb-4;
+}
+
+.period-precheck-item {
+  @apply flex items-center gap-2 text-foreground;
+}
+
+.period-precheck-item.warning {
+  @apply text-yellow-700 dark:text-yellow-500;
+}
+
+.period-precheck-item.error {
+  @apply text-destructive;
+}
+
+.period-closed-banner {
+  @apply flex items-center gap-2 px-3 py-2 rounded-sm bg-destructive/10 border border-destructive/30 text-destructive text-sm font-medium;
 }

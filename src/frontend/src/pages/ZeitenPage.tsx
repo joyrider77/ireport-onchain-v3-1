@@ -1,3 +1,4 @@
+import { ClosedPeriodBanner } from "@/components/ClosedPeriodBanner";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { Layout } from "@/components/Layout";
 import { TimeEntryDialog } from "@/components/TimeEntryDialog";
@@ -37,6 +38,7 @@ import {
   toDateStringInTz,
   useCompanyTimezone,
 } from "@/hooks/useCompanyTimezone";
+import { useGetPeriodStatus } from "@/hooks/usePeriodClose";
 import {
   countVacationDaysProportional,
   getActiveEmploymentForDate,
@@ -463,6 +465,7 @@ export default function ZeitenPage() {
   }, [isAuthenticated, companyId, navigate]);
 
   const isAdminOrManager = role === "admin" || role === "manager";
+  const _isMitarbeiter = true;
 
   // ─── View / Navigation ─────────────────────────────────────────────────────
   const [viewMode, setViewMode] = useState<ViewMode>("week");
@@ -471,6 +474,16 @@ export default function ZeitenPage() {
     const todayStr = toDateStringInTz(new Date(), "Europe/Zurich");
     return getWeekStartFromDateString(todayStr);
   });
+
+  const currentMonth = currentWeekStart.getMonth() + 1;
+  const currentYear = currentWeekStart.getFullYear();
+  const { data: periodCloseStatus } = useGetPeriodStatus(
+    companyId ? BigInt(companyId) : BigInt(0),
+    employeeId ? BigInt(employeeId) : undefined,
+    currentMonth,
+    currentYear,
+  );
+  const isPeriodClosed = periodCloseStatus?.status === "closed";
 
   const [selectedDayStr, setSelectedDayStr] = useState<string>(() =>
     toDateStringInTz(new Date(), "Europe/Zurich"),
@@ -1143,6 +1156,12 @@ export default function ZeitenPage() {
   }
 
   async function handleDeleteEntry(entry: TimeEntry) {
+    if (isPeriodClosed) {
+      toast.error(
+        "Diese Periode ist abgeschlossen. Löschen ist nicht mehr möglich.",
+      );
+      return;
+    }
     const statusVal = String(
       (entry as unknown as Record<string, unknown>).status ?? "",
     ).toLowerCase();
@@ -1176,6 +1195,12 @@ export default function ZeitenPage() {
 
   // ─── Standardarbeitszeit erfassen handler ─────────────────────────────────
   async function handleStdZeitErfassen() {
+    if (isPeriodClosed) {
+      toast.error(
+        "Diese Periode ist abgeschlossen. Änderungen sind nicht mehr möglich.",
+      );
+      return;
+    }
     // Determine current date: day view uses selectedDayStr, week view uses today
     const targetDate = viewMode === "day" ? selectedDayStr : todayStr;
     const targetDateObj = new Date(`${targetDate}T12:00:00Z`);
@@ -1765,6 +1790,12 @@ export default function ZeitenPage() {
   }
 
   async function saveStdBlocks() {
+    if (isPeriodClosed) {
+      toast.error(
+        "Diese Periode ist abgeschlossen. Änderungen sind nicht mehr möglich.",
+      );
+      return;
+    }
     if (!validateStdBlocks() || !actor || !employeeId) return;
     setIsSavingStd(true);
     try {
@@ -1850,6 +1881,12 @@ export default function ZeitenPage() {
           {/* TAB: ZEIT                                                          */}
           {/* ══════════════════════════════════════════════════════════════════ */}
           <TabsContent value="zeit" className="mt-4 space-y-4">
+            {isPeriodClosed && (
+              <ClosedPeriodBanner
+                closedAt={periodCloseStatus?.closedAt}
+                canReopen={false}
+              />
+            )}
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2 flex-wrap">
                 {/* Employee filter — FIX 1: changing this reloads data with correct filter */}
@@ -1913,6 +1950,7 @@ export default function ZeitenPage() {
                   onClick={() => void handleStdZeitErfassen()}
                   data-ocid="std-zeit-erfassen-btn"
                   title="Standardarbeitszeiten als Zeiteinträge erfassen"
+                  disabled={isPeriodClosed}
                 >
                   <Timer className="w-4 h-4 mr-1" />
                   Standardarbeitszeit erfassen
@@ -1921,6 +1959,7 @@ export default function ZeitenPage() {
                   size="sm"
                   onClick={() => openNewEntry()}
                   data-ocid="new-entry-btn"
+                  disabled={isPeriodClosed}
                 >
                   <PlusCircle className="w-4 h-4 mr-1" />
                   Neuer Eintrag

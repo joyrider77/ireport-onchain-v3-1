@@ -13,8 +13,8 @@ import TrackingTypes "../types/timetracking";
 import AuditTypes "../types/audit";
 import AbsenceLib "../lib/absences";
 import AccessControlLib "../lib/AccessControlLib";
-import ApprovalLib "../lib/timetracking-approval";
-import ApprovalTypes "../types/timetracking-approval-and-feature-flags";
+import PeriodCloseTypes "../types/period-close";
+import PeriodCloseLib "../lib/period-close";
 
 mixin (
   accessControlState : AccessControl.AccessControlState,
@@ -31,7 +31,7 @@ mixin (
   nextAuditId : { var value : Nat },
   auditLogEntriesV5 : List.List<AuditTypes.AuditLogEntry>,
   nextAuditLogId : { var value : Nat },
-  absenceApprovalData : Map.Map<Nat, ApprovalLib.ApprovalRecord>,
+  periodCloses : Map.Map<PeriodCloseTypes.PeriodCloseId, PeriodCloseTypes.PeriodClose>,
 ) {
   // Hilfsfunktion: Authentifizierung prüfen
   private func absRequireAuth(caller : Principal) : (CommonTypes.CompanyId, CommonTypes.EmployeeId) {
@@ -44,6 +44,27 @@ mixin (
       case (?eid) eid;
     };
     (companyId, employeeId);
+  };
+
+  // Hilfsfunktion: Periodensperre pruefen (gilt fuer alle Rollen, keine Ausnahmen)
+  private func absCheckPeriodLock(
+    caller     : Principal,
+    companyId  : CommonTypes.CompanyId,
+    employeeId : CommonTypes.EmployeeId,
+    dateStr    : Text,
+  ) : CommonTypes.Result<()> {
+    ignore caller;
+    let parts = dateStr.split(#char '-').toArray();
+    if (parts.size() < 2) { return #ok(()) };
+    let yearOpt = parts[0].toNat();
+    let monthOpt = parts[1].toNat();
+    let (year, month) = switch (yearOpt, monthOpt) {
+      case (?y, ?m) { (y, m) };
+      case _ { return #ok(()) };
+    };
+    // Direkt via Monat/Jahr pruefen – kein fehlerbehafteter Timestamp-Roundtrip
+    let closes = periodCloses.entries().toArray();
+    PeriodCloseLib.checkPeriodEditableByMonthYear(closes, companyId, employeeId, month, year);
   };
 
   // Hilfsfunktion: Admin/Manager-Rolle prüfen (delegiert an AccessControlLib)
@@ -148,8 +169,6 @@ mixin (
     input : TrackingTypes.CreateAbsenceInput
   ) : async CommonTypes.Result<TrackingTypes.Absence> {
     let (companyId, employeeId) = absRequireAuth(caller);
-    let id = nextAbsenceId.value;
-    nextAbsenceId.value += 1;
 
     // Prüfen ob es sich um Ferien handelt (requiresApproval = true)
     // Ferien dürfen NICHT als eigenständige Abwesenheitsart in der Auswahl erscheinen
@@ -163,6 +182,16 @@ mixin (
       case null { false };
       case (?at) { at.name == "Ferien" };
     };
+
+    // Periodensperre pruefen – VOR jeder Zustandsmutation
+    switch (absCheckPeriodLock(caller, companyId, employeeId, input.dateFrom)) {
+      case (#err(msg)) { return #err(msg) };
+      case (#ok(())) {};
+    };
+
+    // ID-Zähler erst nach bestandener Periodensperre inkrementieren
+    let id = nextAbsenceId.value;
+    nextAbsenceId.value += 1;
 
     let absence = AbsenceLib.createAbsence(absences, id, companyId, employeeId, input, requiresApproval);
 
@@ -189,13 +218,6 @@ mixin (
           "<p>Ein neuer Abwesenheitsantrag wurde eingereicht.</p><p><strong>Mitarbeiter:</strong> " # empName # "</p><p><strong>Von:</strong> " # input.dateFrom # "</p><p><strong>Bis:</strong> " # input.dateTo # "</p>",
         );
       };
-    } else {
-      // Abwesenheit ohne Genehmigungsworkflow: automatisch einen genehmigten Eintrag erstellen,
-      // damit die Absenz später über den Genehmigungsbereich zurückgesetzt und bearbeitet werden kann.
-      absenceApprovalData.add(
-        id,
-        { status = #approved; approvedBy = ?caller; reason = ?"Automatisch genehmigt" },
-      );
     };
 
     #ok(absence);
@@ -437,6 +459,16 @@ mixin (
   ) : async CommonTypes.Result<TrackingTypes.Absence> {
     let (companyId, employeeId) = absRequireAuth(caller);
     let beforeOpt = absences.find(func(a) { a.id == id and a.companyId == companyId and a.employeeId == employeeId });
+    // Periodensperre pruefen
+    switch (beforeOpt) {
+      case (?existing) {
+        switch (absCheckPeriodLock(caller, companyId, employeeId, existing.dateFrom)) {
+          case (#err(msg)) { return #err(msg) };
+          case (#ok(())) {};
+        };
+      };
+      case null {};
+    };
     switch (AbsenceLib.updateAbsence(absences, companyId, id, employeeId, input)) {
       case null { #err("Abwesenheit nicht gefunden oder keine Berechtigung") };
       case (?a) {
@@ -452,11 +484,13 @@ mixin (
     id : CommonTypes.AbsenceId
   ) : async CommonTypes.Result<()> {
     let (companyId, employeeId) = absRequireAuth(caller);
-    // Genehmigungsstatus prüfen: genehmigte Einträge dürfen nicht direkt gelöscht werden
-    switch (absenceApprovalData.get(id)) {
-      case (?approvalRecord) {
-        if (approvalRecord.status == #approved) {
-          return #err("Dieser Eintrag wurde bereits genehmigt. Bitte den Vorgesetzten bitten, die Genehmigung zuerst zurückzusetzen.");
+    // Periodensperre pruefen
+    let absForLock = absences.find(func(a : TrackingTypes.Absence) : Bool = a.id == id and a.companyId == companyId and a.employeeId == employeeId);
+    switch (absForLock) {
+      case (?existing) {
+        switch (absCheckPeriodLock(caller, companyId, employeeId, existing.dateFrom)) {
+          case (#err(msg)) { return #err(msg) };
+          case (#ok(())) {};
         };
       };
       case null {};
@@ -644,7 +678,33 @@ mixin (
     };
   };
 
+  // Hilfsfunktion: Nanosekunden-Timestamp → YYYY-MM-DD String (UTC)
+  private func nsToDateStr(ns : Int) : Text {
+    // Sekunden seit Epoch
+    let secs : Int = ns / 1_000_000_000;
+    // Tage seit Epoch (Unix-Epoch = 1970-01-01)
+    let days : Int = secs / 86400;
+    // Gregorianische Kalenderberechnung
+    var z : Int = days + 719468;
+    let era : Int = (if (z >= 0) z else z - 146096) / 146097;
+    let doe : Int = z - era * 146097;
+    let yoe : Int = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y : Int = yoe + era * 400;
+    let doy : Int = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp : Int = (5 * doy + 2) / 153;
+    let d : Int = doy - (153 * mp + 2) / 5 + 1;
+    let m : Int = mp + (if (mp < 10) 3 else -9);
+    let yr : Int = y + (if (m <= 2) 1 else 0);
+    // Formatieren mit führenden Nullen
+    let yrStr = yr.toText();
+    let mStr = if (m < 10) "0" # m.toText() else m.toText();
+    let dStr = if (d < 10) "0" # d.toText() else d.toText();
+    yrStr # "-" # mStr # "-" # dStr;
+  };
+
   // Gibt sichtbare Abwesenheiten für den Firmenkalender zurück (serverseitig maskiert)
+  // Intervall-Überlappungsfilter: Abwesenheit wird eingeschlossen wenn
+  //   absence.dateFrom <= rangeEnd AND absence.dateTo >= rangeStart
   public query ({ caller }) func getCompanyCalendarAbsences(
     companyId : CommonTypes.CompanyId,
     fromDateNs : Int,
@@ -666,15 +726,21 @@ mixin (
       case (?e) { e.role };
     };
 
-    // Alle Abwesenheiten der Firma laden und serverseitig maskieren.
-    // fromDateNs / toDateNs werden als Nanosekunden-Epochenwert übergeben;
-    // Abwesenheiten speichern Datum als Text (YYYY-MM-DD), daher gibt der
-    // Client den sichtbaren Zeitraum an und wir geben alle Einträge zurück
-    // (der Client filtert nach Datum). Maskierung und Berechtigungsfilterung
-    // erfolgen vollständig in maskCalendarAbsence.
+    // Datumsbereich als ISO-Strings (YYYY-MM-DD) für lexikografischen Vergleich
+    let rangeStart : Text = nsToDateStr(fromDateNs);
+    let rangeEnd   : Text = nsToDateStr(toDateNs);
+
+    // Alle Abwesenheiten der Firma mit Intervall-Überlappungsfilter laden
+    // und serverseitig maskieren.
+    // Überlappungsbedingung: absence.dateFrom <= rangeEnd AND absence.dateTo >= rangeStart
+    // Dadurch werden Abwesenheiten, die über Monatsgrenzen gehen, in beiden Monaten angezeigt.
     let results = List.empty<TrackingTypes.MaskedCalendarAbsence>();
     for (absence in absences.values()) {
-      if (absence.companyId == companyId) {
+      if (
+        absence.companyId == companyId and
+        absence.dateFrom <= rangeEnd and
+        absence.dateTo >= rangeStart
+      ) {
         let absTypeOpt = absenceTypes.find(func(at) { at.id == absence.absenceTypeId and at.companyId == companyId });
         switch (maskCalendarAbsence(absence, callerEmpId, callerRole, absTypeOpt)) {
           case null {};

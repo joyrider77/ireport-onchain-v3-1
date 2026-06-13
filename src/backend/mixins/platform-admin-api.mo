@@ -9,7 +9,6 @@ import Time "mo:core/Time";
 
 import CommonTypes "../types/common";
 import CompanyTypes "../types/company";
-import ApprovalTypes "../types/timetracking-approval-and-feature-flags";
 import CostDashboardTypes "../types/cost-dashboard";
 
 mixin (
@@ -255,7 +254,11 @@ mixin (
   };
 
   // Gibt die öffentlich sichere Platform-Admin-Konfiguration zurück (keine Secrets)
-  public query ({ caller }) func getPlatformAdminConfig() : async ApprovalTypes.PlatformAdminConfigPublic {
+  public query ({ caller }) func getPlatformAdminConfig() : async {
+    frontendCanisterId       : Text;
+    stripePublishableKey     : Text;
+    stripeWebhookEndpointUrl : Text;
+  } {
     if (not checkIsPlatformAdmin(caller)) {
       Runtime.trap("Keine Berechtigung: nur Platform Admin");
     };
@@ -272,7 +275,13 @@ mixin (
 
   // Speichert die vollständige Platform-Admin-Konfiguration (inkl. Secrets)
   public shared ({ caller }) func setPlatformAdminConfig(
-    config : ApprovalTypes.PlatformAdminConfig
+    config : {
+      frontendCanisterId       : Text;
+      stripeWebhookEndpointUrl : Text;
+      stripeSecretKey          : Text;
+      stripePublishableKey     : Text;
+      stripeWebhookSecret      : Text;
+    }
   ) : async CommonTypes.Result<()> {
     if (not checkIsPlatformAdmin(caller)) {
       return #err("Keine Berechtigung: nur Platform Admin");

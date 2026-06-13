@@ -190,7 +190,7 @@ module {
   // Eintrittsjahr: pro-rata vom Eintrittsdatum bis 31.12.
   // Normaljahr: voller Jahresanspruch.
   // Austrittsjahr: pro-rata vom 01.01. bis Austrittsdatum.
-  // Alterslogik identisch mit calculateLegalVacationEntitlement (U20-Split bleibt).
+  // Alterslogik: Vergleich anhand des 1. Januar des Kalenderjahres für konsistente Prüfung.
   public func calculateCalendarYearEntitlement(
     geburtsdatum : ?Int,
     hireDate : Text,       // YYYY-MM-DD
@@ -214,8 +214,9 @@ module {
     // Gesamttage im Zeitraum (inkl. beider Grenztage)
     let startDays = dateToUnixDays(periodStart);
     let endDays   = dateToUnixDays(periodEnd);
+    let jan1Days  = dateToUnixDays(jan1);
     let periodDays : Float = (endDays - startDays + 1).toFloat();
-    let yearDays   : Float = (dateToUnixDays(dec31) - dateToUnixDays(jan1) + 1).toFloat();
+    let yearDays   : Float = (dateToUnixDays(dec31) - jan1Days + 1).toFloat();
 
     // Ohne Geburtsdatum: immer 4 Wochen (20 Tage) aliquot
     let birthdayNs : Int = switch (geburtsdatum) {
@@ -225,26 +226,34 @@ module {
       case (?b) { normalizeNs(b) };
     };
 
-    // 20. Geburtstag berechnen
+    // 20. Geburtstag korrekt berechnen: Geburtsdatum aus NS ableiten, dann 20 Jahre addieren
     let birthdayDate = nsToDate(birthdayNs);
     var bd20 = birthdayDate;
     var i = 0;
     while (i < 20) { bd20 := addOneYear(bd20); i += 1 };
 
-    // Liegt der 20. Geburtstag im Zeitraum?
-    if (bd20 < periodStart or bd20 > periodEnd) {
-      // Kein Split im Zeitraum
-      let bd20Days = dateToUnixDays(bd20);
-      let rate : Float = if (bd20Days <= startDays) { 20.0 } else { 25.0 };
-      let result = periodDays * rate / yearDays;
-      ((result * 100.0).toInt()).toFloat() / 100.0;
+    // Altersregel gemäss Schweizer OR für Kalenderjahre:
+    // - bd20 <= jan1: am 1.1. des Jahres bereits 20 → 4-Wochen-Regel (20 T) für ganzes Jahr
+    // - bd20 > dec31: am 31.12. noch < 20 → U20-Regel (25 T) für ganzes Jahr
+    // - bd20 liegt IM Kalenderjahr (nach Jan 1, vor/am Dec 31):
+    //   gemäss OR gilt die ab-20-Regel für das GESAMTE Kalenderjahr (kein Split bei Kalenderjahr-Methode)
+    let bd20Days = dateToUnixDays(bd20);
+    let jan1Days2 = dateToUnixDays(jan1);
+    let dec31Days = dateToUnixDays(dec31);
+
+    if (bd20Days <= jan1Days2) {
+      // Am 1.1. des Jahres bereits >= 20 → 4-Wochen-Regel für ganzes Jahr
+      let result = periodDays * 20.0 / yearDays;
+      (result * 100.0 + 0.5).toInt().toFloat() / 100.0;
+    } else if (bd20Days > dec31Days) {
+      // Am 31.12. noch < 20 → U20-Regel (25 Tage) für ganzes Jahr
+      let result = periodDays * 25.0 / yearDays;
+      (result * 100.0 + 0.5).toInt().toFloat() / 100.0;
     } else {
-      // Split: Tage vor 20. Geburtstag mit 25-Tage-Rate, ab Geburtstag mit 20-Tage-Rate
-      let bd20Days   = dateToUnixDays(bd20);
-      let daysBefore : Float = (bd20Days - startDays).toFloat();
-      let daysFrom   : Float = (endDays - bd20Days + 1).toFloat();
-      let ent = daysBefore * 25.0 / yearDays + daysFrom * 20.0 / yearDays;
-      ((ent * 100.0).toInt()).toFloat() / 100.0;
+      // bd20 liegt im Kalenderjahr: gemäss OR gilt ab-20-Regel für das GESAMTE Jahr
+      // (Swiss OR: das Jahr, in dem man 20 wird, gilt bereits als ab-20-Jahr)
+      let result = periodDays * 20.0 / yearDays;
+      (result * 100.0 + 0.5).toInt().toFloat() / 100.0;
     };
   };
 
@@ -431,10 +440,12 @@ module {
 
   // ─── Weekly overtime calculation ─────────────────────────────────────────────
 
-  // Berechnet vertragliche und gesetzliche Überstunden für eine Woche
+  // Berechnet vertragliche und gesetzliche Überstunden für eine Woche.
+  // contractualWeeklyH: Soll-Stunden aus der Beschäftigung (wird von außen übergeben).
   public func calculateWeeklyOvertime(
     weekTimeEntries : [TrackingTypes.TimeEntry],
     profile : ComplianceTypes.EmployeeComplianceProfile,
+    contractualWeeklyH : Float,
   ) : WeeklyOvertimeResult {
     // Effektive Wochenarbeitszeit in Stunden
     var totalHours : Float = 0.0;
@@ -458,8 +469,8 @@ module {
       totalHours += entryHours;
     };
 
-    // Vertragliche Überstunden = max(0, istStunden - vertraglicheWochenstunden)
-    let contractualOvertimeH = Float.max(0.0, totalHours - profile.vertraglicheWochenstunden);
+    // Vertragliche Überstunden = max(0, istStunden - Soll-Stunden aus Beschäftigung)
+    let contractualOvertimeH = Float.max(0.0, totalHours - contractualWeeklyH);
     // Gesetzliche Überzeit = max(0, istStunden - gesetzlicheWochenhöchstarbeitszeit)
     let legalOvertimeH = Float.max(0.0, totalHours - profile.gesetzlicheWochenhochstarbeitszeit);
 
@@ -475,11 +486,11 @@ module {
   ) : [RestTimeCheckResult] {
     let nsPerHour : Float = 3_600_000_000_000.0;
 
-    // Nur Einträge mit Von/Bis-Zeiten und Datum berücksichtigen
+    // Nur Einträge MIT von UND bis berücksichtigen.
+    // Reine hours-only Einträge werden NICHT synthetisiert – sie würden falsche
+    // Ruhezeit-Verstösse für Tage ohne tatsächliche Von/Bis-Zeitangabe erzeugen.
     type EntryTime = { id : Nat; startNs : Int; endNs : Int };
 
-    // Von/Bis-Strings zu Nanosekunden konvertieren (HH:MM am Datum)
-    // von und bis sind im Format "HH:MM"
     let withTimes : [EntryTime] = allEntries.filterMap<TrackingTypes.TimeEntry, EntryTime>(
       func(te) {
         switch (te.von, te.bis) {
@@ -493,6 +504,7 @@ module {
             } else { endNs };
             ?{ id = te.id; startNs; endNs = adjustedEndNs };
           };
+          // hours-only Einträge: IGNORIEREN (kein synthetisches 08:00-Start)
           case _ { null };
         };
       }
@@ -505,23 +517,32 @@ module {
       Int.compare(a.startNs, b.startNs);
     });
 
-    // Für jedes konsekutive Paar Ruhezeit berechnen
+    // Für jedes konsekutive Paar Ruhezeit berechnen.
+    // Ruhezeit = Lücke zwischen Ende der vorherigen und Beginn der nächsten Arbeitssession.
+    // Tage ohne Einträge (Wochenenden, Feiertage, Freitage) liegen natürlich im Zeitabstand.
     var results : [RestTimeCheckResult] = [];
     var i = 0;
     while (i + 1 < sorted.size()) {
       let prev = sorted[i];
       let next = sorted[i + 1];
-      let restNs : Int = next.startNs - prev.endNs;
-      let restHours : Float = restNs.toFloat() / nsPerHour;
-      let isCompliant = restHours >= 11.0;
-      results := results.concat([{
-        prevEntryId = prev.id;
-        nextEntryId = next.id;
-        prevEnd = prev.endNs;
-        nextStart = next.startNs;
-        restHours;
-        isCompliant;
-      }]);
+      // Nur prüfen wenn prev und next auf VERSCHIEDENEN Tagen liegen.
+      // Blöcke am gleichen Tag (z.B. Morgen- und Abendschicht) werden nicht als
+      // tagesübergreifende Ruhezeitverletzung gewertet.
+      let prevDate = nsToDate(prev.endNs);
+      let nextDate = nsToDate(next.startNs);
+      if (prevDate != nextDate) {
+        let restNs : Int = next.startNs - prev.endNs;
+        let restHours : Float = restNs.toFloat() / nsPerHour;
+        let isCompliant = restHours >= 11.0;
+        results := results.concat([{
+          prevEntryId = prev.id;
+          nextEntryId = next.id;
+          prevEnd = prev.endNs;
+          nextStart = next.startNs;
+          restHours;
+          isCompliant;
+        }]);
+      };
       i += 1;
     };
     results;
@@ -620,13 +641,28 @@ module {
     serviceYearEnd : Text,
     minBlockDays : Nat,
   ) : { satisfied : Bool; longestBlock : Int; warningTriggered : Bool } {
-    // Nur genehmigte Ferien im Dienstjahr berücksichtigen
+    // Nur genehmigte oder eingereichte Ferien im Dienstjahr berücksichtigen
     let ferienImDienstjahr = vacations.filter(func(ab) {
-      ab.status == #approved and ab.dateFrom >= serviceYearStart and ab.dateTo <= serviceYearEnd;
+      (ab.status == #approved or ab.status == #submitted)
+        and ab.dateFrom >= serviceYearStart and ab.dateTo <= serviceYearEnd;
     });
 
     if (ferienImDienstjahr.size() == 0) {
       return { satisfied = false; longestBlock = 0; warningTriggered = true };
+    };
+
+    // Hilfsfunktion: Anzahl Arbeitstage (Mo–Fr) zwischen zwei Daten (inkl. beider Grenztage)
+    func countWorkingDays(from : Text, to_ : Text) : Int {
+      let fromD = dateToUnixDays(from);
+      let toD   = dateToUnixDays(to_);
+      var count : Int = 0;
+      var d = fromD;
+      while (d <= toD) {
+        let dow = ((d + 3) % 7).toNat(); // 0=Mo...4=Fr, 5=Sa, 6=So
+        if (dow < 5) { count += 1 };
+        d += 1;
+      };
+      count;
     };
 
     // Nach Startdatum sortieren
@@ -638,43 +674,46 @@ module {
       }
     );
 
-    // Zusammenhängende Blöcke berechnen (Blöcke die sich direkt anschliessen oder überlappen)
-    var longestBlock : Int = 0;
+    // Zusammenhängende Blöcke berechnen (Blöcke die sich direkt anschliessen oder überlappen,
+    // max. 2 Tage Lücke für Wochenenden)
+    var longestBlockWorkDays : Int = 0;
+    var longestBlockCalDays  : Int = 0;
     var currentBlockStart = "";
     var currentBlockEnd = "";
-    var currentBlockDays : Int = 0;
 
     for (ab in sorted.values()) {
       if (currentBlockStart == "") {
-        // Erster Block
         currentBlockStart := ab.dateFrom;
         currentBlockEnd := ab.dateTo;
-        currentBlockDays := dateToUnixDays(ab.dateTo) - dateToUnixDays(ab.dateFrom) + 1;
       } else {
-        // Prüfen ob dieser Block direkt an den vorherigen anschliesst (max. 3 Tage Lücke für Wochenenden)
         let gapDays = dateToUnixDays(ab.dateFrom) - dateToUnixDays(currentBlockEnd) - 1;
         if (gapDays <= 2) {
-          // Block erweitern (maximal 2 Tage Lücke für Wochenende zulassen)
-          currentBlockEnd := ab.dateTo;
-          currentBlockDays := dateToUnixDays(currentBlockEnd) - dateToUnixDays(currentBlockStart) + 1;
+          // Block erweitern
+          if (ab.dateTo > currentBlockEnd) { currentBlockEnd := ab.dateTo };
         } else {
-          // Neuer Block
-          if (currentBlockDays > longestBlock) { longestBlock := currentBlockDays };
+          // Block abschliessen
+          let wDays = countWorkingDays(currentBlockStart, currentBlockEnd);
+          let cDays = dateToUnixDays(currentBlockEnd) - dateToUnixDays(currentBlockStart) + 1;
+          if (wDays > longestBlockWorkDays) { longestBlockWorkDays := wDays };
+          if (cDays > longestBlockCalDays)  { longestBlockCalDays  := cDays };
           currentBlockStart := ab.dateFrom;
           currentBlockEnd := ab.dateTo;
-          currentBlockDays := dateToUnixDays(ab.dateTo) - dateToUnixDays(ab.dateFrom) + 1;
         };
       };
     };
-    // Letzten Block prüfen
-    if (currentBlockDays > longestBlock) { longestBlock := currentBlockDays };
+    // Letzten Block abschliessen
+    if (currentBlockStart != "") {
+      let wDays = countWorkingDays(currentBlockStart, currentBlockEnd);
+      let cDays = dateToUnixDays(currentBlockEnd) - dateToUnixDays(currentBlockStart) + 1;
+      if (wDays > longestBlockWorkDays) { longestBlockWorkDays := wDays };
+      if (cDays > longestBlockCalDays)  { longestBlockCalDays  := cDays };
+    };
 
-    // 10 Arbeitstage = ca. 14 Kalendertage (5-Tage-Woche)
-    let minCalendarDays : Int = (minBlockDays * 14) / 10;
-    let satisfied = longestBlock >= minCalendarDays;
-    // Warnung wenn Dienstjahr mehr als 2/3 vorbei und noch nicht erfüllt
+    // Erfüllt wenn längster Block >= minBlockDays Arbeitstage (Mo–Fr)
+    let satisfied = longestBlockWorkDays >= minBlockDays.toInt();
     let warningTriggered = not satisfied;
-    { satisfied; longestBlock; warningTriggered };
+    // longestBlock als Kalendertage zurückgeben (für Anzeige)
+    { satisfied; longestBlock = longestBlockCalDays; warningTriggered };
   };
 
   // ─── Compliance finding creation helpers ───────────────────────────────────────
@@ -787,6 +826,7 @@ module {
 
   // Führt den wöchentlichen Compliance-Check für einen Mitarbeiter durch.
   // Gibt generierte Findings zurück (noch nicht persistiert).
+  // contractualWeeklyH: Soll-Stunden aus der Beschäftigung (überschreibt Profil-Wert).
   public func runWeeklyCheckForEmployee(
     employeeId : Nat,
     companyId : Nat,
@@ -796,6 +836,7 @@ module {
     profile : ComplianceTypes.EmployeeComplianceProfile,
     nextFindingId : { var value : Nat },
     pauseOverrides : [ComplianceTypes.PauseOverride],
+    contractualWeeklyH : Float,
   ) : [ComplianceTypes.ComplianceFinding] {
     var findings : [ComplianceTypes.ComplianceFinding] = [];
 
@@ -805,8 +846,8 @@ module {
         and te.date >= weekStart and te.date <= weekEnd;
     });
 
-    // 1. Überstunden
-    let overtimeResult = calculateWeeklyOvertime(weekEntries, profile);
+    // 1. Überstunden (Soll-Stunden aus Beschäftigung)
+    let overtimeResult = calculateWeeklyOvertime(weekEntries, profile, contractualWeeklyH);
     let weekKey = weekStart; // Verwende Montag als Wochenschlüssel
 
     if (overtimeResult.contractualOvertimeH > 0.0) {
@@ -818,7 +859,7 @@ module {
         "OVERTIME_CONTRACTUAL",
         #INFO,
         overtimeResult.contractualOvertimeH,
-        profile.vertraglicheWochenstunden,
+        contractualWeeklyH,
         "h",
         "Vertragliche Überstunden: " # floatToText(overtimeResult.contractualOvertimeH, 2) # "h über Sollzeit",
         ?"OR Art. 321c",
@@ -857,11 +898,14 @@ module {
         // Violation gehört zum Tag des NÄCHSTEN Arbeitsbeginns (rv.nextStart)
         let violationDate = nsToDate(rv.nextStart);
         if (violationDate >= weekStart and violationDate <= weekEnd) {
+          // periodeKey als Datumspaar für eindeutige Identifikation der Ruhezeit-Verletzung
+          let prevDate = nsToDate(rv.prevEnd);
+          let restPeriodeKey = prevDate # "_" # violationDate;
           let id = nextFindingId.value;
           nextFindingId.value += 1;
           findings := findings.concat([makeFinding(
             id, employeeId, companyId,
-            #DAY, violationDate,
+            #DAY, restPeriodeKey,
             "REST_TIME",
             #BREACH,
             rv.restHours,
@@ -926,6 +970,39 @@ module {
       while (k < needed) { pad #= "0"; k += 1 };
     };
     intText # "." # pad # fracText;
+  };
+
+  // ─── Contractual hours helper ──────────────────────────────────────────────
+
+  // Gibt die vertraglichen Wochenstunden aus der zum Datum gültigen Beschäftigung zurück.
+  // dateISO: YYYY-MM-DD; employments: alle Beschäftigungen des Mitarbeiters.
+  // Gibt null zurück, wenn keine gültige Beschäftigung für das Datum gefunden.
+  public func getContractualHoursForDate(
+    employeeId : Nat,
+    dateISO : Text,
+    employments : [CompanyTypes.Employment],
+  ) : ?Float {
+    let dateNs = dateToNs(dateISO);
+    // Suche die zum Datum gültige Beschäftigung
+    var result : ?Float = null;
+    for (emp in employments.vals()) {
+      if (emp.employeeId == employeeId) {
+        let vonNs = normalizeNs(emp.von);
+        let afterVon = dateNs >= vonNs;
+        let beforeBis = switch (emp.bis) {
+          case null { true };
+          case (?bis) { dateNs <= normalizeNs(bis) };
+        };
+        if (afterVon and beforeBis) {
+          // Wochenstunden = Summe aller Tage in Minuten / 60
+          let totalMinutes : Nat = emp.stundenMo + emp.stundenDi + emp.stundenMi +
+            emp.stundenDo + emp.stundenFr + emp.stundenSa + emp.stundenSo;
+          let weeklyHours : Float = totalMinutes.toFloat() / 60.0;
+          result := ?weeklyHours;
+        };
+      };
+    };
+    result;
   };
 
   // ─── Unit tests ───────────────────────────────────────────────────────────────
@@ -994,7 +1071,8 @@ module {
       Debug.print("[Test 4 " # (if allCompliant "PASS" else "FAIL") # "] Rest time Fr→Mo 58h: all compliant=" # debug_show(allCompliant));
     };
 
-    // Test 5: Ruhezeit 09:00 → 18:00 gleicher Tag = 9h (BREACH)
+    // Test 5: Ruhezeit 01:00-09:00 → 18:00-22:00 gleicher Tag = 9h (BREACH)
+    // Zwei Blöcke am gleichen Tag: kein tagesübergreifender Verstoss erwartet
     do {
       let entries : [TrackingTypes.TimeEntry] = [
         {
@@ -1012,9 +1090,70 @@ module {
           createdAt = 0; fakturiertInRechnungId = null;
         },
       ];
+      // Gleicher Tag: keine tagesübergreifende Ruhezeitverletzung erwartet
+      let violations = checkRestTimeViolations(entries);
+      let noInterDayViolation = violations.size() == 0;
+      Debug.print("[Test 5 " # (if noInterDayViolation "PASS" else "FAIL") # "] Same-day blocks: no inter-day violation (violations=" # violations.size().toText() # ")");
+    };
+
+    // Test 6: Ruhezeit Di 23:00 → Mi 07:00 = 8h (BREACH, tagesübergreifend)
+    do {
+      let entries : [TrackingTypes.TimeEntry] = [
+        {
+          id = 5; companyId = 1; employeeId = 1; projectId = 0; serviceTypeId = 0;
+          date = "2026-05-12"; hours = 8.0;
+          von = ?"15:00"; bis = ?"23:00";
+          description = "Dienstag"; billable = false;
+          createdAt = 0; fakturiertInRechnungId = null;
+        },
+        {
+          id = 6; companyId = 1; employeeId = 1; projectId = 0; serviceTypeId = 0;
+          date = "2026-05-13"; hours = 8.0;
+          von = ?"07:00"; bis = ?"15:00";
+          description = "Mittwoch"; billable = false;
+          createdAt = 0; fakturiertInRechnungId = null;
+        },
+      ];
       let violations = checkRestTimeViolations(entries);
       let hasViolation = violations.any(func(r) { not r.isCompliant });
-      Debug.print("[Test 5 " # (if hasViolation "PASS" else "FAIL") # "] Rest time 9h breach: hasViolation=" # debug_show(hasViolation));
+      assert(hasViolation);
+      // Überprüfe dass Ruhezeit korrekt als 8h berechnet wird
+      let violation = violations.find(func(r) { not r.isCompliant });
+      switch (violation) {
+        case null {};
+        case (?v) {
+          let restHoursOk = v.restHours > 7.9 and v.restHours < 8.1;
+          assert(restHoursOk);
+          Debug.print("[Test 6 PASS] Rest time Di 23:00→Mi 07:00=" # floatToText(v.restHours, 1) # "h (Verstoss < 11h)");
+        };
+      };
+      if (not hasViolation) {
+        Debug.print("[Test 6 FAIL] Rest time Di 23:00→Mi 07:00: kein Verstoss erkannt!");
+      };
+    };
+
+    // Test 7: hours-only Einträge erzeugen keine falschen Ruhezeitverstösse
+    do {
+      let entries : [TrackingTypes.TimeEntry] = [
+        {
+          id = 7; companyId = 1; employeeId = 1; projectId = 0; serviceTypeId = 0;
+          date = "2026-05-18"; hours = 8.0;
+          von = null; bis = null;
+          description = "Montag hours-only"; billable = false;
+          createdAt = 0; fakturiertInRechnungId = null;
+        },
+        {
+          id = 8; companyId = 1; employeeId = 1; projectId = 0; serviceTypeId = 0;
+          date = "2026-05-19"; hours = 8.0;
+          von = null; bis = null;
+          description = "Dienstag hours-only"; billable = false;
+          createdAt = 0; fakturiertInRechnungId = null;
+        },
+      ];
+      let violations = checkRestTimeViolations(entries);
+      let noViolations = violations.size() == 0;
+      assert(noViolations);
+      Debug.print("[Test 7 " # (if noViolations "PASS" else "FAIL") # "] hours-only entries: no rest-time violations generated");
     };
 
     Debug.print("[Compliance unit tests complete]");

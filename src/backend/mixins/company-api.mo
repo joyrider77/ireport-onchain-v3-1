@@ -193,6 +193,8 @@ mixin (
     firstName : Text,
     lastName : Text,
     email : Text,
+    planId : ?Text,
+    billingModel : ?Text,
   ) : async CommonTypes.Result<CompanyTypes.Company> {
     if (CompanyLib.isRegistered(principalToCompany, caller)) {
       return #err("Diese Identität ist bereits registriert");
@@ -299,19 +301,84 @@ mixin (
     appendCompanyAudit(caller, companyId, #company, #create, companyId.toText(), null, ?companyToText(company));
     appendCompanyAudit(caller, companyId, #employee, #create, emp.id.toText(), null, ?employeeToText(emp));
 
-    // Abonnement-Zuweisung: Initial 'basis' Plan setzen (ohne Auto-Wechsel)
-    // Die eigentliche Planwechsel-Bestätigung erfolgt über applyPlanChange() nach Benutzer-Dialog.
+    // Default-Pläne initialisieren (nur einmal, unabhängig von der Firma)
+    if (not subscriptionPlansInitialized.value) {
+      subscriptionPlansInitialized.value := true;
+      let _now0 = Time.now();
+      if (not subscriptionPlans.containsKey("basis")) {
+        let _b : CostDashboardTypes.SubscriptionPlan = {
+          id = "basis"; name = "Basis"; description = "Für kleine Teams";
+          pricePerMonthCHF = 10.0; pricePerYearCHF = 9.0;
+          minActiveDaysPerMonth = 1; maxEmployees = ?2;
+          features = ["Dashboard", "Zeiterfassung", "Auswertungen", "Stammdaten", "Kalenderübersicht", "Fakturierung", "Einstellungen"];
+          isActive = true; sortOrder = 0; updatedAt = _now0;
+          stripeProductId = null; stripePriceId = null; stripePriceIdYearly = null; stripeLookupKey = null;
+          paymentProvider = #none; requiresPayment = false; stripeMode = null;
+          isRecommended = false; additionalFeatures = ["Basis E-Mail Support"];
+        };
+        subscriptionPlans.add("basis", _b);
+      };
+      if (not subscriptionPlans.containsKey("professional")) {
+        let _p : CostDashboardTypes.SubscriptionPlan = {
+          id = "professional"; name = "Professional"; description = "Für wachsende Unternehmen";
+          pricePerMonthCHF = 11.0; pricePerYearCHF = 10.0;
+          minActiveDaysPerMonth = 1; maxEmployees = null;
+          features = ["Dashboard", "Zeiterfassung", "Auswertungen", "Stammdaten", "Kalenderübersicht", "Fakturierung", "Einstellungen", "Spesenerfassung"];
+          isActive = true; sortOrder = 1; updatedAt = _now0;
+          stripeProductId = null; stripePriceId = null; stripePriceIdYearly = null; stripeLookupKey = null;
+          paymentProvider = #stripe; requiresPayment = true; stripeMode = null;
+          isRecommended = true; additionalFeatures = ["Premium E-Mail Support", "Premium Onboarding-Service"];
+        };
+        subscriptionPlans.add("professional", _p);
+      };
+    };
+
+    // Abonnement-Zuweisung: übergebenen Plan und Abrechnungsmodell verwenden
     if (not isPlatformAdminCompany_(companyId)) {
       // Nur zuweisen wenn noch kein Plan vorhanden
       let initKey = companyId.toText();
       switch (companySubscriptions.get(initKey)) {
         case null {
-          companySubscriptions.add(initKey, "basis");
+          // BillingModel aus billingModel-Parameter ermitteln
+          let resolvedBillingModel : CostDashboardTypes.BillingModel = switch (billingModel) {
+            case (?bm) {
+              if (bm == "yearly") { #yearly } else { #monthly }
+            };
+            case null { #monthly };
+          };
+          // Plan-ID validieren: prüfe ob der angegebene Plan in subscriptionPlans vorhanden ist
+          let resolvedPlanId : Text = switch (planId) {
+            case (?pid) {
+              if (pid != "" and subscriptionPlans.containsKey(pid)) {
+                pid
+              } else {
+                // Fallback: ersten aktiven Plan suchen
+                let firstActive = subscriptionPlans.values().toArray()
+                  .filter(func(p : CostDashboardTypes.SubscriptionPlan) : Bool { p.isActive })
+                  .find(func(_ : CostDashboardTypes.SubscriptionPlan) : Bool { true });
+                switch (firstActive) {
+                  case (?p) { p.id };
+                  case null { "basis" }; // letzter Fallback
+                };
+              }
+            };
+            case null {
+              // Fallback: ersten aktiven Plan suchen
+              let firstActive = subscriptionPlans.values().toArray()
+                .filter(func(p : CostDashboardTypes.SubscriptionPlan) : Bool { p.isActive })
+                .find(func(_ : CostDashboardTypes.SubscriptionPlan) : Bool { true });
+              switch (firstActive) {
+                case (?p) { p.id };
+                case null { "basis" }; // letzter Fallback
+              };
+            };
+          };
           let initNow = Time.now();
+          companySubscriptions.add(initKey, resolvedPlanId);
           companySubscriptionDetails.add(initKey, {
             companyId;
-            planId                       = "basis";
-            billingModel                 = #monthly;
+            planId                       = resolvedPlanId;
+            billingModel                 = resolvedBillingModel;
             subscriptionStartDate        = ?initNow;
             proRataAmount                = null;
             proRataNote                  = null;
@@ -455,7 +522,7 @@ mixin (
 
     // Auto-Initialisierung: Standard-Compliance-Profil fuer neuen Mitarbeiter erstellen
     // aktiv = true: sofort aktiv, damit der wöchentliche Compliance-Check greift.
-    // Admin kann das Profil deaktivieren falls gewünscht.
+    // vertraglicheWochenstunden wird NICHT gespeichert – wird aus der Beschäftigung gelesen.
     let _cpNow = Time.now();
     let _cpId = nextComplianceProfileId.value;
     nextComplianceProfileId.value += 1;
@@ -464,7 +531,6 @@ mixin (
       employeeId = emp.id;
       companyId;
       aktiv = true;
-      vertraglicheWochenstunden = 42.0;
       gesetzlicheWochenhochstarbeitszeit = 45.0;
       gesetzlicherFerienanspruchWochen = 4.0;
       vertraglicheZusatzferienTage = 0.0;

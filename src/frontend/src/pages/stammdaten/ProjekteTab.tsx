@@ -33,7 +33,7 @@ import { Pencil, Plus, Trash2, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { createActor } from "../../backend";
-import { Erfassungsart, type Result_31 } from "../../backend.d";
+import { Erfassungsart, type Result_32, type Result_33 } from "../../backend.d";
 import type {
   Customer,
   Employee,
@@ -309,7 +309,7 @@ export function ProjekteTab() {
       // Load Aufwendungen
       setAufwendungenLoading(true);
       try {
-        const aufRes = (await actor.getProjectAufwendungen(p.id)) as Result_31;
+        const aufRes = (await actor.getProjectAufwendungen(p.id)) as Result_33;
         if (aufRes.__kind__ === "ok") {
           setAufwendungen(aufRes.ok);
         } else {

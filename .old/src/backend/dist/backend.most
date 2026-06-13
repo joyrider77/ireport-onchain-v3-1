@@ -1,4 +1,4 @@
-// Version: 3.0.0
+// Version: 1.0.0
 type AbsenceId__566303636 = AbsenceId__898390444;
 type AbsenceId__898390444 = Nat;
 type AbsenceStatus__130099621 = AbsenceStatus__137932448;
@@ -44,12 +44,8 @@ type Absence__28528802 =
     resetReason : ?Text;
     status : AbsenceStatus__130099621
   };
-type ApprovalRecord__756343974 =
-  {
-    approvedBy : ?Principal;
-    reason : ?Text;
-    status : TimeEntryStatus__162148995
-  };
+type AffectedRecordCounts__748351653 =
+  {absences : Nat; expenses : Nat; timeEntries : Nat};
 type AuditEntityType__1009904634 =
   {
     #absence;
@@ -78,7 +74,7 @@ type AuditEntry__60967837 =
     reason : ?Text;
     targetId : Nat;
     targetType : Text;
-    timestamp : Time__900049286
+    timestamp : Time__688418391
   };
 type AuditFieldChange__588698692 =
   {after : Text; before : Text; fieldName : Text};
@@ -104,6 +100,7 @@ type CalendarVisibilityMode__598681992 =
 type CompanyId__241400914 = CompanyId__78853864;
 type CompanyId__325828088 = CompanyId__78853864;
 type CompanyId__611048003 = CompanyId__78853864;
+type CompanyId__615918042 = CompanyId__78853864;
 type CompanyId__78853864 = Nat;
 type CompanyId__79303973 = CompanyId__78853864;
 type CompanySettings__480969918 =
@@ -208,8 +205,8 @@ type Customer__249378344 =
   };
 type CycleSnapshot__358468327 =
   {backendCycles : Nat; frontendCycles : Nat; timestamp : Int};
-type Data__791452850<K, V> =
-  {var count : Nat__490723111; kvs : [var ?(K, V)]};
+type Data__80296667<K, V> =
+  {var count : Nat__1040412405; kvs : [var ?(K, V)]};
 type DefaultWorkHours__769980497 =
   {
     companyId : CompanyId__241400914;
@@ -235,10 +232,10 @@ type EmployeeComplianceProfile__371928535 =
     gesetzlicherFerienanspruchWochen : Float;
     id : Nat;
     updatedAt : Int;
-    vertraglicheWochenstunden : Float;
     vertraglicheZusatzferienTage : Float
   };
 type EmployeeId__1049491328 = EmployeeId__291433800;
+type EmployeeId__208851358 = EmployeeId__291433800;
 type EmployeeId__291433800 = Nat;
 type EmployeeId__295856511 = EmployeeId__291433800;
 type EmployeeId__731972780 = EmployeeId__291433800;
@@ -352,12 +349,12 @@ type HttpRequestResult__525946780 =
   {body : Blob; headers : [HttpHeader__386309350]; status : Nat};
 type HttpTransformArgs__423099675 =
   {context : Blob; response : HttpRequestResult__525946780};
-type Int__270357528 = Int__616954475;
 type Int__616954475 = Int;
-type Internal__8484328<K, V> =
-  {children : [var ?Node__46230540<K, V>]; data : Data__791452850<K, V>};
-type InviteCode__761281821 =
-  {code : Text; created : Time__900049286; used : Bool};
+type Int__837511138 = Int__616954475;
+type Internal__41346355<K, V> =
+  {children : [var ?Node__1000929467<K, V>]; data : Data__80296667<K, V>};
+type InviteCode__179565162 =
+  {code : Text; created : Time__688418391; used : Bool};
 type InviteEntry__222930697 =
   {employeeId : EmployeeId__291433800; expiresAt : Timestamp__301639476};
 type InvoicePositionTyp__463880596 = {#freitext; #leistung; #spese};
@@ -438,8 +435,20 @@ type Invoice__510667895 =
     waehrung : Text;
     zwischensumme : Float
   };
+type KnowledgeEntry__132053027 =
+  {
+    category : Text;
+    content : Text;
+    createdAt : Int;
+    id : Text;
+    isActive : Bool;
+    language : Text;
+    role : Text;
+    title : Text;
+    updatedAt : Int
+  };
 type KundeZeiterfassungsart__747958630 = {#block; #stuendlich};
-type Leaf__809889148<K, V> = {data : Data__791452850<K, V>};
+type Leaf__712614010<K, V> = {data : Data__80296667<K, V>};
 type LegacyAbsenceType__1040891562 =
   {
     aktiv : Bool;
@@ -599,6 +608,21 @@ type LegacyCompanySubscription__983052299 =
     planId : Text;
     subscriptionStartDate : ?Int
   };
+type LegacyComplianceProfile__24551349 =
+  {
+    aktiv : Bool;
+    ausnahmeprofil : ?Text;
+    companyId : Nat;
+    createdAt : Int;
+    employeeId : Nat;
+    erfassungsModus : Text;
+    gesetzlicheWochenhochstarbeitszeit : Float;
+    gesetzlicherFerienanspruchWochen : Float;
+    id : Nat;
+    updatedAt : Int;
+    vertraglicheWochenstunden : Float;
+    vertraglicheZusatzferienTage : Float
+  };
 type LegacyProjectMemberAssignment__840672196 =
   {
     employeeId : EmployeeId__291433800;
@@ -672,21 +696,14 @@ type LegacySubscriptionPlan__370689908 =
     sortOrder : Nat;
     updatedAt : Int
   };
-type List__415060402<T> = List__790383201<T>;
-type List__790383201<T> =
-  {
-    var blockIndex : Nat__490723111;
-    var blocks : [var [var ?T]];
-    var elementIndex : Nat__490723111
-  };
-type Map__158565046<K, V> = Map__297112838<K, V>;
-type Map__297112838<K, V> =
-  {var root : Node__46230540<K, V>; var size : Nat__490723111};
-type Map__605269027<K, V> = Map__158565046<K, V>;
-type Nat__490723111 = Nat__920180692;
+type Map__222667396<K, V> = Map__912772452<K, V>;
+type Map__709709801<K, V> =
+  {var root : Node__1000929467<K, V>; var size : Nat__1040412405};
+type Map__912772452<K, V> = Map__709709801<K, V>;
+type Nat__1040412405 = Nat__920180692;
 type Nat__920180692 = Nat;
-type Node__46230540<K, V> =
-  {#internal : Internal__8484328<K, V>; #leaf : Leaf__809889148<K, V>};
+type Node__1000929467<K, V> =
+  {#internal : Internal__41346355<K, V>; #leaf : Leaf__712614010<K, V>};
 type NotificationFormat__967660227 = {#html; #markdown};
 type NotificationPriority__169660318 = {#critical; #important; #normal};
 type NotificationStatus__15266 = {#archived; #draft; #sent};
@@ -709,23 +726,7 @@ type Notification__766161334 =
     validFrom : Int;
     validUntil : ?Int
   };
-type OldVacationLedger__1051620977 =
-  {
-    bezogeneFerientage : Float;
-    companyId : Nat;
-    employeeId : Nat;
-    geplanteFerientage : Float;
-    gesetzlicheFerientage : Float;
-    id : Nat;
-    laengsterZusammenhangenderBlock : Int;
-    lastUpdatedAt : Int;
-    serviceYearEnd : Int;
-    serviceYearKey : Text;
-    serviceYearStart : Int;
-    twoWeekBlockSatisfied : Bool;
-    verbleibendeFerientage : Float;
-    vertraglicheZusatzferienTage : Float
-  };
+type OpenAIConfig__955417066 = {apiKey : Text};
 type PauseOverride__756492108 =
   {
     action : Text;
@@ -741,6 +742,59 @@ type PauseOverride__756492108 =
     userId : Nat
   };
 type PaymentProvider__627392659 = {#manual; #none; #stripe};
+type PeriodCloseAction__815883149 =
+  {#close; #close_failed; #force_close; #reopen};
+type PeriodCloseAuditEntry__485822870 =
+  {
+    action : PeriodCloseAction__815883149;
+    affectedRecordCounts : ?AffectedRecordCounts__748351653;
+    auditId : Text;
+    employeeId : ?EmployeeId__208851358;
+    newStatus : PeriodCloseStatus__371801914;
+    oldStatus : PeriodCloseStatus__371801914;
+    performedAt : Timestamp__558879987;
+    performedByUserId : EmployeeId__208851358;
+    periodEnd : Int;
+    periodStart : Int;
+    reason : ?Text;
+    tenantId : CompanyId__615918042;
+    warnings : ?[Text]
+  };
+type PeriodCloseConfig__298619960 =
+  {
+    allowCloseWithComplianceWarnings : Bool;
+    allowCloseWithOpenAbsences : Bool;
+    allowCloseWithOpenExpenses : Bool;
+    allowCloseWithOpenTimeEntries : Bool;
+    enabled : Bool;
+    onlyAdminCanReopen : Bool;
+    requireReopenReason : Bool
+  };
+type PeriodCloseId__289097160 = Text;
+type PeriodCloseStatus__371801914 =
+  {#closed; #open; #ready_for_close; #reopened};
+type PeriodClose__284670540 =
+  {
+    affectedRecordCounts : ?AffectedRecordCounts__748351653;
+    closeComment : ?Text;
+    closeId : PeriodCloseId__289097160;
+    closedAt : ?Timestamp__558879987;
+    closedByUserId : ?EmployeeId__208851358;
+    createdAt : Timestamp__558879987;
+    employeeId : ?EmployeeId__208851358;
+    month : Nat;
+    periodEnd : Int;
+    periodStart : Int;
+    periodType : PeriodType__725821609;
+    reopenReason : ?Text;
+    reopenedAt : ?Timestamp__558879987;
+    reopenedByUserId : ?EmployeeId__208851358;
+    status : PeriodCloseStatus__371801914;
+    tenantId : CompanyId__615918042;
+    updatedAt : Timestamp__558879987;
+    year : Nat
+  };
+type PeriodType__725821609 = {#month};
 type ProjectAssignment__586620756 =
   {
     companyId : CompanyId__325828088;
@@ -773,12 +827,12 @@ type Project__112535386 =
     projektleiter : ?EmployeeId__1049491328;
     status : ProjectStatus__818766171
   };
-type RSVP__815186634 =
+type RSVP__1062564422 =
   {
     attending : Bool;
     inviteCode : Text;
     name : Text;
-    timestamp : Time__900049286
+    timestamp : Time__688418391
   };
 type ReadStatus__512016692 =
   {notificationId : Text; readAt : Int; userId : Text};
@@ -872,10 +926,12 @@ type StripeInvoice__1052976534 =
   };
 type SubscriptionPlan__661458146 =
   {
+    additionalFeatures : [Text];
     description : Text;
     features : [Text];
     id : Text;
     isActive : Bool;
+    isRecommended : Bool;
     maxEmployees : ?Nat;
     minActiveDaysPerMonth : Nat;
     name : Text;
@@ -891,6 +947,16 @@ type SubscriptionPlan__661458146 =
     stripeProductId : ?Text;
     updatedAt : Int
   };
+type TenantComplianceRule__1009618801 =
+  {
+    customValue : ?Float;
+    isActive : Bool;
+    isCustomized : Bool;
+    modifiedAt : Int;
+    modifiedBy : Text;
+    ruleCode : Text;
+    tenantId : Text
+  };
 type TimeBalanceCorrection__104618633 =
   {
     bemerkung : Text;
@@ -902,22 +968,8 @@ type TimeBalanceCorrection__104618633 =
     ueberzeit : Int;
     wirkungsdatum : Int
   };
-type TimeEntryApprovalAuditEntry__113100441 =
-  {
-    action : Text;
-    changedBy : Principal;
-    id : Nat;
-    newStatus : Text;
-    oldStatus : Text;
-    previousApprovedBy : ?Principal;
-    reason : ?Text;
-    targetId : Nat;
-    targetType : Text;
-    timestamp : Int
-  };
 type TimeEntryId__419300627 = Nat;
 type TimeEntryId__626070962 = TimeEntryId__419300627;
-type TimeEntryStatus__162148995 = {#approved; #draft; #rejected; #submitted};
 type TimeEntry__976722040 =
   {
     billable : Bool;
@@ -934,12 +986,13 @@ type TimeEntry__976722040 =
     serviceTypeId : ServiceTypeId__783028775;
     von : ?Text
   };
-type Time__796480547 = Int__270357528;
-type Time__900049286 = Time__796480547;
-type TimerId__422952500 = Nat;
+type Time__298180599 = Int__837511138;
+type Time__688418391 = Time__298180599;
+type TimerId__625571955 = Nat;
 type Timestamp__301639476 = Int;
 type Timestamp__31166947 = Timestamp__301639476;
 type Timestamp__43627346 = Timestamp__301639476;
+type Timestamp__558879987 = Timestamp__301639476;
 type Timestamp__717676456 = Timestamp__301639476;
 type UserNotificationSettings__454568734 =
   {
@@ -948,7 +1001,7 @@ type UserNotificationSettings__454568734 =
     emailOnApproval : Bool;
     principalId : Principal
   };
-type UserRole__1054455867 = {#admin; #guest; #user};
+type UserRole__1073662873 = {#admin; #guest; #user};
 type VacationBalance__927019941 =
   {
     companyId : CompanyId__241400914;
@@ -976,7 +1029,7 @@ type VacationLedger__950947821 =
     verbleibendeFerientage : Float;
     vertraglicheZusatzferienTage : Float
   };
-actor ({
+actor {
   stable IC :
     actor {
       http_request :
@@ -988,147 +1041,143 @@ actor ({
   stable _projectMembers :
     {
       var root :
-        Node__46230540<ProjectId__478417951,
-                        [LegacyProjectMemberAssignment__840672196]>;
-      var size : Nat__490723111
+        Node__1000929467<ProjectId__478417951,
+                          [LegacyProjectMemberAssignment__840672196]>;
+      var size : Nat__1040412405
     };
   stable _standardHours :
     {
       var root :
-        Node__46230540<(CompanyId__78853864, EmployeeId__291433800),
-                        LegacyStandardarbeitszeiten__70862197>;
-      var size : Nat__490723111
-    };
-  stable absenceApprovalData :
-    {
-      var root : Node__46230540<Nat, ApprovalRecord__756343974>;
-      var size : Nat__490723111
+        Node__1000929467<(CompanyId__78853864, EmployeeId__291433800),
+                          LegacyStandardarbeitszeiten__70862197>;
+      var size : Nat__1040412405
     };
   stable absenceTypes :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?LegacyAbsenceType__1040891562]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable absenceTypesV2 :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?AbsenceType__878168131]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable absences :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?Absence__28528802]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable accessControlState :
     {
       var adminAssigned : Bool;
-      userRoles : Map__605269027<Principal, UserRole__1054455867>
-    };
-  stable approvalAuditLog :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?TimeEntryApprovalAuditEntry__113100441]];
-      var elementIndex : Nat__490723111
+      userRoles : Map__222667396<Principal, UserRole__1073662873>
     };
   stable auditLog :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?AuditEntry__60967837]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable auditLogEntries :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?LegacyAuditLogEntry__573869795]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable auditLogEntriesV2 :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?LegacyAuditLogEntryV2__820065181]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable auditLogEntriesV3 :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?LegacyAuditLogEntryV3__498820883]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable auditLogEntriesV4 :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?LegacyAuditLogEntryV4__558254481]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable auditLogEntriesV5 :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?LegacyAuditLogEntryV5__374814226]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable auditLogEntriesV6 :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?AuditLogEntry__760067232]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable backendCanisterIdState : {var value : Text};
   stable companies :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?Company__1022829239]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable companySettings :
     {
       var root :
-        Node__46230540<CompanyId__78853864, CompanySettings__480969918>;
-      var size : Nat__490723111
+        Node__1000929467<CompanyId__78853864, CompanySettings__480969918>;
+      var size : Nat__1040412405
     };
   stable companySubscriptionDetails :
     {
-      var root : Node__46230540<Text, LegacyCompanySubscription__983052299>;
-      var size : Nat__490723111
+      var root : Node__1000929467<Text, LegacyCompanySubscription__983052299>;
+      var size : Nat__1040412405
     };
   stable companySubscriptionDetailsV2 :
     {
-      var root : Node__46230540<Text, LegacyCompanySubscriptionV2__484454874>;
-      var size : Nat__490723111
+      var root :
+        Node__1000929467<Text, LegacyCompanySubscriptionV2__484454874>;
+      var size : Nat__1040412405
     };
   stable companySubscriptionDetailsV3 :
     {
-      var root : Node__46230540<Text, CompanySubscription__321696859>;
-      var size : Nat__490723111
+      var root : Node__1000929467<Text, CompanySubscription__321696859>;
+      var size : Nat__1040412405
     };
   stable companySubscriptions :
-    {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
+    {var root : Node__1000929467<Text, Text>; var size : Nat__1040412405};
   stable complianceFindings :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?ComplianceFinding__350032863]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable complianceProfiles :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
+      var blocks : [var [var ?LegacyComplianceProfile__24551349]];
+      var elementIndex : Nat__1040412405
+    };
+  stable complianceProfilesV2 :
+    {
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?EmployeeComplianceProfile__371928535]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable costSettingsState : {var value : ?CostSettings__976422159};
   stable customers :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?Customer__249378344]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable cycleSnapshots :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?CycleSnapshot__358468327]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable defaultCostSettings :
     {
@@ -1141,68 +1190,74 @@ actor ({
   stable defaultWorkHoursMap :
     {
       var root :
-        Node__46230540<CompanyId__78853864, DefaultWorkHours__769980497>;
-      var size : Nat__490723111
+        Node__1000929467<CompanyId__78853864, DefaultWorkHours__769980497>;
+      var size : Nat__1040412405
     };
   stable employees :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?Employee__272808586]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable employmentsV2 :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?Employment__729209900]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable expenseTypes :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?ExpenseType__329197150]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable expenses :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?Expense__815099324]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable frontendCanisterIdState : {var value : Text};
   stable frontendCyclesManual : {var value : Nat};
   stable holidays :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?Holiday__809958448]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable inviteState :
     {
-      var inviteCodes : Map__605269027<Text, InviteCode__761281821>;
-      var rsvps : Map__605269027<Text, RSVP__815186634>
+      var inviteCodes : Map__222667396<Text, InviteCode__179565162>;
+      var rsvps : Map__222667396<Text, RSVP__1062564422>
     };
   stable inviteToEmployee :
     {
-      var root : Node__46230540<Text, InviteEntry__222930697>;
-      var size : Nat__490723111
+      var root : Node__1000929467<Text, InviteEntry__222930697>;
+      var size : Nat__1040412405
     };
   stable invoiceTemplatesV2 :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?InvoiceTemplate__265109786]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable invoices :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?Invoice__510667895]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
+    };
+  stable knowledgeBaseInitialized : {var value : Bool};
+  stable knowledgeEntries :
+    {
+      var blockIndex : Nat__1040412405;
+      var blocks : [var [var ?KnowledgeEntry__132053027]];
+      var elementIndex : Nat__1040412405
     };
   stable nanosecondsPerMonth : Int;
   stable nanosecondsPerYear : Int;
   stable nextAbsenceId : {var value : Nat};
   stable nextAbsenceTypeId : {var value : Nat};
-  stable nextApprovalAuditId : {var value : Nat};
   stable nextAuditId : {var value : Nat};
   stable nextAuditLogId : {var value : Nat};
   stable nextCompanyId : {var value : Nat};
@@ -1219,6 +1274,7 @@ actor ({
   stable nextInvoiceTemplateId : {var value : Nat};
   stable nextNotificationId : {var value : Nat};
   stable nextPauseOverrideId : {var value : Nat};
+  stable nextPeriodCloseAuditId : {var value : Nat};
   stable nextProjectId : {var value : Nat};
   stable nextServiceTypeId : {var value : Nat};
   stable nextStripeEventId : {var value : Nat};
@@ -1230,541 +1286,167 @@ actor ({
   stable nextVacationLedgerId : {var value : Nat};
   stable notificationDeleteStatuses :
     {
-      var root : Node__46230540<Text, DeleteStatus__72755932>;
-      var size : Nat__490723111
+      var root : Node__1000929467<Text, DeleteStatus__72755932>;
+      var size : Nat__1040412405
     };
   stable notificationReadStatuses :
     {
-      var root : Node__46230540<Text, ReadStatus__512016692>;
-      var size : Nat__490723111
+      var root : Node__1000929467<Text, ReadStatus__512016692>;
+      var size : Nat__1040412405
     };
   stable notificationsMap :
     {
-      var root : Node__46230540<Text, Notification__766161334>;
-      var size : Nat__490723111
+      var root : Node__1000929467<Text, Notification__766161334>;
+      var size : Nat__1040412405
     };
+  stable openAIConfigState : {var value : ?OpenAIConfig__955417066};
   stable pauseOverrides :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?PauseOverride__756492108]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
+    };
+  stable periodCloseAudit :
+    {
+      var blockIndex : Nat__1040412405;
+      var blocks : [var [var ?PeriodCloseAuditEntry__485822870]];
+      var elementIndex : Nat__1040412405
+    };
+  stable periodCloseConfigs :
+    {
+      var root :
+        Node__1000929467<CompanyId__78853864, PeriodCloseConfig__298619960>;
+      var size : Nat__1040412405
+    };
+  stable periodCloses :
+    {
+      var root :
+        Node__1000929467<PeriodCloseId__289097160, PeriodClose__284670540>;
+      var size : Nat__1040412405
     };
   stable platformAdminCreatedAt : {var value : Int};
   stable platformAdminPrincipal : {var value : ?Principal};
   stable principalToCompany :
     {
-      var root : Node__46230540<Principal, CompanyId__78853864>;
-      var size : Nat__490723111
+      var root : Node__1000929467<Principal, CompanyId__78853864>;
+      var size : Nat__1040412405
     };
   stable principalToEmployee :
     {
-      var root : Node__46230540<Principal, EmployeeId__291433800>;
-      var size : Nat__490723111
+      var root : Node__1000929467<Principal, EmployeeId__291433800>;
+      var size : Nat__1040412405
     };
   stable projectAssignments :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?ProjectAssignment__586620756]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable projectMembersV2 :
     {
       var root :
-        Node__46230540<ProjectId__478417951,
-                        [ProjectMemberAssignment__970400026]>;
-      var size : Nat__490723111
+        Node__1000929467<ProjectId__478417951,
+                          [ProjectMemberAssignment__970400026]>;
+      var size : Nat__1040412405
     };
   stable projects :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?LegacyProject__350113217]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable projectsV2 :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?Project__112535386]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable serviceTypes :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?ServiceType__65908772]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable snapshotIntervalSeconds : {var value : Nat};
-  stable snapshotTimerId : {var value : ?TimerId__422952500};
+  stable snapshotTimerId : {var value : ?TimerId__625571955};
   stable standardHoursV2 :
     {
       var root :
-        Node__46230540<(CompanyId__78853864, EmployeeId__291433800),
-                        Standardarbeitszeiten__392957680>;
-      var size : Nat__490723111
+        Node__1000929467<(CompanyId__78853864, EmployeeId__291433800),
+                          Standardarbeitszeiten__392957680>;
+      var size : Nat__1040412405
     };
   stable stripeCheckoutSessions :
     {
-      var root : Node__46230540<Text, StripeCheckoutSession__1008500797>;
-      var size : Nat__490723111
+      var root : Node__1000929467<Text, StripeCheckoutSession__1008500797>;
+      var size : Nat__1040412405
     };
   stable stripeConfigState : {var value : ?StripeConfig__613594409};
   stable stripeEvents :
     {
-      var root : Node__46230540<Text, StripeEvent__627616098>;
-      var size : Nat__490723111
+      var root : Node__1000929467<Text, StripeEvent__627616098>;
+      var size : Nat__1040412405
     };
   stable stripeInvoices :
     {
-      var root : Node__46230540<Text, StripeInvoice__1052976534>;
-      var size : Nat__490723111
+      var root : Node__1000929467<Text, StripeInvoice__1052976534>;
+      var size : Nat__1040412405
     };
   stable stripeWebhookEndpointUrlState : {var value : Text};
   stable subscriptionPlans :
     {
-      var root : Node__46230540<Text, LegacySubscriptionPlan__370689908>;
-      var size : Nat__490723111
+      var root : Node__1000929467<Text, LegacySubscriptionPlan__370689908>;
+      var size : Nat__1040412405
     };
   stable subscriptionPlansInitialized : {var value : Bool};
   stable subscriptionPlansV2 :
     {
-      var root : Node__46230540<Text, LegacySubscriptionPlanV2__43529148>;
-      var size : Nat__490723111
+      var root : Node__1000929467<Text, LegacySubscriptionPlanV2__43529148>;
+      var size : Nat__1040412405
     };
   stable subscriptionPlansV3 :
     {
-      var root : Node__46230540<Text, LegacySubscriptionPlanV3__205630276>;
-      var size : Nat__490723111
+      var root : Node__1000929467<Text, LegacySubscriptionPlanV3__205630276>;
+      var size : Nat__1040412405
     };
   stable subscriptionPlansV4 :
     {
-      var root : Node__46230540<Text, SubscriptionPlan__661458146>;
-      var size : Nat__490723111
+      var root : Node__1000929467<Text, SubscriptionPlan__661458146>;
+      var size : Nat__1040412405
+    };
+  stable tenantComplianceRules :
+    {
+      var root : Node__1000929467<Text, TenantComplianceRule__1009618801>;
+      var size : Nat__1040412405
     };
   stable timeBalanceCorrections :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?TimeBalanceCorrection__104618633]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable timeEntries :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?TimeEntry__976722040]];
-      var elementIndex : Nat__490723111
-    };
-  stable timeEntryApprovalData :
-    {
-      var root : Node__46230540<Nat, ApprovalRecord__756343974>;
-      var size : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable userNotifSettings :
     {
       var root :
-        Node__46230540<Principal, UserNotificationSettings__454568734>;
-      var size : Nat__490723111
+        Node__1000929467<Principal, UserNotificationSettings__454568734>;
+      var size : Nat__1040412405
     };
   stable vacationBalances :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?VacationBalance__927019941]];
-      var elementIndex : Nat__490723111
-    };
-  in vacationLedgers : List__415060402<OldVacationLedger__1051620977>
-}, {
-  stable IC :
-    actor {
-      http_request :
-        shared HttpRequestArgs__81848721 ->
-          async HttpRequestResult__525946780
-    };
-  stable INVITE_TTL_NS : Int;
-  stable MAX_ACTIVE_CODES : Nat;
-  stable _projectMembers :
-    {
-      var root :
-        Node__46230540<ProjectId__478417951,
-                        [LegacyProjectMemberAssignment__840672196]>;
-      var size : Nat__490723111
-    };
-  stable _standardHours :
-    {
-      var root :
-        Node__46230540<(CompanyId__78853864, EmployeeId__291433800),
-                        LegacyStandardarbeitszeiten__70862197>;
-      var size : Nat__490723111
-    };
-  stable absenceApprovalData :
-    {
-      var root : Node__46230540<Nat, ApprovalRecord__756343974>;
-      var size : Nat__490723111
-    };
-  stable absenceTypes :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?LegacyAbsenceType__1040891562]];
-      var elementIndex : Nat__490723111
-    };
-  stable absenceTypesV2 :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?AbsenceType__878168131]];
-      var elementIndex : Nat__490723111
-    };
-  stable absences :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?Absence__28528802]];
-      var elementIndex : Nat__490723111
-    };
-  stable accessControlState :
-    {
-      var adminAssigned : Bool;
-      userRoles : Map__605269027<Principal, UserRole__1054455867>
-    };
-  stable approvalAuditLog :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?TimeEntryApprovalAuditEntry__113100441]];
-      var elementIndex : Nat__490723111
-    };
-  stable auditLog :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?AuditEntry__60967837]];
-      var elementIndex : Nat__490723111
-    };
-  stable auditLogEntries :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?LegacyAuditLogEntry__573869795]];
-      var elementIndex : Nat__490723111
-    };
-  stable auditLogEntriesV2 :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?LegacyAuditLogEntryV2__820065181]];
-      var elementIndex : Nat__490723111
-    };
-  stable auditLogEntriesV3 :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?LegacyAuditLogEntryV3__498820883]];
-      var elementIndex : Nat__490723111
-    };
-  stable auditLogEntriesV4 :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?LegacyAuditLogEntryV4__558254481]];
-      var elementIndex : Nat__490723111
-    };
-  stable auditLogEntriesV5 :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?LegacyAuditLogEntryV5__374814226]];
-      var elementIndex : Nat__490723111
-    };
-  stable auditLogEntriesV6 :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?AuditLogEntry__760067232]];
-      var elementIndex : Nat__490723111
-    };
-  stable backendCanisterIdState : {var value : Text};
-  stable companies :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?Company__1022829239]];
-      var elementIndex : Nat__490723111
-    };
-  stable companySettings :
-    {
-      var root :
-        Node__46230540<CompanyId__78853864, CompanySettings__480969918>;
-      var size : Nat__490723111
-    };
-  stable companySubscriptionDetails :
-    {
-      var root : Node__46230540<Text, LegacyCompanySubscription__983052299>;
-      var size : Nat__490723111
-    };
-  stable companySubscriptionDetailsV2 :
-    {
-      var root : Node__46230540<Text, LegacyCompanySubscriptionV2__484454874>;
-      var size : Nat__490723111
-    };
-  stable companySubscriptionDetailsV3 :
-    {
-      var root : Node__46230540<Text, CompanySubscription__321696859>;
-      var size : Nat__490723111
-    };
-  stable companySubscriptions :
-    {var root : Node__46230540<Text, Text>; var size : Nat__490723111};
-  stable complianceFindings :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?ComplianceFinding__350032863]];
-      var elementIndex : Nat__490723111
-    };
-  stable complianceProfiles :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?EmployeeComplianceProfile__371928535]];
-      var elementIndex : Nat__490723111
-    };
-  stable costSettingsState : {var value : ?CostSettings__976422159};
-  stable customers :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?Customer__249378344]];
-      var elementIndex : Nat__490723111
-    };
-  stable cycleSnapshots :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?CycleSnapshot__358468327]];
-      var elementIndex : Nat__490723111
-    };
-  stable defaultCostSettings :
-    {
-      alertEnabled : Bool;
-      backendAlertThreshold : Nat;
-      frontendAlertThreshold : Nat;
-      icpPriceUsd : Float;
-      usdChfRate : Float
-    };
-  stable defaultWorkHoursMap :
-    {
-      var root :
-        Node__46230540<CompanyId__78853864, DefaultWorkHours__769980497>;
-      var size : Nat__490723111
-    };
-  stable employees :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?Employee__272808586]];
-      var elementIndex : Nat__490723111
-    };
-  stable employmentsV2 :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?Employment__729209900]];
-      var elementIndex : Nat__490723111
-    };
-  stable expenseTypes :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?ExpenseType__329197150]];
-      var elementIndex : Nat__490723111
-    };
-  stable expenses :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?Expense__815099324]];
-      var elementIndex : Nat__490723111
-    };
-  stable frontendCanisterIdState : {var value : Text};
-  stable frontendCyclesManual : {var value : Nat};
-  stable holidays :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?Holiday__809958448]];
-      var elementIndex : Nat__490723111
-    };
-  stable inviteState :
-    {
-      var inviteCodes : Map__605269027<Text, InviteCode__761281821>;
-      var rsvps : Map__605269027<Text, RSVP__815186634>
-    };
-  stable inviteToEmployee :
-    {
-      var root : Node__46230540<Text, InviteEntry__222930697>;
-      var size : Nat__490723111
-    };
-  stable invoiceTemplatesV2 :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?InvoiceTemplate__265109786]];
-      var elementIndex : Nat__490723111
-    };
-  stable invoices :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?Invoice__510667895]];
-      var elementIndex : Nat__490723111
-    };
-  stable nanosecondsPerMonth : Int;
-  stable nanosecondsPerYear : Int;
-  stable nextAbsenceId : {var value : Nat};
-  stable nextAbsenceTypeId : {var value : Nat};
-  stable nextApprovalAuditId : {var value : Nat};
-  stable nextAuditId : {var value : Nat};
-  stable nextAuditLogId : {var value : Nat};
-  stable nextCompanyId : {var value : Nat};
-  stable nextComplianceFindingId : {var value : Nat};
-  stable nextComplianceProfileId : {var value : Nat};
-  stable nextCustomerId : {var value : Nat};
-  stable nextEmployeeId : {var value : Nat};
-  stable nextEmploymentId : {var value : Nat};
-  stable nextExpenseId : {var value : Nat};
-  stable nextExpenseTypeId : {var value : Nat};
-  stable nextHolidayId : {var value : Nat};
-  stable nextInvoiceId : {var value : Nat};
-  stable nextInvoicePositionId : {var value : Nat};
-  stable nextInvoiceTemplateId : {var value : Nat};
-  stable nextNotificationId : {var value : Nat};
-  stable nextPauseOverrideId : {var value : Nat};
-  stable nextProjectId : {var value : Nat};
-  stable nextServiceTypeId : {var value : Nat};
-  stable nextStripeEventId : {var value : Nat};
-  stable nextStripeInvoiceId : {var value : Nat};
-  stable nextStripeSessionId : {var value : Nat};
-  stable nextTimeCorrectionId : {var value : Nat};
-  stable nextTimeEntryId : {var value : Nat};
-  stable nextVacationBalanceId : {var value : Nat};
-  stable nextVacationLedgerId : {var value : Nat};
-  stable notificationDeleteStatuses :
-    {
-      var root : Node__46230540<Text, DeleteStatus__72755932>;
-      var size : Nat__490723111
-    };
-  stable notificationReadStatuses :
-    {
-      var root : Node__46230540<Text, ReadStatus__512016692>;
-      var size : Nat__490723111
-    };
-  stable notificationsMap :
-    {
-      var root : Node__46230540<Text, Notification__766161334>;
-      var size : Nat__490723111
-    };
-  stable pauseOverrides :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?PauseOverride__756492108]];
-      var elementIndex : Nat__490723111
-    };
-  stable platformAdminCreatedAt : {var value : Int};
-  stable platformAdminPrincipal : {var value : ?Principal};
-  stable principalToCompany :
-    {
-      var root : Node__46230540<Principal, CompanyId__78853864>;
-      var size : Nat__490723111
-    };
-  stable principalToEmployee :
-    {
-      var root : Node__46230540<Principal, EmployeeId__291433800>;
-      var size : Nat__490723111
-    };
-  stable projectAssignments :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?ProjectAssignment__586620756]];
-      var elementIndex : Nat__490723111
-    };
-  stable projectMembersV2 :
-    {
-      var root :
-        Node__46230540<ProjectId__478417951,
-                        [ProjectMemberAssignment__970400026]>;
-      var size : Nat__490723111
-    };
-  stable projects :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?LegacyProject__350113217]];
-      var elementIndex : Nat__490723111
-    };
-  stable projectsV2 :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?Project__112535386]];
-      var elementIndex : Nat__490723111
-    };
-  stable serviceTypes :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?ServiceType__65908772]];
-      var elementIndex : Nat__490723111
-    };
-  stable snapshotIntervalSeconds : {var value : Nat};
-  stable snapshotTimerId : {var value : ?TimerId__422952500};
-  stable standardHoursV2 :
-    {
-      var root :
-        Node__46230540<(CompanyId__78853864, EmployeeId__291433800),
-                        Standardarbeitszeiten__392957680>;
-      var size : Nat__490723111
-    };
-  stable stripeCheckoutSessions :
-    {
-      var root : Node__46230540<Text, StripeCheckoutSession__1008500797>;
-      var size : Nat__490723111
-    };
-  stable stripeConfigState : {var value : ?StripeConfig__613594409};
-  stable stripeEvents :
-    {
-      var root : Node__46230540<Text, StripeEvent__627616098>;
-      var size : Nat__490723111
-    };
-  stable stripeInvoices :
-    {
-      var root : Node__46230540<Text, StripeInvoice__1052976534>;
-      var size : Nat__490723111
-    };
-  stable stripeWebhookEndpointUrlState : {var value : Text};
-  stable subscriptionPlans :
-    {
-      var root : Node__46230540<Text, LegacySubscriptionPlan__370689908>;
-      var size : Nat__490723111
-    };
-  stable subscriptionPlansInitialized : {var value : Bool};
-  stable subscriptionPlansV2 :
-    {
-      var root : Node__46230540<Text, LegacySubscriptionPlanV2__43529148>;
-      var size : Nat__490723111
-    };
-  stable subscriptionPlansV3 :
-    {
-      var root : Node__46230540<Text, LegacySubscriptionPlanV3__205630276>;
-      var size : Nat__490723111
-    };
-  stable subscriptionPlansV4 :
-    {
-      var root : Node__46230540<Text, SubscriptionPlan__661458146>;
-      var size : Nat__490723111
-    };
-  stable timeBalanceCorrections :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?TimeBalanceCorrection__104618633]];
-      var elementIndex : Nat__490723111
-    };
-  stable timeEntries :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?TimeEntry__976722040]];
-      var elementIndex : Nat__490723111
-    };
-  stable timeEntryApprovalData :
-    {
-      var root : Node__46230540<Nat, ApprovalRecord__756343974>;
-      var size : Nat__490723111
-    };
-  stable userNotifSettings :
-    {
-      var root :
-        Node__46230540<Principal, UserNotificationSettings__454568734>;
-      var size : Nat__490723111
-    };
-  stable vacationBalances :
-    {
-      var blockIndex : Nat__490723111;
-      var blocks : [var [var ?VacationBalance__927019941]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     };
   stable vacationLedgers :
     {
-      var blockIndex : Nat__490723111;
+      var blockIndex : Nat__1040412405;
       var blocks : [var [var ?VacationLedger__950947821]];
-      var elementIndex : Nat__490723111
+      var elementIndex : Nat__1040412405
     }
-}) ;
+};

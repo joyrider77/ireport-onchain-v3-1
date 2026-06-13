@@ -1,3 +1,14 @@
+type http_request_result = 
+ record {
+   body: blob;
+   headers: vec http_header;
+   status: nat;
+ };
+type http_header = 
+ record {
+   name: text;
+   value: text;
+ };
 type _ImmutableObjectStorageRefillResult = 
  record {
    success: opt bool;
@@ -95,6 +106,13 @@ type UpdateTimeBalanceCorrectionInput =
             };
    ueberzeit: opt int;
    wirkungsdatum: opt int;
+ };
+type UpdateTenantComplianceRuleInput = 
+ record {
+   companyId: nat;
+   isActive: bool;
+   newValue: opt float64;
+   ruleCode: text;
  };
 type UpdateServiceTypeInput = 
  record {
@@ -204,11 +222,11 @@ type UpdateComplianceProfileInput =
  record {
    aktiv: bool;
    ausnahmeprofil: opt text;
+   employeeId: nat;
    erfassungsModus: text;
    gesetzlicheWochenhochstarbeitszeit: float64;
    gesetzlicherFerienanspruchWochen: float64;
    id: nat;
-   vertraglicheWochenstunden: float64;
    vertraglicheZusatzferienTage: float64;
  };
 type UpdateCompanyInput = 
@@ -254,14 +272,18 @@ type UnbilledTimeEntry =
    totalCHF: float64;
    von: opt text;
  };
-type Timestamp = int;
-type TimeEntryStatus = 
- variant {
-   approved;
-   draft;
-   rejected;
-   submitted;
+type TransformationOutput = 
+ record {
+   body: blob;
+   headers: vec http_header;
+   status: nat;
  };
+type TransformationInput = 
+ record {
+   context: blob;
+   response: http_request_result;
+ };
+type Timestamp = int;
 type TimeEntryId = nat;
 type TimeEntryFilter = 
  record {
@@ -269,20 +291,6 @@ type TimeEntryFilter =
    dateTo: opt text;
    employeeId: opt EmployeeId;
    projectId: opt ProjectId;
- };
-type TimeEntryApprovalInput = record {reason: opt text;};
-type TimeEntryApprovalAuditEntry = 
- record {
-   action: text;
-   changedBy: principal;
-   id: nat;
-   newStatus: text;
-   oldStatus: text;
-   previousApprovedBy: opt principal;
-   reason: opt text;
-   targetId: nat;
-   targetType: text;
-   timestamp: int;
  };
 type TimeEntry = 
  record {
@@ -322,12 +330,24 @@ type TenantCostEntry =
    employeeCount: nat;
    estimatedCycles: nat;
  };
+type TenantComplianceRule = 
+ record {
+   customValue: opt float64;
+   isActive: bool;
+   isCustomized: bool;
+   modifiedAt: int;
+   modifiedBy: text;
+   ruleCode: text;
+   tenantId: text;
+ };
 type SubscriptionPlan = 
  record {
+   additionalFeatures: vec text;
    description: text;
    features: vec text;
    id: text;
    isActive: bool;
+   isRecommended: bool;
    maxEmployees: opt nat;
    minActiveDaysPerMonth: nat;
    name: text;
@@ -429,12 +449,12 @@ type Role =
 type Result_9 = 
  variant {
    err: text;
-   ok: Holiday;
+   ok: Invoice;
  };
 type Result_8 = 
  variant {
    err: text;
-   ok: Invoice;
+   ok: KnowledgeEntry;
  };
 type Result_7 = 
  variant {
@@ -451,12 +471,12 @@ type Result_5 =
    err: text;
    ok;
  };
-type Result_46 = 
+type Result_49 = 
  variant {
    err: text;
    ok: ProjectAssignment;
  };
-type Result_45 = 
+type Result_48 = 
  variant {
    err: text;
    ok:
@@ -467,7 +487,7 @@ type Result_45 =
       remainingDays: nat;
     };
  };
-type Result_44 = 
+type Result_47 = 
  variant {
    err: text;
    ok:
@@ -481,7 +501,7 @@ type Result_44 =
       suggestedPlanName: text;
     };
  };
-type Result_43 = 
+type Result_46 = 
  variant {
    err: text;
    ok: record {
@@ -490,17 +510,12 @@ type Result_43 =
          stripeStatus: text;
        };
  };
-type Result_42 = 
+type Result_45 = 
  variant {
    err: text;
    ok: InvoiceTemplate;
  };
-type Result_4 = 
- variant {
-   err: text;
-   ok: TimeBalanceCorrection;
- };
-type Result_38 = 
+type Result_41 = 
  variant {
    err: text;
    ok: record {
@@ -508,12 +523,22 @@ type Result_38 =
          url: text;
        };
  };
-type Result_37 = 
+type Result_40 = 
  variant {
    err: text;
    ok: record {url: text;};
  };
-type Result_36 = 
+type Result_4 = 
+ variant {
+   err: text;
+   ok: TimeBalanceCorrection;
+ };
+type Result_39 = 
+ variant {
+   err: text;
+   ok: bool;
+ };
+type Result_38 = 
  variant {
    err: text;
    ok:
@@ -523,35 +548,45 @@ type Result_36 =
       subscriptionStartDate: opt int;
     };
  };
-type Result_35 = 
+type Result_37 = 
  variant {
    err: text;
    ok: WorkTimeBalance;
  };
-type Result_34 = 
+type Result_36 = 
  variant {
    err: text;
    ok: opt Employment;
  };
-type Result_33 = 
+type Result_35 = 
  variant {
    err: text;
    ok: opt InvoiceTemplate;
  };
-type Result_32 = 
+type Result_34 = 
  variant {
    err: text;
    ok: vec Invoice;
  };
-type Result_31 = 
+type Result_33 = 
  variant {
    err: text;
    ok: float64;
  };
-type Result_30 = 
+type Result_32 = 
  variant {
    err: text;
    ok: ProjectBudgetReport;
+ };
+type Result_31 = 
+ variant {
+   err: text;
+   ok: vec ProjectMemberAssignment;
+ };
+type Result_30 = 
+ variant {
+   err: text;
+   ok: Standardarbeitszeiten;
  };
 type Result_3 = 
  variant {
@@ -561,19 +596,9 @@ type Result_3 =
 type Result_29 = 
  variant {
    err: text;
-   ok: vec ProjectMemberAssignment;
- };
-type Result_28 = 
- variant {
-   err: text;
-   ok: Standardarbeitszeiten;
- };
-type Result_27 = 
- variant {
-   err: text;
    ok: int;
  };
-type Result_26 = 
+type Result_28 = 
  variant {
    err: text;
    ok: record {
@@ -581,7 +606,7 @@ type Result_26 =
          zeiteintraege: vec TimeEntry;
        };
  };
-type Result_25 = 
+type Result_27 = 
  variant {
    err: text;
    ok: record {
@@ -589,20 +614,30 @@ type Result_25 =
          zeiteintraege: vec UnbilledTimeEntry;
        };
  };
-type Result_24 = 
+type Result_26 = 
  variant {
    err: text;
    ok: vec Employment;
  };
-type Result_23 = 
+type Result_25 = 
  variant {
    err: text;
    ok: vec TimeBalanceCorrection;
  };
-type Result_22 = 
+type Result_24 = 
  variant {
    err: text;
    ok: vec VacationBalance;
+ };
+type Result_23 = 
+ variant {
+   err: text;
+   ok: PeriodClose;
+ };
+type Result_22 = 
+ variant {
+   err: text;
+   ok: CompanySubscription;
  };
 type Result_21 = 
  variant {
@@ -612,7 +647,7 @@ type Result_21 =
 type Result_20 = 
  variant {
    err: text;
-   ok: CompanySubscription;
+   ok: Absence;
  };
 type Result_2 = 
  variant {
@@ -622,52 +657,52 @@ type Result_2 =
 type Result_19 = 
  variant {
    err: text;
-   ok: Absence;
+   ok: AbsenceType;
  };
 type Result_18 = 
  variant {
    err: text;
-   ok: AbsenceType;
+   ok: Company;
  };
 type Result_17 = 
  variant {
    err: text;
-   ok: Company;
+   ok: CompanySettings;
  };
 type Result_16 = 
  variant {
    err: text;
-   ok: CompanySettings;
+   ok: Customer;
  };
 type Result_15 = 
  variant {
    err: text;
-   ok: Customer;
+   ok: DefaultWorkHours;
  };
 type Result_14 = 
  variant {
    err: text;
-   ok: DefaultWorkHours;
+   ok: Employee;
  };
 type Result_13 = 
  variant {
    err: text;
-   ok: Employee;
+   ok: Employment;
  };
 type Result_12 = 
  variant {
    err: text;
-   ok: Employment;
+   ok: Expense;
  };
 type Result_11 = 
  variant {
    err: text;
-   ok: Expense;
+   ok: ExpenseType;
  };
 type Result_10 = 
  variant {
    err: text;
-   ok: ExpenseType;
+   ok: Holiday;
  };
 type Result_1 = 
  variant {
@@ -699,6 +734,11 @@ type ReportData =
    entries: vec TimeEntry;
    expenseItems: vec Expense;
    expenses: float64;
+ };
+type ReopenPeriodInput = 
+ record {
+   closeId: PeriodCloseId;
+   reopenReason: opt text;
  };
 type Rechnungsadresse = 
  record {
@@ -755,6 +795,24 @@ type Project =
    projektleiter: opt EmployeeId;
    status: ProjectStatus;
  };
+type PrecheckVerdict = 
+ variant {
+   blocked;
+   ok;
+   ok_with_warnings;
+ };
+type PrecheckResult = 
+ record {
+   blockers: vec text;
+   canClose: bool;
+   hasComplianceViolations: bool;
+   hasOpenAbsences: bool;
+   hasOpenEntries: bool;
+   hasOpenExpenses: bool;
+   missingDays: nat;
+   verdict: PrecheckVerdict;
+   warnings: vec text;
+ };
 type PlatformAdminUserEntry = 
  record {
    activatedAt: opt int;
@@ -766,19 +824,68 @@ type PlatformAdminUserEntry =
    lastName: text;
    role: Role;
  };
-type PlatformAdminConfigPublic = 
- record {
-   frontendCanisterId: text;
-   stripePublishableKey: text;
-   stripeWebhookEndpointUrl: text;
+type PeriodType = variant {month;};
+type PeriodCloseStatus = 
+ variant {
+   closed;
+   open;
+   ready_for_close;
+   reopened;
  };
-type PlatformAdminConfig = 
+type PeriodCloseId = text;
+type PeriodCloseConfig = 
  record {
-   frontendCanisterId: text;
-   stripePublishableKey: text;
-   stripeSecretKey: text;
-   stripeWebhookEndpointUrl: text;
-   stripeWebhookSecret: text;
+   allowCloseWithComplianceWarnings: bool;
+   allowCloseWithOpenAbsences: bool;
+   allowCloseWithOpenExpenses: bool;
+   allowCloseWithOpenTimeEntries: bool;
+   enabled: bool;
+   onlyAdminCanReopen: bool;
+   requireReopenReason: bool;
+ };
+type PeriodCloseAuditEntry = 
+ record {
+   action: PeriodCloseAction;
+   affectedRecordCounts: opt AffectedRecordCounts;
+   auditId: text;
+   employeeId: opt EmployeeId;
+   newStatus: PeriodCloseStatus;
+   oldStatus: PeriodCloseStatus;
+   performedAt: Timestamp;
+   performedByUserId: EmployeeId;
+   periodEnd: int;
+   periodStart: int;
+   reason: opt text;
+   tenantId: CompanyId;
+   warnings: opt vec text;
+ };
+type PeriodCloseAction = 
+ variant {
+   close;
+   close_failed;
+   force_close;
+   reopen;
+ };
+type PeriodClose = 
+ record {
+   affectedRecordCounts: opt AffectedRecordCounts;
+   closeComment: opt text;
+   closeId: PeriodCloseId;
+   closedAt: opt Timestamp;
+   closedByUserId: opt EmployeeId;
+   createdAt: Timestamp;
+   employeeId: opt EmployeeId;
+   month: nat;
+   periodEnd: int;
+   periodStart: int;
+   periodType: PeriodType;
+   reopenReason: opt text;
+   reopenedAt: opt Timestamp;
+   reopenedByUserId: opt EmployeeId;
+   status: PeriodCloseStatus;
+   tenantId: CompanyId;
+   updatedAt: Timestamp;
+   year: nat;
  };
 type PaymentProvider = 
  variant {
@@ -842,6 +949,23 @@ type Notification =
    validFrom: int;
    validUntil: opt int;
  };
+type MonthlyCloseRow = 
+ record {
+   absenceCount: nat;
+   actualMinutes: int;
+   closeId: opt PeriodCloseId;
+   complianceStatus: text;
+   employeeId: EmployeeId;
+   expenseCount: nat;
+   firstName: text;
+   lastName: text;
+   month: nat;
+   openEntryCount: nat;
+   status: PeriodCloseStatus;
+   targetMinutes: int;
+   vacationDays: nat;
+   year: nat;
+ };
 type MonthlyBillingEntry = 
  record {
    activeUserCount: nat;
@@ -876,6 +1000,18 @@ type KundeZeiterfassungsart =
  variant {
    block;
    stuendlich;
+ };
+type KnowledgeEntry = 
+ record {
+   category: text;
+   content: text;
+   createdAt: int;
+   id: text;
+   isActive: bool;
+   language: text;
+   role: text;
+   title: text;
+   updatedAt: int;
  };
 type InvoiceTemplateInput = 
  record {
@@ -1043,13 +1179,6 @@ type FeiertagsberechnungsartType =
    keineGutschrift;
    wochentag_sollzeit;
  };
-type FeatureKey = text;
-type FeatureAccessResult = 
- record {
-   companyId: CompanyId;
-   featureKey: FeatureKey;
-   hasAccess: bool;
- };
 type ExpenseTypeId = nat;
 type ExpenseType = 
  record {
@@ -1133,7 +1262,6 @@ type EmployeeComplianceProfile =
    gesetzlicherFerienanspruchWochen: float64;
    id: nat;
    updatedAt: int;
-   vertraglicheWochenstunden: float64;
    vertraglicheZusatzferienTage: float64;
  };
 type EmployeeBudgetReport = 
@@ -1526,6 +1654,14 @@ type Company =
    name: text;
    taxId: opt text;
  };
+type ClosePeriodInput = 
+ record {
+   closeComment: opt text;
+   employeeId: opt EmployeeId;
+   month: nat;
+   tenantId: CompanyId;
+   year: nat;
+ };
 type CanisterStatusInfo = 
  record {
    backendCanisterId: text;
@@ -1621,6 +1757,12 @@ type AuditEntityType =
    serviceType;
    timeEntry;
  };
+type AffectedRecordCounts = 
+ record {
+   absences: nat;
+   expenses: nat;
+   timeEntries: nat;
+ };
 type AbsenceTypeVisibility = 
  record {
    companyCalendarColor: opt text;
@@ -1658,7 +1800,6 @@ type AbsenceFilter =
    employeeId: opt EmployeeId;
    status: opt AbsenceStatus;
  };
-type AbsenceApprovalInput = record {reason: opt text;};
 type Absence = 
  record {
    absenceTypeId: AbsenceTypeId;
@@ -1687,41 +1828,50 @@ service : {
    (_ImmutableObjectStorageRefillResult);
   _immutableObjectStorageUpdateGatewayPrincipals: () -> ();
   _initializeAccessControl: () -> ();
+  addKnowledgeEntry: (entry:
+   record {
+     category: text;
+     content: text;
+     isActive: bool;
+     language: text;
+     role: text;
+     title: text;
+   }) -> (Result_8);
   applyPlanChange: (companyId: nat, newPlanId: text, billingModel:
    BillingModel) -> (Result_21);
-  approveAbsence: (id: AbsenceId) -> (Result_19);
-  approveAbsenceApproval: (absenceId: AbsenceId, input:
-   AbsenceApprovalInput) -> (Result_5);
-  approveExpense: (id: ExpenseId) -> (Result_11);
-  approveTimeEntry: (entryId: TimeEntryId, input: TimeEntryApprovalInput) ->
-   (Result_3);
+  approveAbsence: (id: AbsenceId) -> (Result_20);
+  approveExpense: (id: ExpenseId) -> (Result_12);
   archiveNotification: (notificationId: text) -> (variant {
                                                     err: text;
                                                     ok;
                                                   });
+  assertPeriodIsEditable: (tenantId: CompanyId, employeeId: EmployeeId,
+   dateNs: int, action: text) -> (Result_5);
   assignCallerUserRole: (user: principal, role: UserRole) -> ();
   assignEmployeeToProject: (employeeId: EmployeeId, projectId: ProjectId) ->
-   (Result_46);
+   (Result_49);
   assignSubscriptionPlan: (companyId: text, planId: text) -> (Result_5);
   calculateMonthlyBilling: (month: nat, year: nat) ->
    (vec MonthlyBillingEntry) query;
   calculateProRataAdjustment: (companyId: nat, newPlanId: text) ->
-   (Result_45) query;
-  cancelInvoice: (invoiceId: nat) -> (Result_8);
-  cancelStripeSubscription: (companyId: nat) -> (Result_20);
-  checkFeatureAccess: (featureKey: FeatureKey) -> (FeatureAccessResult) query;
-  checkPlanChangeNeeded: (companyId: nat) -> (Result_44) query;
-  compareStripeSubscriptionStatus: (companyId: nat) -> (Result_43);
-  createAbsence: (input: CreateAbsenceInput) -> (Result_19);
-  createAbsenceType: (input: CreateAbsenceTypeInput) -> (Result_18);
-  createCustomer: (input: CreateCustomerInput) -> (Result_15);
-  createEmployee: (input: CreateEmployeeInput) -> (Result_13);
+   (Result_48) query;
+  cancelInvoice: (invoiceId: nat) -> (Result_9);
+  cancelStripeSubscription: (companyId: nat) -> (Result_22);
+  checkPlanChangeNeeded: (companyId: nat) -> (Result_47) query;
+  closePeriod: (input: ClosePeriodInput) -> (Result_23);
+  closePeriodBulk: (tenantId: CompanyId, month: nat, year: nat, closeComment:
+   opt text) -> (vec Result_23);
+  compareStripeSubscriptionStatus: (companyId: nat) -> (Result_46);
+  createAbsence: (input: CreateAbsenceInput) -> (Result_20);
+  createAbsenceType: (input: CreateAbsenceTypeInput) -> (Result_19);
+  createCustomer: (input: CreateCustomerInput) -> (Result_16);
+  createEmployee: (input: CreateEmployeeInput) -> (Result_14);
   createEmployment: (employeeId: EmployeeId, input: CreateEmploymentInput) ->
-   (Result_12);
-  createExpense: (input: CreateExpenseInput) -> (Result_11);
-  createExpenseType: (input: CreateExpenseTypeInput) -> (Result_10);
-  createHoliday: (input: CreateHolidayInput) -> (Result_9);
-  createInvoice: (input: CreateInvoiceInput) -> (Result_8);
+   (Result_13);
+  createExpense: (input: CreateExpenseInput) -> (Result_12);
+  createExpenseType: (input: CreateExpenseTypeInput) -> (Result_11);
+  createHoliday: (input: CreateHolidayInput) -> (Result_10);
+  createInvoice: (input: CreateInvoiceInput) -> (Result_9);
   createNotificationDraft: (title: text, messageBody: text, messageFormat:
    NotificationFormat, priority: NotificationPriority, validFrom: int,
    validUntil: opt int, targetType: NotificationTargetType, targetTenantIds:
@@ -1730,7 +1880,7 @@ service : {
       err: text;
       ok: Notification;
     });
-  createOrUpdateInvoiceTemplate: (input: InvoiceTemplateInput) -> (Result_42);
+  createOrUpdateInvoiceTemplate: (input: InvoiceTemplateInput) -> (Result_45);
   createPauseOverride: (input: CreatePauseOverrideInput) ->
    (variant {
       err: text;
@@ -1739,14 +1889,14 @@ service : {
   createProject: (input: CreateProjectInput) -> (Result_7);
   createServiceType: (input: CreateServiceTypeInput) -> (Result_6);
   createStripeCheckoutLinkForCompany: (companyId: nat, planId: text,
-   billingModel: BillingModel) -> (Result_38);
+   billingModel: BillingModel) -> (Result_41);
   createStripeCheckoutLinkForCompanyWithPrice: (companyId: nat, planId: 
-   text, billingModel: BillingModel, priceId: text) -> (Result_38);
+   text, billingModel: BillingModel, priceId: text) -> (Result_41);
   createStripeCheckoutSession: (companyId: nat, planId: text, billingModel:
-   BillingModel) -> (Result_38);
+   BillingModel) -> (Result_41);
   createStripeCheckoutSessionWithPrice: (companyId: nat, planId: text,
-   billingModel: BillingModel, priceId: text) -> (Result_38);
-  createStripeCustomerPortalSession: (companyId: nat) -> (Result_37);
+   billingModel: BillingModel, priceId: text) -> (Result_41);
+  createStripeCustomerPortalSession: (companyId: nat) -> (Result_40);
   createTimeBalanceCorrection: (employeeId: EmployeeId, input:
    CreateTimeBalanceCorrectionInput) -> (Result_4);
   createTimeEntry: (input: CreateTimeEntryInput) -> (Result_3);
@@ -1762,6 +1912,7 @@ service : {
   deleteExpenseType: (id: ExpenseTypeId) -> (Result_5);
   deleteHoliday: (id: HolidayId) -> (Result_5);
   deleteInvoice: (invoiceId: nat) -> (Result_5);
+  deleteKnowledgeEntry: (id: text) -> (Result_39);
   deleteMyNotification: (notificationId: text) -> (variant {
                                                      err: text;
                                                      ok;
@@ -1784,35 +1935,21 @@ service : {
       ok: Notification;
     });
   generateInviteCode: (employeeId: EmployeeId) -> (Result_21);
-  getAbsenceApprovalStatus: (absenceId: AbsenceId) ->
-   (opt
-     record {
-       approvedBy: opt principal;
-       reason: opt text;
-       status: TimeEntryStatus;
-     }) query;
   getAllCompanySubscriptions: () -> (vec record {
                                            text;
                                            text;
                                          }) query;
   getAllSubscriptionPlans: () -> (vec SubscriptionPlan) query;
-  getApprovalRecord: (entryId: TimeEntryId) ->
-   (opt
-     record {
-       approvedBy: opt principal;
-       reason: opt text;
-       status: TimeEntryStatus;
-     }) query;
   getBackendCanisterId: () -> (text);
   getCalendarEntries: (month: text, year: nat) -> (CalendarData) query;
   getCallerUserRole: () -> (UserRole) query;
   getCanisterStatusInfo: () -> (CanisterStatusInfo) query;
-  getCompanyBillingModel: (companyId: nat) -> (Result_36) query;
+  getCompanyBillingModel: (companyId: nat) -> (Result_38) query;
   getCompanyCalendarAbsences: (companyId: CompanyId, fromDateNs: int,
    toDateNs: int) -> (vec MaskedCalendarAbsence) query;
   getCompanyEmployeesForBilling: (companyId: CompanyId) ->
    (vec Employee) query;
-  getCompanySettings: () -> (Result_16) query;
+  getCompanySettings: () -> (Result_17) query;
   getCompanySubscription: (companyId: text) -> (opt text) query;
   getCompanySubscriptionPlan: (companyId: nat) ->
    (opt SubscriptionPlan) query;
@@ -1824,6 +1961,8 @@ service : {
    (vec ComplianceFinding) query;
   getComplianceProfile: (employeeId: nat) ->
    (opt EmployeeComplianceProfile) query;
+  getContractualHoursForEmployee: (employeeId: nat, dateISO: text) ->
+   (opt float64) query;
   getCostDashboardData: (fromTime: opt int, toTime: opt int) ->
    (CostDashboardData) query;
   getCostSettings: () -> (CostSettings) query;
@@ -1833,45 +1972,60 @@ service : {
   getDashboardStats: () -> (DashboardStats) query;
   getDefaultWorkHours: () -> (DefaultWorkHours) query;
   getEmployeeWorkTimeBalance: (employeeId: EmployeeId, startDate: text,
-   endDate: text) -> (Result_35) query;
+   endDate: text) -> (Result_37) query;
   getEmployeeWorkTimeBalanceFromStart: (employeeId: EmployeeId) ->
-   (Result_35) query;
+   (Result_37) query;
   getEmploymentForDate: (employeeId: EmployeeId, date: text) ->
-   (Result_34) query;
+   (Result_36) query;
   getFrontendCyclesManual: () -> (nat) query;
-  getInvoiceById: (invoiceId: nat) -> (Result_8) query;
-  getInvoiceTemplate: () -> (Result_33) query;
-  getInvoices: () -> (Result_32);
+  getInvoiceById: (invoiceId: nat) -> (Result_9) query;
+  getInvoiceTemplate: () -> (Result_35) query;
+  getInvoices: () -> (Result_34);
+  getKnowledgeEntries: () -> (vec KnowledgeEntry) query;
+  getKnowledgeEntriesAdmin: () -> (vec KnowledgeEntry) query;
   getMonthlyBillingOverview: (year: nat, month: nat) ->
    (vec MonthlyBillingEntry) query;
-  getMyCompany: () -> (Result_17) query;
+  getMonthlyCloseOverview: (tenantId: CompanyId, month: nat, year: nat) ->
+   (vec MonthlyCloseRow);
+  getMyCompany: () -> (Result_18) query;
   getMyComplianceFindings: (periodeTyp: opt CompliancePeriodeTyp) ->
    (vec ComplianceFinding) query;
   getMyComplianceProfile: () -> (opt EmployeeComplianceProfile) query;
-  getMyEmployee: () -> (Result_13) query;
-  getMyPlanFeatures: () -> (vec FeatureKey) query;
-  getMyStandardarbeitszeiten: () -> (Result_28) query;
+  getMyEmployee: () -> (Result_14) query;
+  getMyStandardarbeitszeiten: () -> (Result_30) query;
   getMyVacationLedger: (serviceYearKey: text) -> (opt VacationLedger) query;
+  getOpenAIConfigStatus: () -> (record {isConfigured: bool;}) query;
+  getOpenAIEnabled: () -> (record {isConfigured: bool;}) query;
   getPauseComplianceForDay: (employeeId: nat, date: text) ->
    (DayPauseComplianceResult) query;
   getPauseOverridesForDay: (employeeId: nat, date: text) ->
    (vec PauseOverride) query;
   getPausesForDay: (employeeId: nat, date: text) -> (vec DetectedPause) query;
-  getPlatformAdminConfig: () -> (PlatformAdminConfigPublic) query;
+  getPeriodCloseConfig: (tenantId: CompanyId) -> (PeriodCloseConfig);
+  getPeriodCloseStatus: (tenantId: CompanyId, employeeId: EmployeeId, month:
+   nat, year: nat) -> (opt PeriodClose);
+  getPlatformAdminConfig: () ->
+   (record {
+      frontendCanisterId: text;
+      stripePublishableKey: text;
+      stripeWebhookEndpointUrl: text;
+    }) query;
   getPlatformAdminInfo: () ->
    (opt record {
           createdAt: int;
           "principal": text;
         }) query;
-  getProjectAufwendungen: (projectId: ProjectId) -> (Result_31) query;
+  getProjectAufwendungen: (projectId: ProjectId) -> (Result_33) query;
   getProjectBudgetReport: (projectId: ProjectId, dateFrom: text, dateTo:
-   text) -> (Result_30) query;
-  getProjectMembers: (projectId: ProjectId) -> (Result_29) query;
+   text) -> (Result_32) query;
+  getProjectMembers: (projectId: ProjectId) -> (Result_31) query;
+  getRelevantKnowledgeContext: (queryText: text, maxEntries: nat) ->
+   (text) query;
   getReportData: (filter: ReportFilter) -> (ReportData) query;
   getServiceYears: (employeeId: nat) -> (vec text) query;
   getSnapshotInterval: () -> (nat) query;
   getStandardarbeitszeitenForEmployee: (employeeId: EmployeeId) ->
-   (Result_28) query;
+   (Result_30) query;
   getStripeConfigStatus: () ->
    (record {
       configured: bool;
@@ -1888,12 +2042,12 @@ service : {
       totalCompanies: nat;
       totalEmployees: nat;
     }) query;
+  getTenantComplianceRules: (companyId: nat) ->
+   (vec TenantComplianceRule) query;
   getTenantCostBreakdown: () -> (vec TenantCostEntry) query;
-  getTimeBalance: (employeeId: EmployeeId) -> (Result_27) query;
-  getTimeEntryApprovalStatus: (entryId: TimeEntryId) ->
-   (opt TimeEntryStatus) query;
-  getUnbilledEntries: (kundeId: opt nat) -> (Result_26) query;
-  getUnbilledEntriesWithRates: (kundeId: opt nat) -> (Result_25) query;
+  getTimeBalance: (employeeId: EmployeeId) -> (Result_29) query;
+  getUnbilledEntries: (kundeId: opt nat) -> (Result_28) query;
+  getUnbilledEntriesWithRates: (kundeId: opt nat) -> (Result_27) query;
   getUnreadCount: () -> (nat) query;
   getUserNotificationSettings: () -> (Result_2) query;
   getUsersForCompany: (companyId: CompanyId) ->
@@ -1923,24 +2077,25 @@ service : {
        name: text;
      }) query;
   listAllNotifications: () -> (vec Notification);
-  listApprovalAuditLog: () -> (vec TimeEntryApprovalAuditEntry) query;
   listAuditLog: (targetType: opt text, targetId: opt nat) ->
    (vec AuditEntry) query;
   listAuditLogs: (filter: AuditLogFilter) -> (vec AuditLogEntry) query;
   listCustomers: () -> (vec Customer) query;
   listEmployees: () -> (vec Employee) query;
-  listEmployments: (employeeId: EmployeeId) -> (Result_24) query;
+  listEmployments: (employeeId: EmployeeId) -> (Result_26) query;
   listExpenseTypes: () -> (vec ExpenseType) query;
   listExpenses: (filter: ExpenseFilter) -> (vec Expense) query;
   listHolidays: () -> (vec Holiday) query;
   listMyNotifications: () -> (vec UserNotification);
+  listPeriodCloseAudit: (tenantId: CompanyId) -> (vec PeriodCloseAuditEntry);
+  listPeriodCloses: (tenantId: CompanyId, month: nat, year: nat) ->
+   (vec PeriodClose);
   listProjectAssignments: () -> (vec ProjectAssignment) query;
   listProjects: () -> (vec Project) query;
   listServiceTypes: () -> (vec ServiceType) query;
-  listSubmittedTimeEntries: () -> (vec TimeEntry) query;
-  listTimeBalanceCorrections: (employeeId: EmployeeId) -> (Result_23) query;
+  listTimeBalanceCorrections: (employeeId: EmployeeId) -> (Result_25) query;
   listTimeEntries: (filter: TimeEntryFilter) -> (vec TimeEntry) query;
-  listVacationBalances: (employeeId: EmployeeId) -> (Result_22) query;
+  listVacationBalances: (employeeId: EmployeeId) -> (Result_24) query;
   manuallyTriggerStripeSync: (companyId: nat) -> (Result_21);
   markAllNotificationsRead: () -> (variant {
                                      err: text;
@@ -1952,30 +2107,30 @@ service : {
                                                      err: text;
                                                      ok;
                                                    });
+  precheckPeriodClose: (tenantId: CompanyId, employeeId: EmployeeId, month:
+   nat, year: nat) -> (PrecheckResult);
   purgeEmployee: (id: EmployeeId) -> (Result_5);
-  reactivateStripeSubscription: (companyId: nat) -> (Result_20);
+  reactivateStripeSubscription: (companyId: nat) -> (Result_22);
   recordCycleSnapshot: (frontendCycles: nat, backendCycles: nat) -> ();
   recoverSubscriptionPlans: () -> (Result_21);
-  redeemInviteCode: (code: text) -> (Result_13);
-  registerCompany: (name: text, firstName: text, lastName: text, email:
-   text) -> (Result_17);
-  rejectAbsence: (id: AbsenceId, comment: text) -> (Result_19);
-  rejectAbsenceApproval: (absenceId: AbsenceId, input:
-   AbsenceApprovalInput) -> (Result_5);
-  rejectExpense: (id: ExpenseId, comment: opt text) -> (Result_11);
-  rejectTimeEntry: (entryId: TimeEntryId, input: TimeEntryApprovalInput) ->
-   (Result_3);
+  redeemInviteCode: (code: text) -> (Result_14);
+  registerCompany: (name: text, firstName: text, lastName: text, email: 
+   text, planId: opt text, billingModel: opt text) -> (Result_18);
+  rejectAbsence: (id: AbsenceId, comment: text) -> (Result_20);
+  rejectExpense: (id: ExpenseId, comment: opt text) -> (Result_12);
   relinkStripeCustomer: (companyId: nat, stripeCustomerId: text) ->
    (Result_21);
   removeEmployeeFromProject: (employeeId: EmployeeId, projectId:
    ProjectId) -> (Result_5);
+  reopenPeriod: (input: ReopenPeriodInput) -> (Result_23);
   reprocessStripeEvent: (stripeEventId: text) -> (Result_21);
-  resetAbsenceApprovalToDraft: (absenceId: AbsenceId, reason: opt text) ->
-   (Result_5);
-  resetAbsenceToAusstehend: (id: AbsenceId, reason: text) -> (Result_19);
-  resetExpenseToAusstehend: (id: ExpenseId, reason: text) -> (Result_11);
-  resetTimeEntryToDraft: (entryId: TimeEntryId, reason: opt text) ->
-   (Result_3);
+  resetAbsenceToAusstehend: (id: AbsenceId, reason: text) -> (Result_20);
+  resetExpenseToAusstehend: (id: ExpenseId, reason: text) -> (Result_12);
+  resetTenantComplianceRule: (companyId: nat, ruleCode: text) ->
+   (variant {
+      err: text;
+      ok: TenantComplianceRule;
+    });
   resolveFinding: (input: ResolveFindingInput) ->
    (variant {
       err: text;
@@ -1983,10 +2138,13 @@ service : {
     });
   restoreDefaultPlansIfMissing: () -> (Result_21);
   revokeInviteCode: (code: text) -> (Result_5);
-  runWeeklyComplianceCheck: (companyId: nat) ->
+  runWeeklyComplianceCheck: (companyId: nat, weekDate: text) ->
    (variant {
       err: text;
-      ok: nat;
+      ok: record {
+            existingFindings: nat;
+            newFindings: nat;
+          };
     });
   saveAndSendNotification: (title: text, messageBody: text, messageFormat:
    NotificationFormat, priority: NotificationPriority, validFrom: int,
@@ -1996,6 +2154,11 @@ service : {
       err: text;
       ok: Notification;
     });
+  sendChatMessage: (message: text, conversationHistory:
+   vec record {
+         content: text;
+         role: text;
+       }) -> (Result_21);
   sendNotification: (notificationId: text) -> (variant {
                                                  err: text;
                                                  ok;
@@ -2007,11 +2170,19 @@ service : {
     });
   setCompanyBillingModel: (companyId: nat, billingModel: BillingModel) ->
    (Result_5);
-  setEmployeeActive: (id: EmployeeId, active: bool) -> (Result_13);
+  setEmployeeActive: (id: EmployeeId, active: bool) -> (Result_14);
   setFrontendCanisterId: (id: text) -> ();
   setFrontendCyclesManual: (cycles: nat) -> ();
   setMyStandardarbeitszeiten: (data: Standardarbeitszeiten) -> (Result_5);
-  setPlatformAdminConfig: (config: PlatformAdminConfig) -> (Result_5);
+  setOpenAIConfig: (apiKey: text) -> (Result_5);
+  setPlatformAdminConfig: (config:
+   record {
+     frontendCanisterId: text;
+     stripePublishableKey: text;
+     stripeSecretKey: text;
+     stripeWebhookEndpointUrl: text;
+     stripeWebhookSecret: text;
+   }) -> (Result_5);
   setProjectMembers: (projectId: ProjectId, members:
    vec ProjectMemberAssignment) -> (Result_5);
   setSnapshotInterval: (seconds: nat) -> ();
@@ -2024,9 +2195,8 @@ service : {
   setUserRoleForCompany: (companyId: CompanyId, employeeId: EmployeeId, role:
    Role) -> (Result_5);
   startSnapshotTimer: () -> ();
-  submitAbsenceForApproval: (absenceId: AbsenceId) -> (Result_5);
-  submitTimeEntryForApproval: (entryId: TimeEntryId) -> (Result_3);
-  syncStripeSubscription: (companyId: nat) -> (Result_20);
+  syncStripeSubscription: (companyId: nat) -> (Result_22);
+  testOpenAIConnection: () -> (Result_21);
   testStripeConnection: () ->
    (record {
       apiConnectionMessage: text;
@@ -2034,34 +2204,52 @@ service : {
       customerPortalMessage: text;
       customerPortalOk: bool;
     });
+  transformOpenAI: (input: TransformationInput) ->
+   (TransformationOutput) query;
   transformStripeResponse: (args: HttpTransformArgs) ->
    (HttpRequestResult) query;
-  updateAbsence: (id: AbsenceId, input: UpdateAbsenceInput) -> (Result_19);
+  updateAbsence: (id: AbsenceId, input: UpdateAbsenceInput) -> (Result_20);
   updateAbsenceType: (id: AbsenceTypeId, input: UpdateAbsenceTypeInput) ->
-   (Result_18);
-  updateCompany: (input: UpdateCompanyInput) -> (Result_17);
-  updateCompanySettings: (input: CompanySettings) -> (Result_16);
+   (Result_19);
+  updateCompany: (input: UpdateCompanyInput) -> (Result_18);
+  updateCompanySettings: (input: CompanySettings) -> (Result_17);
   updateComplianceProfile: (input: UpdateComplianceProfileInput) ->
    (variant {
       err: text;
       ok: EmployeeComplianceProfile;
     });
   updateCostSettings: (settings: CostSettings) -> ();
-  updateCustomer: (id: CustomerId, input: UpdateCustomerInput) -> (Result_15);
-  updateDefaultWorkHours: (input: DefaultWorkHours) -> (Result_14);
-  updateEmployee: (id: EmployeeId, input: UpdateEmployeeInput) -> (Result_13);
+  updateCustomer: (id: CustomerId, input: UpdateCustomerInput) -> (Result_16);
+  updateDefaultWorkHours: (input: DefaultWorkHours) -> (Result_15);
+  updateEmployee: (id: EmployeeId, input: UpdateEmployeeInput) -> (Result_14);
   updateEmployment: (employeeId: EmployeeId, employmentId: text, input:
-   UpdateEmploymentInput) -> (Result_12);
-  updateExpense: (id: ExpenseId, input: UpdateExpenseInput) -> (Result_11);
+   UpdateEmploymentInput) -> (Result_13);
+  updateExpense: (id: ExpenseId, input: UpdateExpenseInput) -> (Result_12);
   updateExpenseType: (id: ExpenseTypeId, input: UpdateExpenseTypeInput) ->
-   (Result_10);
-  updateHoliday: (id: HolidayId, input: UpdateHolidayInput) -> (Result_9);
-  updateInvoice: (invoiceId: nat, input: UpdateInvoiceInput) -> (Result_8);
+   (Result_11);
+  updateHoliday: (id: HolidayId, input: UpdateHolidayInput) -> (Result_10);
+  updateInvoice: (invoiceId: nat, input: UpdateInvoiceInput) -> (Result_9);
+  updateKnowledgeEntry: (id: text, entry:
+   record {
+     category: text;
+     content: text;
+     isActive: bool;
+     language: text;
+     role: text;
+     title: text;
+   }) -> (Result_8);
+  updatePeriodCloseConfig: (tenantId: CompanyId, config:
+   PeriodCloseConfig) -> (Result_5);
   updateProject: (id: ProjectId, input: UpdateProjectInput) -> (Result_7);
   updateServiceType: (id: ServiceTypeId, input: UpdateServiceTypeInput) ->
    (Result_6);
   updateStripeSubscriptionQuantity: (companyId: nat, newQuantity: nat) ->
    (Result_5);
+  updateTenantComplianceRule: (input: UpdateTenantComplianceRuleInput) ->
+   (variant {
+      err: text;
+      ok: TenantComplianceRule;
+    });
   updateTimeBalanceCorrection: (employeeId: EmployeeId, correctionId: 
    text, input: UpdateTimeBalanceCorrectionInput) -> (Result_4);
   updateTimeEntry: (id: TimeEntryId, input: UpdateTimeEntryInput) ->

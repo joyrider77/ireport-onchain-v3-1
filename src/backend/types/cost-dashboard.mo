@@ -145,6 +145,9 @@ module {
     paymentProvider    : PaymentProvider; // Zahlungsanbieter
     requiresPayment    : Bool;          // true = kostenpflichtig
     stripeMode         : ?Text;         // "test" oder "live"
+    // ─── Marketing-Erweiterungsfelder ─────────────────────────────────────────
+    isRecommended      : Bool;          // true = Empfohlener/hervorgehobener Plan
+    additionalFeatures : [Text];        // Manuell erfasste Zusatzfunktionen (z.B. "Premium-Support")
   };
 
   // Abrechnungsmodell pro Mandant
@@ -193,6 +196,11 @@ module {
     proRataNote           : ?Text;
     creditAmount          : ?Float;
   };
+  // OpenAI-Konfiguration (Platform Admin only, API Key niemals an Browser zurückgeben)
+  public type OpenAIConfig = {
+    apiKey : Text;
+  };
+
   // Stripe-Konfiguration (Platform Admin only, serverseitig gespeichert)
   public type StripeConfig = {
     secretKey      : Text;

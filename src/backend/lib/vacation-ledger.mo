@@ -6,6 +6,7 @@ import Time "mo:core/Time";
 import ComplianceTypes "../types/compliance";
 import TrackingTypes "../types/timetracking";
 import ComplianceLib "compliance";
+import Float "mo:core/Float";
 
 module {
 
@@ -39,34 +40,38 @@ module {
     let startNs = ComplianceLib.dateToNs(periodStart);
     let endNs   = ComplianceLib.dateToNs(periodEnd);
 
-    let gesetzlicheFerientage = ComplianceLib.calculateCalendarYearEntitlement(
+    let gesetzlicheRaw = ComplianceLib.calculateCalendarYearEntitlement(
       geburtsdatum, hireDate, year, exitDate
     );
+    // Auf 2 Nachkommastellen runden
+    let gesetzlicheFerientage = Float.floor(gesetzlicheRaw * 100.0 + 0.5) / 100.0;
     let todayStr = ComplianceLib.today();
 
-    // Ferien im Zeitraum
+    // Ferien im Zeitraum (auch ausstehende/eingereichte für 2-Wochen-Block)
     let ferienImZR = absences.filter(func(ab : TrackingTypes.Absence) : Bool {
       ab.employeeId == employeeId and ab.companyId == companyId
         and ab.dateFrom >= periodStart and ab.dateTo <= periodEnd;
     });
 
-    var bezogeneFerientage = 0.0;
-    var geplanteFerientage = 0.0;
+    var bezogeneRaw = 0.0;
+    var geplanteFerientageRaw = 0.0;
     for (ab in ferienImZR.values()) {
       let days = ComplianceLib.dateToUnixDays(ab.dateTo) - ComplianceLib.dateToUnixDays(ab.dateFrom) + 1;
       let daysFloat = days.toFloat();
       if (ab.status == #approved) {
         if (ab.dateTo <= todayStr) {
-          bezogeneFerientage += daysFloat;
+          bezogeneRaw += daysFloat;
         } else {
-          geplanteFerientage += daysFloat;
+          geplanteFerientageRaw += daysFloat;
         };
       } else if (ab.status == #submitted) {
-        geplanteFerientage += daysFloat;
+        geplanteFerientageRaw += daysFloat;
       };
     };
 
-    let verbleibendeFerientage = gesetzlicheFerientage + vertraglicheZusatzferienTage - bezogeneFerientage;
+    let bezogeneFerientage   = Float.floor(bezogeneRaw * 100.0 + 0.5) / 100.0;
+    let geplanteFerientage   = Float.floor(geplanteFerientageRaw * 100.0 + 0.5) / 100.0;
+    let verbleibendeFerientage = Float.floor((vertraglicheZusatzferienTage - bezogeneFerientage - geplanteFerientage) * 100.0 + 0.5) / 100.0;
     let blockResult = ComplianceLib.checkTwoWeekVacationBlock(
       ferienImZR, periodStart, periodEnd, minBlockDays
     );
@@ -74,7 +79,7 @@ module {
       id;
       employeeId;
       companyId;
-      serviceYearKey = calendarYearKey; // Legacy-Feld mit calendarYearKey befüllen
+      serviceYearKey = calendarYearKey;
       calendarYearKey;
       serviceYearStart = startNs;
       serviceYearEnd   = endNs;
@@ -119,30 +124,33 @@ module {
           case null { dec31 };
           case (?ex) { if (ex < dec31) { ex } else { dec31 } };
         };
-        let gesetzlicheFerientage = ComplianceLib.calculateCalendarYearEntitlement(
+        let gesetzlicheRaw2 = ComplianceLib.calculateCalendarYearEntitlement(
           geburtsdatum, hireDate, year, exitDate
         );
+        let gesetzlicheFerientage = Float.floor(gesetzlicheRaw2 * 100.0 + 0.5) / 100.0;
         let todayStr = ComplianceLib.today();
         let ferienImZR = absences.filter(func(ab : TrackingTypes.Absence) : Bool {
           ab.employeeId == employeeId and ab.companyId == companyId
             and ab.dateFrom >= periodStart and ab.dateTo <= periodEnd;
         });
-        var bezogeneFerientage = 0.0;
-        var geplanteFerientage = 0.0;
+        var bezogeneRaw2 = 0.0;
+        var geplanteFerientageRaw2 = 0.0;
         for (ab in ferienImZR.values()) {
           let days = ComplianceLib.dateToUnixDays(ab.dateTo) - ComplianceLib.dateToUnixDays(ab.dateFrom) + 1;
           let daysFloat = days.toFloat();
           if (ab.status == #approved) {
             if (ab.dateTo <= todayStr) {
-              bezogeneFerientage += daysFloat;
+              bezogeneRaw2 += daysFloat;
             } else {
-              geplanteFerientage += daysFloat;
+              geplanteFerientageRaw2 += daysFloat;
             };
           } else if (ab.status == #submitted) {
-            geplanteFerientage += daysFloat;
+            geplanteFerientageRaw2 += daysFloat;
           };
         };
-        let verbleibendeFerientage = gesetzlicheFerientage + vertraglicheZusatzferienTage - bezogeneFerientage;
+        let bezogeneFerientage   = Float.floor(bezogeneRaw2 * 100.0 + 0.5) / 100.0;
+        let geplanteFerientage   = Float.floor(geplanteFerientageRaw2 * 100.0 + 0.5) / 100.0;
+        let verbleibendeFerientage = Float.floor((vertraglicheZusatzferienTage - bezogeneFerientage - geplanteFerientage) * 100.0 + 0.5) / 100.0;
         let blockResult = ComplianceLib.checkTwoWeekVacationBlock(
           ferienImZR, periodStart, periodEnd, minBlockDays
         );

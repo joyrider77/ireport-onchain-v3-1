@@ -70,6 +70,88 @@ function formatDate(ns: bigint): string {
   });
 }
 
+const DE_WEEKDAYS: Record<number, string> = {
+  0: "So",
+  1: "Mo",
+  2: "Di",
+  3: "Mi",
+  4: "Do",
+  5: "Fr",
+  6: "Sa",
+};
+
+/**
+ * Post-process a violation meldung string:
+ * - Replace any date in format DD.MM.YYYY with "Wd, DD.MM.YYYY (YYYY)"
+ * - If a year context is separately available it is embedded after the date.
+ */
+function enrichMeldungDates(meldung: string): string {
+  // Step 1: Extract year from first DD.MM.YYYY in the text
+  const yearMatch = meldung.match(/(\d{2}\.\d{2}\.(\d{4}))/);
+  const yearStr = yearMatch ? yearMatch[2] : null;
+
+  // Step 2: If year found, append "(YYYY)" after the violation label (before first ":")
+  // but only if the label doesn't already end with "(YYYY)"
+  let result = meldung;
+  if (yearStr) {
+    result = result.replace(
+      /^([^:]+?)(?:\s*\(\d{4}\))?:/,
+      (_m, label) => `${label} (${yearStr}):`,
+    );
+  }
+
+  // Step 3: Replace dates DD.MM.YYYY with "Wd, DD.MM.YYYY"
+  result = result.replace(/(\d{2}\.\d{2}\.(\d{4}))/g, (_match, dateStr) => {
+    const parts = dateStr.split(".");
+    const d = new Date(
+      Number(parts[2]),
+      Number(parts[1]) - 1,
+      Number(parts[0]),
+    );
+    const wd = DE_WEEKDAYS[d.getDay()] ?? "";
+    return `${wd}, ${dateStr}`;
+  });
+
+  return result;
+}
+
+/**
+ * Format a periodeKey for display on the finding card.
+ * - DAY: "YYYY-MM-DD" → "Mo, 11.05.2026"
+ * - WEEK: "YYYY-MM-DD" → "KW 20 – Mo, 11.05.2026"
+ * - SERVICE_YEAR: "2026" → "2026"
+ */
+function formatPeriodeKey(
+  periodeKey: string,
+  periodeTyp: CompliancePeriodeTyp | string,
+): string {
+  // Year-only (SERVICE_YEAR / VACATION_MINIMUM)
+  if (/^\d{4}$/.test(periodeKey)) {
+    return periodeKey;
+  }
+  // YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(periodeKey)) {
+    const [y, m, d] = periodeKey.split("-").map(Number);
+    const date = new Date(y, m - 1, d);
+    const wd = DE_WEEKDAYS[date.getDay()] ?? "";
+    const dayStr = `${wd}, ${String(d).padStart(2, "0")}.${String(m).padStart(2, "0")}.${y}`;
+    if (periodeTyp === "WEEK") {
+      // ISO week number
+      const jan4 = new Date(y, 0, 4);
+      const startOfWeek1 = new Date(
+        jan4.getTime() -
+          (jan4.getDay() === 0 ? 6 : jan4.getDay() - 1) * 86400000,
+      );
+      const weekNum = Math.round(
+        (date.getTime() - startOfWeek1.getTime()) / (7 * 86400000) + 1,
+      );
+      return `KW ${weekNum} – ${dayStr}`;
+    }
+    return dayStr;
+  }
+  return periodeKey;
+}
+
 const STATUS_LABELS: Record<string, string> = {
   COMPLIANT: "Konform",
   INFO: "Info",
@@ -234,14 +316,27 @@ export default function ComplianceMitarbeiterDetail({ employees }: Props) {
                 {STATUS_LABELS[f.status as string] ?? f.status}
               </span>
             </div>
-            <p className="text-sm text-foreground mb-2">{f.meldung}</p>
+            {/* Date badge derived from periodeKey */}
+            {f.periodeKey && (
+              <div className="mb-2">
+                <span className="inline-block bg-muted text-muted-foreground text-xs font-medium px-2 py-0.5 rounded">
+                  {formatPeriodeKey(f.periodeKey, f.periodeTyp as string)}
+                </span>
+              </div>
+            )}
+            <p className="text-sm text-foreground mb-2">
+              {enrichMeldungDates(f.meldung)}
+            </p>
             <div className="text-xs text-muted-foreground">
               Ist: {f.istWert} {f.einheit} | Soll: {f.sollWert} {f.einheit}
             </div>
             <div className="text-xs text-muted-foreground mt-0.5">
               {formatDate(f.createdAt)}
             </div>
-            {(f.status === "BREACH" || f.status === "CRITICAL") && (
+            {(f.status === "BREACH" ||
+              f.status === "CRITICAL" ||
+              (f.status === "WARNING" &&
+                f.ruleCode === "VACATION_MINIMUM")) && (
               <button
                 type="button"
                 onClick={() => openResolveDialog(f)}
@@ -280,7 +375,7 @@ export default function ComplianceMitarbeiterDetail({ employees }: Props) {
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {f.meldung}
+                    {enrichMeldungDates(f.meldung)}
                   </p>
                   {f.resolutionReason && (
                     <p className="text-xs text-muted-foreground mt-1 italic">

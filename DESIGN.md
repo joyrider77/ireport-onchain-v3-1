@@ -1,72 +1,61 @@
-# Design Brief: iReport Onchain V3.1
+# Design Brief: Period Close Feature
 
-**Purpose**: Professional HR and time-tracking system for Swiss companies. Enterprise CRUD application + landing page showcase. Interior requires high information density and trusted corporate aesthetic; landing page emphasizes value proposition and Swiss SaaS polish.
+## Direction
+Period Close Module — Administrative workflow for safely closing and reopening financial periods with clear status communication and audit trails.
 
-**Tone**: Professional, utilitarian, trustworthy. Swiss precision with geometric clarity. Landing page adds welcoming warmth without sacrificing credibility.
+## Tone
+Refined, structured, trustworthy. Professional compliance aesthetic with status-aware color coding. No playfulness; every visual choice reinforces data integrity.
 
-**Interior Differentiation**: Corporate teal primary (#006066) with neutral greys; fixed header + collapsible sidebar as navigation backbone.
+## Differentiation
+Row-level status badges + integrated lock indicators make locked periods immediately recognizable without modal dialogs. Users cannot accidentally edit closed periods.
 
-**Landing Page Differentiation**: Deep Cornflower Blue hero (#0A4A75) with 2-column layout (headline + visual), trust badges, feature grid, mobile mockup, benefits, pricing, FAQ, sticky nav, footer with Nutzungsbedingungen link. Minimal effects, subtle shadows, rounded corners 4-8px.
+## Color Palette
 
-## Color Palette — Landing Page (Light Mode)
-
-| Token | OKLCH | Usage |
-|-------|-------|-------|
-| Hero BG | `0.26 0.12 256` | Deep Cornflower Blue — hero background |
-| Primary | `0.42 0.09 256` | Strong Cornflower Blue — CTAs, accents |
-| Secondary | `0.54 0.11 256` | Brilliant Azure — highlights, badges |
-| White | `0.995 0 0` | White text on dark, light backgrounds |
-| Light BG | `0.97 0.01 254` | Light neutral — content sections |
-| Text | `0.15 0.02 250` | Dark text on light backgrounds |
-| Text Secondary | `0.45 0.02 250` | Medium-dark text for secondary info |
-
-## Color Palette — App Interior (Light Mode)
-
-| Token | OKLCH | Usage |
-|-------|-------|-------|
-| Primary | `0.42 0.085 196` | Corporate teal — buttons, active states |
-| Foreground | `0.25 0.02 250` | Primary text on light backgrounds |
-| Background | `0.99 0 0` | Main content area |
-| Card | `1.0 0 0` | Card/panel backgrounds |
-| Destructive | `0.55 0.22 25` | Delete, reject, error actions |
+| Token | OKLCH | Role |
+|-------|-------|------|
+| period-open | 0.94 0.01 220 | Neutral state, available for editing |
+| period-ready | 0.75 0.12 80 | Intermediate, ready for close check |
+| period-closed | 0.58 0.15 20 | Locked, restricted access |
+| period-reopened | 0.42 0.085 196 | Recovered/restored state |
 
 ## Typography
+- Display: Figtree — Page titles, section headers
+- Body: Nunito — Tables, forms, descriptions
+- Scale: h2 text-lg font-semibold, labels text-sm font-medium, body text-sm
 
-| Layer | Font | Usage | Size | Weight |
-|-------|------|-------|------|--------|
-| Display | Figtree | Page titles, section headers | 1.5–3rem | 600–700 |
-| Body | Nunito | Prose, form labels, tables | 0.875–1rem | 400–500 |
-| Mono | Geist Mono | Timestamps, codes, data | 0.75–0.875rem | 400 |
+## Elevation & Depth
+Cards have subtle `border-border` and `bg-card`. Precheck panel uses left border accent (primary color) for emphasis. Lock indicators render with minimal shadow (border only).
 
 ## Structural Zones
 
-| Zone | Background | Border | Elevation | Purpose |
-|------|------------|--------|-----------|---------|
-| Landing Hero | `--landing-hero-bg` | None | None | Brand message, 2-column headline + visual |
-| Landing Content | `--landing-light-bg` | None | Subtle | Feature grid, benefits, pricing, FAQ |
-| App Header | `--sidebar` | `--sidebar-border` | Card shadow | Brand, logo, user menu |
-| App Sidebar | `--sidebar` | `--sidebar-border` | None | Navigation (collapsible) |
-| App Card/Panel | `--card` | `--border` | Card shadow | Data containers, modals |
+| Zone | Background | Border | Notes |
+|------|------------|--------|-------|
+| Period Selector | bg-card | border-border | Compact form with month/year inputs |
+| Precheck Panel | bg-card | border-l-4 primary | Warning/success icon indicators |
+| Employee Table | bg-background | — | Row striping via alternating card styles |
+| Actions | bg-background | — | Button group: "Abschluss durchführen", "Zurück" |
+| Closed Entry Banner | bg-destructive/10 | border destructive/30 | Appears inline when period is locked |
 
 ## Spacing & Rhythm
-
-- Base unit: 4px (Tailwind standard)
-- Density: Compact (European corporate standard)
-- Vertical rhythm: 0.5rem / 0.75rem / 1rem / 1.5rem / 2rem
-- Max-width: 1200–1280px (landing page content sections)
+Section gap 4 (1rem), card padding 3–4 (12–16px), badge padding 2–2.5 (8–10px). Rows in table maintain 3 (12px) padding for density.
 
 ## Component Patterns
-
-**Landing Page**: Hero (2-col), Trust Badges, Feature Cards, Mobile Section, Pricing, FAQ Accordion, Sticky Nav, Footer.
-**App Interior**: Buttons (Primary/Secondary/Destructive), Inputs, Cards, Tables, Modals. All use interior teal primary.
+- Status Badges: `.period-badge-{open|ready|closed|reopened}` — pill shape, semantic color + white text, no icon (text only)
+- Lock Indicator: `.period-lock-indicator` — muted text, small border pill, lock icon + "Abgeschlossen"
+- Precheck Item: `.period-precheck-item` — checkmark/warning/error icon + text
+- Closed Period Banner: `.period-closed-banner` — destructive accent left border, inline info message
 
 ## Motion
+- Entrance: Table rows fade in on load (no stagger)
+- Hover: Row background brightens (bg-muted/50), no scale
+- Status change: Badge color transition smooth (0.3s)
 
-- Transition default: `all 0.3s cubic-bezier(0.4, 0, 0.2, 1)` (smooth ease-in-out)
-- Minimal animations; stable, professional interactions
-- Landing page: Subtle fade-in on scroll for content sections
+## Constraints
+- No auto-scheduling UI (deferred feature)
+- No multi-period range selector
+- No detailed correction flags per row
+- No approval workflows in UI
+- Badge text only (no icon clutter)
 
 ## Signature Detail
-
-Swiss precision through token-driven design. Deep Cornflower Blue hero anchors trust; white typography ensures clarity. Clean grids, rounded corners 4-8px, subtle shadows. iReport logo (200% size, transparent) in header and footer. Sticky navigation keeps CTA visible.
-
+Subtle left-border accent on precheck panel creates visual continuity with existing iReport design system while marking compliance checks as critical information.

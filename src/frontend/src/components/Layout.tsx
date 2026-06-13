@@ -27,6 +27,7 @@ import {
   Gift,
   Globe,
   LayoutDashboard,
+  LockKeyhole,
   LogOut,
   MessageCircle,
   Receipt,
@@ -41,6 +42,7 @@ import { useEffect, useState } from "react";
 import logoImg from "/assets/ireport_logo.png";
 import { createActor } from "../backend";
 import type { SubscriptionPlan } from "../backend.d";
+import ChatWidget from "../components/ChatWidget";
 import { NotificationBell } from "../components/notifications/NotificationBell";
 import { useAuth } from "../hooks/useAuthStore";
 import { StopwatchWidget } from "./StopwatchWidget";
@@ -94,6 +96,12 @@ const topNavItems: NavItem[] = [
     icon: ClipboardCheck,
     label: "HR & Compliance",
     path: "/hr-compliance",
+    roles: ["admin", "manager"],
+  },
+  {
+    icon: LockKeyhole,
+    label: "Monatsabschluss",
+    path: "/auswertungen/monatsabschluss",
     roles: ["admin", "manager"],
   },
   { icon: Bell, label: "Benachrichtigungen", path: "/benachrichtigungen" },
@@ -170,6 +178,8 @@ export function Layout({ children }: LayoutProps) {
     }
   });
   const [supportTooltip, setSupportTooltip] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatAvailable, setChatAvailable] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const {
@@ -188,6 +198,26 @@ export function Layout({ children }: LayoutProps) {
       // ignore
     }
   }, [sidebarExpanded]);
+
+  const { actor: chatActor, isFetching: chatFetching } = useActor(createActor);
+  useEffect(() => {
+    if (!chatActor || chatFetching) return;
+    (
+      chatActor as unknown as Record<
+        string,
+        () => Promise<{ isConfigured: boolean }>
+      >
+    )
+      .getOpenAIEnabled()
+      .then((res) => {
+        console.log("[ChatButton] getOpenAIEnabled result:", res);
+        setChatAvailable(!!res?.isConfigured);
+      })
+      .catch((err) => {
+        console.error("[ChatButton] getOpenAIEnabled failed:", err);
+        setChatAvailable(false);
+      });
+  }, [chatActor, chatFetching]);
 
   const userRole = role ?? "employee";
   const visibleNav = topNavItems.filter((item) => {
@@ -264,11 +294,13 @@ export function Layout({ children }: LayoutProps) {
               className="flex items-center min-w-0"
               aria-label="iReport"
             >
-              <img
-                src={logoImg}
-                alt="iReport"
-                className={`object-contain transition-all duration-300 ${sidebarExpanded ? "h-10 max-w-[140px]" : "h-8 w-8 max-w-[40px]"}`}
-              />
+              {sidebarExpanded && (
+                <img
+                  src={logoImg}
+                  alt="iReport"
+                  className="object-contain transition-all duration-300 h-10 max-w-[140px]"
+                />
+              )}
             </a>
             <button
               type="button"
@@ -651,21 +683,34 @@ export function Layout({ children }: LayoutProps) {
 
         {/* Floating support chat */}
         <div className="fixed bottom-6 right-6 z-50 no-print">
-          <Tooltip open={supportTooltip} onOpenChange={setSupportTooltip}>
+          {isChatOpen && chatAvailable && (
+            <ChatWidget onClose={() => setIsChatOpen(false)} />
+          )}
+          <Tooltip
+            open={chatAvailable ? undefined : supportTooltip}
+            onOpenChange={chatAvailable ? undefined : setSupportTooltip}
+          >
             <TooltipTrigger asChild>
               <button
                 type="button"
                 data-ocid="support-chat"
-                onClick={() => setSupportTooltip(!supportTooltip)}
+                onClick={() =>
+                  chatAvailable
+                    ? setIsChatOpen((v) => !v)
+                    : setSupportTooltip(!supportTooltip)
+                }
+                disabled={false}
                 className="w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-elevated flex items-center justify-center hover:opacity-90 transition-smooth focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label="Support"
+                aria-label="iReport Assistent"
               >
                 <MessageCircle className="w-5 h-5" />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="left" className="text-sm">
-              Support kommt bald!
-            </TooltipContent>
+            {!chatAvailable && (
+              <TooltipContent side="left" className="text-sm">
+                Chat wird bald verfügbar sein
+              </TooltipContent>
+            )}
           </Tooltip>
         </div>
       </div>

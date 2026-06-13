@@ -286,6 +286,9 @@ export function VacationBalanceSection({ employeeId, canWrite }: Props) {
               </Label>
               <Input
                 id="vb-dauer"
+                type="number"
+                step="0.01"
+                min="0"
                 placeholder="z.B. 20 oder 10.5"
                 value={form.dauer}
                 onChange={(e) => setForm({ ...form, dauer: e.target.value })}

@@ -12,7 +12,8 @@ import TrackingTypes "../types/timetracking";
 import AuditTypes "../types/audit";
 import TimeLib "../lib/timetracking";
 import InputValidator "../lib/InputValidator";
-import ApprovalLib "../lib/timetracking-approval";
+import PeriodCloseTypes "../types/period-close";
+import PeriodCloseLib "../lib/period-close";
 
 mixin (
   accessControlState : AccessControl.AccessControlState,
@@ -24,7 +25,7 @@ mixin (
   nextTimeEntryId : { var value : Nat },
   auditLogEntries : List.List<AuditTypes.AuditLogEntry>,
   nextAuditLogId : { var value : Nat },
-  timeEntryApprovalData : Map.Map<Nat, ApprovalLib.ApprovalRecord>,
+  periodCloses : Map.Map<PeriodCloseTypes.PeriodCloseId, PeriodCloseTypes.PeriodClose>,
 ) {
   // Hilfsfunktion: Authentifizierung prüfen
   private func ttRequireAuth(caller : Principal) : (CommonTypes.CompanyId, CommonTypes.EmployeeId) {
@@ -37,6 +38,28 @@ mixin (
       case (?eid) eid;
     };
     (companyId, employeeId);
+  };
+
+  // Hilfsfunktion: Periodensperre pruefen (gilt fuer alle Rollen, keine Ausnahmen)
+  private func ttCheckPeriodLock(
+    caller     : Principal,
+    companyId  : CommonTypes.CompanyId,
+    employeeId : CommonTypes.EmployeeId,
+    dateStr    : Text, // YYYY-MM-DD
+  ) : CommonTypes.Result<()> {
+    ignore caller;
+    // Datum parsen: YYYY-MM-DD
+    let parts = dateStr.split(#char '-').toArray();
+    if (parts.size() < 2) { return #ok(()) };
+    let yearOpt = parts[0].toNat();
+    let monthOpt = parts[1].toNat();
+    let (year, month) = switch (yearOpt, monthOpt) {
+      case (?y, ?m) { (y, m) };
+      case _ { return #ok(()) };
+    };
+    // Direkt via Monat/Jahr pruefen – kein fehlerbehafteter Timestamp-Roundtrip
+    let closes = periodCloses.entries().toArray();
+    PeriodCloseLib.checkPeriodEditableByMonthYear(closes, companyId, employeeId, month, year);
   };
 
   // Hilfsfunktion: Name des Aufrufers ermitteln (für Audit-Log)
@@ -105,12 +128,15 @@ mixin (
       case (#err(msg)) { return #err(msg) };
       case (#ok(())) {};
     };
+    // Periodensperre pruefen
+    switch (ttCheckPeriodLock(caller, companyId, employeeId, input.date)) {
+      case (#err(msg)) { return #err(msg) };
+      case (#ok(())) {};
+    };
     let id = nextTimeEntryId.value;
     nextTimeEntryId.value += 1;
     let entry = TimeLib.createTimeEntry(timeEntries, id, companyId, employeeId, input);
     appendTimeEntryAudit(caller, companyId, #create, entry.id.toText(), null, ?timeEntryToText(entry), null);
-    // Zeiteintrag direkt als #submitted registrieren (Genehmigungsworkflow)
-    timeEntryApprovalData.add(entry.id, { status = #submitted; approvedBy = null; reason = null });
     #ok(entry);
   };
 
@@ -149,7 +175,18 @@ mixin (
     input : TrackingTypes.UpdateTimeEntryInput,
   ) : async CommonTypes.Result<TrackingTypes.TimeEntry> {
     let (companyId, employeeId) = ttRequireAuth(caller);
-    let beforeOpt = timeEntries.find(func(e) { e.id == id and e.companyId == companyId and e.employeeId == employeeId });
+    // Periodensperre pruefen (Datum aus bestehendem Eintrag)
+    let existingForLock = timeEntries.find(func(e : TrackingTypes.TimeEntry) : Bool = e.id == id and e.companyId == companyId and e.employeeId == employeeId);
+    switch (existingForLock) {
+      case (?existing) {
+        switch (ttCheckPeriodLock(caller, companyId, employeeId, existing.date)) {
+          case (#err(msg)) { return #err(msg) };
+          case (#ok(())) {};
+        };
+      };
+      case null {};
+    };
+    let beforeOpt = existingForLock;
     switch (TimeLib.updateTimeEntry(timeEntries, companyId, id, employeeId, input)) {
       case null { #err("Zeiteintrag nicht gefunden oder keine Berechtigung") };
       case (?e) {
@@ -185,16 +222,18 @@ mixin (
     id : CommonTypes.TimeEntryId
   ) : async CommonTypes.Result<()> {
     let (companyId, employeeId) = ttRequireAuth(caller);
-    // Genehmigungsstatus prüfen: genehmigte Einträge dürfen nicht direkt gelöscht werden
-    switch (timeEntryApprovalData.get(id)) {
-      case (?approvalRecord) {
-        if (approvalRecord.status == #approved) {
-          return #err("Dieser Eintrag wurde bereits genehmigt. Bitte den Vorgesetzten bitten, die Genehmigung zuerst zurückzusetzen.");
+    // Periodensperre pruefen
+    let entryForLock = timeEntries.find(func(e : TrackingTypes.TimeEntry) : Bool = e.id == id and e.companyId == companyId and e.employeeId == employeeId);
+    switch (entryForLock) {
+      case (?existing) {
+        switch (ttCheckPeriodLock(caller, companyId, employeeId, existing.date)) {
+          case (#err(msg)) { return #err(msg) };
+          case (#ok(())) {};
         };
       };
       case null {};
     };
-    let beforeOpt = timeEntries.find(func(e) { e.id == id and e.companyId == companyId and e.employeeId == employeeId });
+    let beforeOpt = entryForLock;
     if (TimeLib.deleteTimeEntry(timeEntries, companyId, id, employeeId)) {
       let beforeText = switch (beforeOpt) { case null { null }; case (?b) { ?timeEntryToText(b) } };
       appendTimeEntryAudit(caller, companyId, #remove, id.toText(), beforeText, null, null);

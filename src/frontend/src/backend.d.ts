@@ -24,18 +24,16 @@ export interface TenantCostEntry {
 }
 export type Result_32 = {
     __kind__: "ok";
-    ok: Array<Invoice>;
+    ok: ProjectBudgetReport;
 } | {
     __kind__: "err";
     err: string;
 };
-export type Result_2 = {
-    __kind__: "ok";
-    ok: UserNotificationSettings;
-} | {
-    __kind__: "err";
-    err: string;
-};
+export interface TransformationOutput {
+    status: bigint;
+    body: Uint8Array;
+    headers: Array<http_header>;
+}
 export interface ServiceTypeBudgetReport {
     serviceTypeName: string;
     aufgewendetCHF: number;
@@ -43,6 +41,13 @@ export interface ServiceTypeBudgetReport {
     kostendachCHF: number;
     serviceTypeId: ServiceTypeId;
 }
+export type Result_2 = {
+    __kind__: "ok";
+    ok: UserNotificationSettings;
+} | {
+    __kind__: "err";
+    err: string;
+};
 export interface ProjectBudgetReport {
     totalKostendachCHF: number;
     customerName: string;
@@ -121,11 +126,15 @@ export interface UpdateCustomerInput {
     beschreibung?: string;
     waehrung?: string;
 }
-export interface PlatformAdminConfigPublic {
-    frontendCanisterId: string;
-    stripeWebhookEndpointUrl: string;
-    stripePublishableKey: string;
-}
+export type Result_40 = {
+    __kind__: "ok";
+    ok: {
+        url: string;
+    };
+} | {
+    __kind__: "err";
+    err: string;
+};
 export interface CreateExpenseInput {
     date: string;
     description: string;
@@ -167,6 +176,10 @@ export interface CostDashboardData {
     backendCanisterId: string;
     backendCyclesBalance?: bigint;
 }
+export interface ReopenPeriodInput {
+    reopenReason?: string;
+    closeId: PeriodCloseId;
+}
 export interface CanisterStatusInfo {
     backendStatus: string;
     dataSource: string;
@@ -200,14 +213,17 @@ export interface TimeEntry {
 }
 export type Result_34 = {
     __kind__: "ok";
-    ok: Employment | null;
+    ok: Array<Invoice>;
 } | {
     __kind__: "err";
     err: string;
 };
-export interface FeatureAccessResult {
-    featureKey: FeatureKey;
-    hasAccess: boolean;
+export interface ExpenseType {
+    id: ExpenseTypeId;
+    aktiv: boolean;
+    name: string;
+    billable: boolean;
+    reimbursable: boolean;
     companyId: CompanyId;
 }
 export interface ServiceType {
@@ -218,17 +234,21 @@ export interface ServiceType {
     billable: boolean;
     companyId: CompanyId;
 }
-export interface ExpenseType {
-    id: ExpenseTypeId;
-    aktiv: boolean;
-    name: string;
-    billable: boolean;
-    reimbursable: boolean;
-    companyId: CompanyId;
-}
 export type Result_6 = {
     __kind__: "ok";
     ok: ServiceType;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_48 = {
+    __kind__: "ok";
+    ok: {
+        note: string;
+        remainingDays: bigint;
+        isUpgrade: boolean;
+        proRataAmount: number;
+    };
 } | {
     __kind__: "err";
     err: string;
@@ -249,17 +269,14 @@ export interface AuditLogFilter {
 }
 export type Result_26 = {
     __kind__: "ok";
-    ok: {
-        spesen: Array<Expense>;
-        zeiteintraege: Array<TimeEntry>;
-    };
+    ok: Array<Employment>;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_12 = {
     __kind__: "ok";
-    ok: Employment;
+    ok: Expense;
 } | {
     __kind__: "err";
     err: string;
@@ -277,23 +294,18 @@ export interface PauseOverride {
     reason?: string;
     companyId: bigint;
 }
-export interface HttpHeader {
+export interface http_header {
     value: string;
     name: string;
 }
-export interface ExpenseFilter {
-    status?: ExpenseStatus;
-    dateTo?: string;
-    employeeId?: EmployeeId;
-    dateFrom?: string;
+export interface http_request_result {
+    status: bigint;
+    body: Uint8Array;
+    headers: Array<http_header>;
 }
-export interface DashboardStats {
-    hoursTarget: number;
-    pendingExpenses: bigint;
-    hoursThisWeek: number;
-    remainingVacationMinutes: bigint;
-    approvedVacationDays: bigint;
-    pendingVacations: bigint;
+export interface HttpHeader {
+    value: string;
+    name: string;
 }
 export type Result = {
     __kind__: "ok";
@@ -304,15 +316,16 @@ export type Result = {
 };
 export type Result_10 = {
     __kind__: "ok";
-    ok: ExpenseType;
+    ok: Holiday;
 } | {
     __kind__: "err";
     err: string;
 };
-export interface CycleStatus {
-    dataSource: string;
-    frontendCycles?: bigint;
-    backendCycles: bigint;
+export interface ExpenseFilter {
+    status?: ExpenseStatus;
+    dateTo?: string;
+    employeeId?: EmployeeId;
+    dateFrom?: string;
 }
 export interface Notification {
     id: string;
@@ -333,12 +346,42 @@ export interface Notification {
 }
 export type Result_8 = {
     __kind__: "ok";
-    ok: Invoice;
+    ok: KnowledgeEntry;
 } | {
     __kind__: "err";
     err: string;
 };
 export type ServiceTypeId = bigint;
+export interface PeriodClose {
+    status: PeriodCloseStatus;
+    month: bigint;
+    periodType: PeriodType;
+    closedByUserId?: EmployeeId;
+    createdAt: Timestamp;
+    year: bigint;
+    reopenReason?: string;
+    tenantId: CompanyId;
+    closeId: PeriodCloseId;
+    updatedAt: Timestamp;
+    closedAt?: Timestamp;
+    periodEnd: bigint;
+    employeeId?: EmployeeId;
+    periodStart: bigint;
+    closeComment?: string;
+    reopenedAt?: Timestamp;
+    affectedRecordCounts?: AffectedRecordCounts;
+    reopenedByUserId?: EmployeeId;
+}
+export interface UpdateTimeEntryInput {
+    bis?: string;
+    von?: string;
+    hours?: number;
+    date?: string;
+    description?: string;
+    billable?: boolean;
+    projectId?: ProjectId;
+    serviceTypeId?: ServiceTypeId;
+}
 export interface InvoiceTemplateInput {
     qrIban?: string;
     fusszeileLayout?: string;
@@ -375,15 +418,19 @@ export interface InvoiceTemplateInput {
     fusszeileBildUrl?: string;
     kundenadresseLinks?: boolean;
 }
-export interface UpdateTimeEntryInput {
-    bis?: string;
-    von?: string;
-    hours?: number;
-    date?: string;
-    description?: string;
-    billable?: boolean;
-    projectId?: ProjectId;
-    serviceTypeId?: ServiceTypeId;
+export interface Project {
+    id: ProjectId;
+    status: ProjectStatus;
+    erfassungsart?: Erfassungsart;
+    active: boolean;
+    code: string;
+    billableRate: number;
+    name: string;
+    customerId: CustomerId;
+    kurzbezeichnung: string;
+    kostendachCHF?: number;
+    projektleiter?: EmployeeId;
+    companyId: CompanyId;
 }
 export interface InvoiceTemplate {
     id: bigint;
@@ -424,20 +471,6 @@ export interface InvoiceTemplate {
     kundenadresseLinks?: boolean;
     companyId: CompanyId;
 }
-export interface Project {
-    id: ProjectId;
-    status: ProjectStatus;
-    erfassungsart?: Erfassungsart;
-    active: boolean;
-    code: string;
-    billableRate: number;
-    name: string;
-    customerId: CustomerId;
-    kurzbezeichnung: string;
-    kostendachCHF?: number;
-    projektleiter?: EmployeeId;
-    companyId: CompanyId;
-}
 export interface CreateVacationBalanceInput {
     verfallsdatum?: bigint;
     kalenderjahr: bigint;
@@ -475,27 +508,16 @@ export interface AbsenceType {
     compensated: boolean;
     companyId: CompanyId;
 }
-export type FeatureKey = string;
 export type AbsenceId = bigint;
+export interface CycleStatus {
+    dataSource: string;
+    frontendCycles?: bigint;
+    backendCycles: bigint;
+}
 export type Time = bigint;
-export type Result_44 = {
-    __kind__: "ok";
-    ok: {
-        estimatedMonthlyCost: number;
-        currentPlanId?: string;
-        activeUserCount: bigint;
-        changeNeeded: boolean;
-        suggestedPlanId?: string;
-        suggestedPlanName: string;
-        currentPlanName: string;
-    };
-} | {
-    __kind__: "err";
-    err: string;
-};
 export type Result_13 = {
     __kind__: "ok";
-    ok: Employee;
+    ok: Employment;
 } | {
     __kind__: "err";
     err: string;
@@ -516,14 +538,26 @@ export interface StripeEvent {
 }
 export type Result_25 = {
     __kind__: "ok";
-    ok: {
-        spesen: Array<Expense>;
-        zeiteintraege: Array<UnbilledTimeEntry>;
-    };
+    ok: Array<TimeBalanceCorrection>;
 } | {
     __kind__: "err";
     err: string;
 };
+export type Result_39 = {
+    __kind__: "ok";
+    ok: boolean;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export interface DashboardStats {
+    hoursTarget: number;
+    pendingExpenses: bigint;
+    hoursThisWeek: number;
+    remainingVacationMinutes: bigint;
+    approvedVacationDays: bigint;
+    pendingVacations: bigint;
+}
 export interface CreateAbsenceTypeInput {
     aktiv?: boolean;
     name: string;
@@ -531,7 +565,6 @@ export interface CreateAbsenceTypeInput {
     visibility?: AbsenceTypeVisibility;
     compensated: boolean;
 }
-export type AbsenceTypeId = bigint;
 export interface Rechnungsadresse {
     ort?: string;
     plz?: string;
@@ -541,35 +574,25 @@ export interface Rechnungsadresse {
     land: string;
     strasse?: string;
 }
-export interface AbsenceApprovalInput {
-    reason?: string;
+export interface AffectedRecordCounts {
+    absences: bigint;
+    expenses: bigint;
+    timeEntries: bigint;
 }
-export interface Absence {
-    id: AbsenceId;
-    status: AbsenceStatus;
-    absenceTypeId: AbsenceTypeId;
-    dateTo: string;
-    ganztaetig: boolean;
-    approvedBy?: Principal;
-    createdAt: Timestamp;
-    description?: string;
-    employeeId: EmployeeId;
-    resetReason?: string;
-    rejectionComment?: string;
-    dateFrom: string;
-    dauer: bigint;
-    companyId: CompanyId;
-}
+export type AbsenceTypeId = bigint;
 export type Result_11 = {
     __kind__: "ok";
-    ok: Expense;
+    ok: ExpenseType;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_27 = {
     __kind__: "ok";
-    ok: bigint;
+    ok: {
+        spesen: Array<Expense>;
+        zeiteintraege: Array<UnbilledTimeEntry>;
+    };
 } | {
     __kind__: "err";
     err: string;
@@ -603,9 +626,17 @@ export interface UpdateInvoiceInput {
     datum?: string;
     skonto?: number;
 }
+export interface TransformationInput {
+    context: Uint8Array;
+    response: http_request_result;
+}
 export type Result_46 = {
     __kind__: "ok";
-    ok: ProjectAssignment;
+    ok: {
+        internalStatus: string;
+        inSync: boolean;
+        stripeStatus: string;
+    };
 } | {
     __kind__: "err";
     err: string;
@@ -617,7 +648,6 @@ export interface EmployeeComplianceProfile {
     updatedAt: bigint;
     employeeId: bigint;
     ausnahmeprofil?: string;
-    vertraglicheWochenstunden: number;
     erfassungsModus: string;
     vertraglicheZusatzferienTage: number;
     gesetzlicheWochenhochstarbeitszeit: number;
@@ -641,6 +671,13 @@ export interface VacationLedger {
     vertraglicheZusatzferienTage: number;
     companyId: bigint;
 }
+export interface ClosePeriodInput {
+    month: bigint;
+    year: bigint;
+    tenantId: CompanyId;
+    employeeId?: EmployeeId;
+    closeComment?: string;
+}
 export interface TimeBalanceCorrection {
     id: string;
     typ: Variant_gutschrift_reduktion;
@@ -651,17 +688,21 @@ export interface TimeBalanceCorrection {
     dauer: bigint;
     companyId: CompanyId;
 }
-export interface TimeEntryApprovalAuditEntry {
-    id: bigint;
-    oldStatus: string;
-    action: string;
-    changedBy: Principal;
-    timestamp: bigint;
-    targetType: string;
-    newStatus: string;
-    targetId: bigint;
-    previousApprovedBy?: Principal;
-    reason?: string;
+export interface Absence {
+    id: AbsenceId;
+    status: AbsenceStatus;
+    absenceTypeId: AbsenceTypeId;
+    dateTo: string;
+    ganztaetig: boolean;
+    approvedBy?: Principal;
+    createdAt: Timestamp;
+    description?: string;
+    employeeId: EmployeeId;
+    resetReason?: string;
+    rejectionComment?: string;
+    dateFrom: string;
+    dauer: bigint;
+    companyId: CompanyId;
 }
 export type Result_21 = {
     __kind__: "ok";
@@ -708,11 +749,7 @@ export interface ComplianceCockpitKPI {
 }
 export type Result_36 = {
     __kind__: "ok";
-    ok: {
-        nextDueDate?: bigint;
-        billingModel: BillingModel;
-        subscriptionStartDate?: bigint;
-    };
+    ok: Employment | null;
 } | {
     __kind__: "err";
     err: string;
@@ -735,16 +772,10 @@ export interface CreateTimeEntryInput {
     requiresApproval?: boolean;
     serviceTypeId: ServiceTypeId;
 }
-export type Result_42 = {
-    __kind__: "ok";
-    ok: InvoiceTemplate;
-} | {
-    __kind__: "err";
-    err: string;
-};
+export type PeriodCloseId = string;
 export type Result_18 = {
     __kind__: "ok";
-    ok: AbsenceType;
+    ok: Company;
 } | {
     __kind__: "err";
     err: string;
@@ -763,23 +794,42 @@ export interface UpdateAbsenceInput {
     dateFrom?: string;
     dauer?: bigint;
 }
-export interface TimeEntryApprovalInput {
+export interface PeriodCloseAuditEntry {
+    oldStatus: PeriodCloseStatus;
+    action: PeriodCloseAction;
+    performedByUserId: EmployeeId;
+    auditId: string;
+    tenantId: CompanyId;
+    periodEnd: bigint;
+    warnings?: Array<string>;
+    employeeId?: EmployeeId;
+    performedAt: Timestamp;
+    periodStart: bigint;
+    newStatus: PeriodCloseStatus;
+    affectedRecordCounts?: AffectedRecordCounts;
     reason?: string;
 }
 export type Result_23 = {
     __kind__: "ok";
-    ok: Array<TimeBalanceCorrection>;
+    ok: PeriodClose;
 } | {
     __kind__: "err";
     err: string;
 };
-export type ProjectId = bigint;
 export type Result_38 = {
     __kind__: "ok";
     ok: {
-        url: string;
-        sessionId: string;
+        nextDueDate?: bigint;
+        billingModel: BillingModel;
+        subscriptionStartDate?: bigint;
     };
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_15 = {
+    __kind__: "ok";
+    ok: DefaultWorkHours;
 } | {
     __kind__: "err";
     err: string;
@@ -789,13 +839,7 @@ export interface UpdateVacationBalanceInput {
     kalenderjahr?: bigint;
     dauer?: bigint;
 }
-export type Result_15 = {
-    __kind__: "ok";
-    ok: Customer;
-} | {
-    __kind__: "err";
-    err: string;
-};
+export type ProjectId = bigint;
 export interface UpdateAbsenceTypeInput {
     aktiv?: boolean;
     name?: string;
@@ -841,6 +885,17 @@ export interface ProjectMemberAssignment {
     employeeId: EmployeeId;
     kostendachCHF?: number;
     serviceTypeId: ServiceTypeId;
+}
+export interface PrecheckResult {
+    hasOpenEntries: boolean;
+    blockers: Array<string>;
+    verdict: PrecheckVerdict;
+    warnings: Array<string>;
+    hasOpenAbsences: boolean;
+    missingDays: bigint;
+    canClose: boolean;
+    hasComplianceViolations: boolean;
+    hasOpenExpenses: boolean;
 }
 export interface UpdateCompanyInput {
     taxId?: string;
@@ -888,13 +943,6 @@ export interface MaskedCalendarAbsence {
     isOwnEntry: boolean;
     fromDate: string;
 }
-export interface PlatformAdminConfig {
-    frontendCanisterId: string;
-    stripeWebhookEndpointUrl: string;
-    stripeSecretKey: string;
-    stripePublishableKey: string;
-    stripeWebhookSecret: string;
-}
 export interface DayPauseComplianceResult {
     status: string;
     isCompliant: boolean;
@@ -932,7 +980,7 @@ export interface DefaultWorkHours {
 }
 export type Result_31 = {
     __kind__: "ok";
-    ok: number;
+    ok: Array<ProjectMemberAssignment>;
 } | {
     __kind__: "err";
     err: string;
@@ -949,6 +997,25 @@ export type Result_7 = {
     __kind__: "err";
     err: string;
 };
+export type Result_41 = {
+    __kind__: "ok";
+    ok: {
+        url: string;
+        sessionId: string;
+    };
+} | {
+    __kind__: "err";
+    err: string;
+};
+export interface TenantComplianceRule {
+    modifiedAt: bigint;
+    modifiedBy: string;
+    isActive: boolean;
+    tenantId: string;
+    isCustomized: boolean;
+    customValue?: number;
+    ruleCode: string;
+}
 export interface CycleSnapshot {
     frontendCycles: bigint;
     backendCycles: bigint;
@@ -956,7 +1023,10 @@ export interface CycleSnapshot {
 }
 export type Result_28 = {
     __kind__: "ok";
-    ok: Standardarbeitszeiten;
+    ok: {
+        spesen: Array<Expense>;
+        zeiteintraege: Array<TimeEntry>;
+    };
 } | {
     __kind__: "err";
     err: string;
@@ -1007,7 +1077,7 @@ export interface PlatformAdminUserEntry {
 }
 export type Result_9 = {
     __kind__: "ok";
-    ok: Holiday;
+    ok: Invoice;
 } | {
     __kind__: "err";
     err: string;
@@ -1067,7 +1137,7 @@ export interface Standardarbeitszeiten {
 export type CustomerId = bigint;
 export type Result_30 = {
     __kind__: "ok";
-    ok: ProjectBudgetReport;
+    ok: Standardarbeitszeiten;
 } | {
     __kind__: "err";
     err: string;
@@ -1075,8 +1145,8 @@ export type Result_30 = {
 export interface UpdateComplianceProfileInput {
     id: bigint;
     aktiv: boolean;
+    employeeId: bigint;
     ausnahmeprofil?: string;
-    vertraglicheWochenstunden: number;
     erfassungsModus: string;
     vertraglicheZusatzferienTage: number;
     gesetzlicheWochenhochstarbeitszeit: number;
@@ -1107,16 +1177,14 @@ export interface UpdateExpenseInput {
 export type Timestamp = bigint;
 export type Result_37 = {
     __kind__: "ok";
-    ok: {
-        url: string;
-    };
+    ok: WorkTimeBalance;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_17 = {
     __kind__: "ok";
-    ok: Company;
+    ok: CompanySettings;
 } | {
     __kind__: "err";
     err: string;
@@ -1155,6 +1223,17 @@ export interface MonthlyBillingEntry {
     proRataNote?: string;
     companyId: bigint;
 }
+export interface KnowledgeEntry {
+    id: string;
+    title: string;
+    content: string;
+    createdAt: bigint;
+    role: string;
+    isActive: boolean;
+    language: string;
+    updatedAt: bigint;
+    category: string;
+}
 export interface CreatePauseOverrideInput {
     action: string;
     userId: bigint;
@@ -1164,22 +1243,11 @@ export interface CreatePauseOverrideInput {
     reason?: string;
     companyId: bigint;
 }
-export interface CreateEmployeeInput {
-    ort?: string;
-    plz?: string;
-    weeklyHoursTarget: number;
-    postfach?: string;
-    land?: string;
-    role: Role;
-    email: string;
-    geburtsdatum?: bigint;
-    employmentType: EmploymentType;
-    adresseZusatz1?: string;
-    adresseZusatz2?: string;
-    lastName: string;
-    strasse?: string;
-    startDate: string;
-    firstName: string;
+export interface UpdateTenantComplianceRuleInput {
+    newValue?: number;
+    isActive: boolean;
+    ruleCode: string;
+    companyId: bigint;
 }
 export interface UpdateTimeBalanceCorrectionInput {
     typ?: Variant_gutschrift_reduktion;
@@ -1188,9 +1256,31 @@ export interface UpdateTimeBalanceCorrectionInput {
     wirkungsdatum?: bigint;
     dauer?: bigint;
 }
+export type Result_47 = {
+    __kind__: "ok";
+    ok: {
+        estimatedMonthlyCost: number;
+        currentPlanId?: string;
+        activeUserCount: bigint;
+        changeNeeded: boolean;
+        suggestedPlanId?: string;
+        suggestedPlanName: string;
+        currentPlanName: string;
+    };
+} | {
+    __kind__: "err";
+    err: string;
+};
 export type Result_16 = {
     __kind__: "ok";
-    ok: CompanySettings;
+    ok: Customer;
+} | {
+    __kind__: "err";
+    err: string;
+};
+export type Result_22 = {
+    __kind__: "ok";
+    ok: CompanySubscription;
 } | {
     __kind__: "err";
     err: string;
@@ -1198,13 +1288,6 @@ export type Result_16 = {
 export type Result_1 = {
     __kind__: "ok";
     ok: VacationBalance;
-} | {
-    __kind__: "err";
-    err: string;
-};
-export type Result_22 = {
-    __kind__: "ok";
-    ok: Array<VacationBalance>;
 } | {
     __kind__: "err";
     err: string;
@@ -1225,12 +1308,22 @@ export interface UnbilledTimeEntry {
     serviceTypeId: bigint;
     companyId: bigint;
 }
-export interface CostSettings {
-    backendAlertThreshold: bigint;
-    icpPriceUsd: number;
-    alertEnabled: boolean;
-    usdChfRate: number;
-    frontendAlertThreshold: bigint;
+export interface CreateEmployeeInput {
+    ort?: string;
+    plz?: string;
+    weeklyHoursTarget: number;
+    postfach?: string;
+    land?: string;
+    role: Role;
+    email: string;
+    geburtsdatum?: bigint;
+    employmentType: EmploymentType;
+    adresseZusatz1?: string;
+    adresseZusatz2?: string;
+    lastName: string;
+    strasse?: string;
+    startDate: string;
+    firstName: string;
 }
 export interface CreateExpenseTypeInput {
     aktiv?: boolean;
@@ -1238,16 +1331,23 @@ export interface CreateExpenseTypeInput {
     billable: boolean;
     reimbursable: boolean;
 }
+export interface CostSettings {
+    backendAlertThreshold: bigint;
+    icpPriceUsd: number;
+    alertEnabled: boolean;
+    usdChfRate: number;
+    frontendAlertThreshold: bigint;
+}
 export type Result_19 = {
     __kind__: "ok";
-    ok: Absence;
+    ok: AbsenceType;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_29 = {
     __kind__: "ok";
-    ok: Array<ProjectMemberAssignment>;
+    ok: bigint;
 } | {
     __kind__: "err";
     err: string;
@@ -1260,9 +1360,11 @@ export interface SubscriptionPlan {
     name: string;
     stripeLookupKey?: string;
     description: string;
+    isRecommended: boolean;
     isActive: boolean;
     stripeProductId?: string;
     updatedAt: bigint;
+    additionalFeatures: Array<string>;
     pricePerYearCHF: number;
     stripePriceId?: string;
     pricePerMonthCHF: number;
@@ -1274,14 +1376,14 @@ export interface SubscriptionPlan {
 }
 export type Result_24 = {
     __kind__: "ok";
-    ok: Array<Employment>;
+    ok: Array<VacationBalance>;
 } | {
     __kind__: "err";
     err: string;
 };
 export type Result_14 = {
     __kind__: "ok";
-    ok: DefaultWorkHours;
+    ok: Employee;
 } | {
     __kind__: "err";
     err: string;
@@ -1309,6 +1411,13 @@ export interface Employee {
     companyId: CompanyId;
     firstName: string;
 }
+export type Result_49 = {
+    __kind__: "ok";
+    ok: ProjectAssignment;
+} | {
+    __kind__: "err";
+    err: string;
+};
 export interface CreateCustomerInput {
     rechnungsadresse?: Rechnungsadresse;
     contact?: string;
@@ -1320,6 +1429,7 @@ export interface CreateCustomerInput {
     beschreibung?: string;
     waehrung?: string;
 }
+export type HolidayId = bigint;
 export interface CompanySettings {
     timezone: string;
     approvalRequired: boolean;
@@ -1330,26 +1440,14 @@ export interface CompanySettings {
     maxVacationDays: bigint;
     companyId: CompanyId;
 }
-export type HolidayId = bigint;
 export interface UpdateHolidayInput {
     ganztaegig?: boolean;
     date?: string;
     name?: string;
 }
-export type Result_43 = {
-    __kind__: "ok";
-    ok: {
-        internalStatus: string;
-        inSync: boolean;
-        stripeStatus: string;
-    };
-} | {
-    __kind__: "err";
-    err: string;
-};
 export type Result_33 = {
     __kind__: "ok";
-    ok: InvoiceTemplate | null;
+    ok: number;
 } | {
     __kind__: "err";
     err: string;
@@ -1399,7 +1497,7 @@ export interface CalendarData {
 }
 export type Result_35 = {
     __kind__: "ok";
-    ok: WorkTimeBalance;
+    ok: InvoiceTemplate | null;
 } | {
     __kind__: "err";
     err: string;
@@ -1423,6 +1521,22 @@ export interface ReportData {
     billableHours: number;
     expenseItems: Array<Expense>;
 }
+export interface MonthlyCloseRow {
+    status: PeriodCloseStatus;
+    month: bigint;
+    expenseCount: bigint;
+    vacationDays: bigint;
+    year: bigint;
+    actualMinutes: bigint;
+    openEntryCount: bigint;
+    closeId?: PeriodCloseId;
+    targetMinutes: bigint;
+    employeeId: EmployeeId;
+    absenceCount: bigint;
+    lastName: string;
+    complianceStatus: string;
+    firstName: string;
+}
 export interface CreateProjectInput {
     status?: ProjectStatus;
     erfassungsart?: Erfassungsart;
@@ -1436,12 +1550,7 @@ export interface CreateProjectInput {
 }
 export type Result_45 = {
     __kind__: "ok";
-    ok: {
-        note: string;
-        remainingDays: bigint;
-        isUpgrade: boolean;
-        proRataAmount: number;
-    };
+    ok: InvoiceTemplate;
 } | {
     __kind__: "err";
     err: string;
@@ -1453,9 +1562,18 @@ export interface Holiday {
     name: string;
     companyId: CompanyId;
 }
+export interface PeriodCloseConfig {
+    allowCloseWithOpenTimeEntries: boolean;
+    allowCloseWithOpenAbsences: boolean;
+    enabled: boolean;
+    allowCloseWithOpenExpenses: boolean;
+    allowCloseWithComplianceWarnings: boolean;
+    onlyAdminCanReopen: boolean;
+    requireReopenReason: boolean;
+}
 export type Result_20 = {
     __kind__: "ok";
-    ok: CompanySubscription;
+    ok: Absence;
 } | {
     __kind__: "err";
     err: string;
@@ -1596,6 +1714,26 @@ export enum PaymentProvider {
     none = "none",
     manual = "manual"
 }
+export enum PeriodCloseAction {
+    reopen = "reopen",
+    close = "close",
+    force_close = "force_close",
+    close_failed = "close_failed"
+}
+export enum PeriodCloseStatus {
+    reopened = "reopened",
+    closed = "closed",
+    ready_for_close = "ready_for_close",
+    open = "open"
+}
+export enum PeriodType {
+    month = "month"
+}
+export enum PrecheckVerdict {
+    ok = "ok",
+    blocked = "blocked",
+    ok_with_warnings = "ok_with_warnings"
+}
 export enum ProjectStatus {
     aktiv = "aktiv",
     inaktiv = "inaktiv",
@@ -1612,12 +1750,6 @@ export enum StripeEventStatus {
     received = "received",
     failed = "failed"
 }
-export enum TimeEntryStatus {
-    submitted = "submitted",
-    approved = "approved",
-    rejected = "rejected",
-    draft = "draft"
-}
 export enum UserRole {
     admin = "admin",
     user = "user",
@@ -1628,11 +1760,17 @@ export enum Variant_gutschrift_reduktion {
     reduktion = "reduktion"
 }
 export interface backendInterface {
+    addKnowledgeEntry(entry: {
+        title: string;
+        content: string;
+        role: string;
+        isActive: boolean;
+        language: string;
+        category: string;
+    }): Promise<Result_8>;
     applyPlanChange(companyId: bigint, newPlanId: string, billingModel: BillingModel): Promise<Result_21>;
-    approveAbsence(id: AbsenceId): Promise<Result_19>;
-    approveAbsenceApproval(absenceId: AbsenceId, input: AbsenceApprovalInput): Promise<Result_5>;
-    approveExpense(id: ExpenseId): Promise<Result_11>;
-    approveTimeEntry(entryId: TimeEntryId, input: TimeEntryApprovalInput): Promise<Result_3>;
+    approveAbsence(id: AbsenceId): Promise<Result_20>;
+    approveExpense(id: ExpenseId): Promise<Result_12>;
     archiveNotification(notificationId: string): Promise<{
         __kind__: "ok";
         ok: null;
@@ -1640,25 +1778,27 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    assertPeriodIsEditable(tenantId: CompanyId, employeeId: EmployeeId, dateNs: bigint, action: string): Promise<Result_5>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
-    assignEmployeeToProject(employeeId: EmployeeId, projectId: ProjectId): Promise<Result_46>;
+    assignEmployeeToProject(employeeId: EmployeeId, projectId: ProjectId): Promise<Result_49>;
     assignSubscriptionPlan(companyId: string, planId: string): Promise<Result_5>;
     calculateMonthlyBilling(month: bigint, year: bigint): Promise<Array<MonthlyBillingEntry>>;
-    calculateProRataAdjustment(companyId: bigint, newPlanId: string): Promise<Result_45>;
-    cancelInvoice(invoiceId: bigint): Promise<Result_8>;
-    cancelStripeSubscription(companyId: bigint): Promise<Result_20>;
-    checkFeatureAccess(featureKey: FeatureKey): Promise<FeatureAccessResult>;
-    checkPlanChangeNeeded(companyId: bigint): Promise<Result_44>;
-    compareStripeSubscriptionStatus(companyId: bigint): Promise<Result_43>;
-    createAbsence(input: CreateAbsenceInput): Promise<Result_19>;
-    createAbsenceType(input: CreateAbsenceTypeInput): Promise<Result_18>;
-    createCustomer(input: CreateCustomerInput): Promise<Result_15>;
-    createEmployee(input: CreateEmployeeInput): Promise<Result_13>;
-    createEmployment(employeeId: EmployeeId, input: CreateEmploymentInput): Promise<Result_12>;
-    createExpense(input: CreateExpenseInput): Promise<Result_11>;
-    createExpenseType(input: CreateExpenseTypeInput): Promise<Result_10>;
-    createHoliday(input: CreateHolidayInput): Promise<Result_9>;
-    createInvoice(input: CreateInvoiceInput): Promise<Result_8>;
+    calculateProRataAdjustment(companyId: bigint, newPlanId: string): Promise<Result_48>;
+    cancelInvoice(invoiceId: bigint): Promise<Result_9>;
+    cancelStripeSubscription(companyId: bigint): Promise<Result_22>;
+    checkPlanChangeNeeded(companyId: bigint): Promise<Result_47>;
+    closePeriod(input: ClosePeriodInput): Promise<Result_23>;
+    closePeriodBulk(tenantId: CompanyId, month: bigint, year: bigint, closeComment: string | null): Promise<Array<Result_23>>;
+    compareStripeSubscriptionStatus(companyId: bigint): Promise<Result_46>;
+    createAbsence(input: CreateAbsenceInput): Promise<Result_20>;
+    createAbsenceType(input: CreateAbsenceTypeInput): Promise<Result_19>;
+    createCustomer(input: CreateCustomerInput): Promise<Result_16>;
+    createEmployee(input: CreateEmployeeInput): Promise<Result_14>;
+    createEmployment(employeeId: EmployeeId, input: CreateEmploymentInput): Promise<Result_13>;
+    createExpense(input: CreateExpenseInput): Promise<Result_12>;
+    createExpenseType(input: CreateExpenseTypeInput): Promise<Result_11>;
+    createHoliday(input: CreateHolidayInput): Promise<Result_10>;
+    createInvoice(input: CreateInvoiceInput): Promise<Result_9>;
     createNotificationDraft(title: string, messageBody: string, messageFormat: NotificationFormat, priority: NotificationPriority, validFrom: bigint, validUntil: bigint | null, targetType: NotificationTargetType, targetTenantIds: Array<string>, targetRoleIds: Array<string>, targetUserIds: Array<string>): Promise<{
         __kind__: "ok";
         ok: Notification;
@@ -1666,7 +1806,7 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
-    createOrUpdateInvoiceTemplate(input: InvoiceTemplateInput): Promise<Result_42>;
+    createOrUpdateInvoiceTemplate(input: InvoiceTemplateInput): Promise<Result_45>;
     createPauseOverride(input: CreatePauseOverrideInput): Promise<{
         __kind__: "ok";
         ok: PauseOverride;
@@ -1676,11 +1816,11 @@ export interface backendInterface {
     }>;
     createProject(input: CreateProjectInput): Promise<Result_7>;
     createServiceType(input: CreateServiceTypeInput): Promise<Result_6>;
-    createStripeCheckoutLinkForCompany(companyId: bigint, planId: string, billingModel: BillingModel): Promise<Result_38>;
-    createStripeCheckoutLinkForCompanyWithPrice(companyId: bigint, planId: string, billingModel: BillingModel, priceId: string): Promise<Result_38>;
-    createStripeCheckoutSession(companyId: bigint, planId: string, billingModel: BillingModel): Promise<Result_38>;
-    createStripeCheckoutSessionWithPrice(companyId: bigint, planId: string, billingModel: BillingModel, priceId: string): Promise<Result_38>;
-    createStripeCustomerPortalSession(companyId: bigint): Promise<Result_37>;
+    createStripeCheckoutLinkForCompany(companyId: bigint, planId: string, billingModel: BillingModel): Promise<Result_41>;
+    createStripeCheckoutLinkForCompanyWithPrice(companyId: bigint, planId: string, billingModel: BillingModel, priceId: string): Promise<Result_41>;
+    createStripeCheckoutSession(companyId: bigint, planId: string, billingModel: BillingModel): Promise<Result_41>;
+    createStripeCheckoutSessionWithPrice(companyId: bigint, planId: string, billingModel: BillingModel, priceId: string): Promise<Result_41>;
+    createStripeCustomerPortalSession(companyId: bigint): Promise<Result_40>;
     createTimeBalanceCorrection(employeeId: EmployeeId, input: CreateTimeBalanceCorrectionInput): Promise<Result_4>;
     createTimeEntry(input: CreateTimeEntryInput): Promise<Result_3>;
     createVacationBalance(employeeId: EmployeeId, input: CreateVacationBalanceInput): Promise<Result_1>;
@@ -1693,6 +1833,7 @@ export interface backendInterface {
     deleteExpenseType(id: ExpenseTypeId): Promise<Result_5>;
     deleteHoliday(id: HolidayId): Promise<Result_5>;
     deleteInvoice(invoiceId: bigint): Promise<Result_5>;
+    deleteKnowledgeEntry(id: string): Promise<Result_39>;
     deleteMyNotification(notificationId: string): Promise<{
         __kind__: "ok";
         ok: null;
@@ -1721,68 +1862,74 @@ export interface backendInterface {
         err: string;
     }>;
     generateInviteCode(employeeId: EmployeeId): Promise<Result_21>;
-    getAbsenceApprovalStatus(absenceId: AbsenceId): Promise<{
-        status: TimeEntryStatus;
-        approvedBy?: Principal;
-        reason?: string;
-    } | null>;
     getAllCompanySubscriptions(): Promise<Array<[string, string]>>;
     getAllSubscriptionPlans(): Promise<Array<SubscriptionPlan>>;
-    getApprovalRecord(entryId: TimeEntryId): Promise<{
-        status: TimeEntryStatus;
-        approvedBy?: Principal;
-        reason?: string;
-    } | null>;
     getBackendCanisterId(): Promise<string>;
     getCalendarEntries(month: string, year: bigint): Promise<CalendarData>;
     getCallerUserRole(): Promise<UserRole>;
     getCanisterStatusInfo(): Promise<CanisterStatusInfo>;
-    getCompanyBillingModel(companyId: bigint): Promise<Result_36>;
+    getCompanyBillingModel(companyId: bigint): Promise<Result_38>;
     getCompanyCalendarAbsences(companyId: CompanyId, fromDateNs: bigint, toDateNs: bigint): Promise<Array<MaskedCalendarAbsence>>;
     getCompanyEmployeesForBilling(companyId: CompanyId): Promise<Array<Employee>>;
-    getCompanySettings(): Promise<Result_16>;
+    getCompanySettings(): Promise<Result_17>;
     getCompanySubscription(companyId: string): Promise<string | null>;
     getCompanySubscriptionPlan(companyId: bigint): Promise<SubscriptionPlan | null>;
     getComplianceCockpitKPI(companyId: bigint): Promise<ComplianceCockpitKPI>;
     getComplianceCockpitRows(companyId: bigint): Promise<Array<ComplianceCockpitRow>>;
     getComplianceFindings(employeeId: bigint, periodeTyp: CompliancePeriodeTyp | null, status: Array<ComplianceStatus> | null): Promise<Array<ComplianceFinding>>;
     getComplianceProfile(employeeId: bigint): Promise<EmployeeComplianceProfile | null>;
+    getContractualHoursForEmployee(employeeId: bigint, dateISO: string): Promise<number | null>;
     getCostDashboardData(fromTime: bigint | null, toTime: bigint | null): Promise<CostDashboardData>;
     getCostSettings(): Promise<CostSettings>;
     getCycleSnapshots(fromTime: bigint | null, toTime: bigint | null): Promise<Array<CycleSnapshot>>;
     getCycleStatus(): Promise<CycleStatus>;
     getDashboardStats(): Promise<DashboardStats>;
     getDefaultWorkHours(): Promise<DefaultWorkHours>;
-    getEmployeeWorkTimeBalance(employeeId: EmployeeId, startDate: string, endDate: string): Promise<Result_35>;
-    getEmployeeWorkTimeBalanceFromStart(employeeId: EmployeeId): Promise<Result_35>;
-    getEmploymentForDate(employeeId: EmployeeId, date: string): Promise<Result_34>;
+    getEmployeeWorkTimeBalance(employeeId: EmployeeId, startDate: string, endDate: string): Promise<Result_37>;
+    getEmployeeWorkTimeBalanceFromStart(employeeId: EmployeeId): Promise<Result_37>;
+    getEmploymentForDate(employeeId: EmployeeId, date: string): Promise<Result_36>;
     getFrontendCyclesManual(): Promise<bigint>;
-    getInvoiceById(invoiceId: bigint): Promise<Result_8>;
-    getInvoiceTemplate(): Promise<Result_33>;
-    getInvoices(): Promise<Result_32>;
+    getInvoiceById(invoiceId: bigint): Promise<Result_9>;
+    getInvoiceTemplate(): Promise<Result_35>;
+    getInvoices(): Promise<Result_34>;
+    getKnowledgeEntries(): Promise<Array<KnowledgeEntry>>;
+    getKnowledgeEntriesAdmin(): Promise<Array<KnowledgeEntry>>;
     getMonthlyBillingOverview(year: bigint, month: bigint): Promise<Array<MonthlyBillingEntry>>;
-    getMyCompany(): Promise<Result_17>;
+    getMonthlyCloseOverview(tenantId: CompanyId, month: bigint, year: bigint): Promise<Array<MonthlyCloseRow>>;
+    getMyCompany(): Promise<Result_18>;
     getMyComplianceFindings(periodeTyp: CompliancePeriodeTyp | null): Promise<Array<ComplianceFinding>>;
     getMyComplianceProfile(): Promise<EmployeeComplianceProfile | null>;
-    getMyEmployee(): Promise<Result_13>;
-    getMyPlanFeatures(): Promise<Array<FeatureKey>>;
-    getMyStandardarbeitszeiten(): Promise<Result_28>;
+    getMyEmployee(): Promise<Result_14>;
+    getMyStandardarbeitszeiten(): Promise<Result_30>;
     getMyVacationLedger(serviceYearKey: string): Promise<VacationLedger | null>;
+    getOpenAIConfigStatus(): Promise<{
+        isConfigured: boolean;
+    }>;
+    getOpenAIEnabled(): Promise<{
+        isConfigured: boolean;
+    }>;
     getPauseComplianceForDay(employeeId: bigint, date: string): Promise<DayPauseComplianceResult>;
     getPauseOverridesForDay(employeeId: bigint, date: string): Promise<Array<PauseOverride>>;
     getPausesForDay(employeeId: bigint, date: string): Promise<Array<DetectedPause>>;
-    getPlatformAdminConfig(): Promise<PlatformAdminConfigPublic>;
+    getPeriodCloseConfig(tenantId: CompanyId): Promise<PeriodCloseConfig>;
+    getPeriodCloseStatus(tenantId: CompanyId, employeeId: EmployeeId, month: bigint, year: bigint): Promise<PeriodClose | null>;
+    getPlatformAdminConfig(): Promise<{
+        frontendCanisterId: string;
+        stripeWebhookEndpointUrl: string;
+        stripePublishableKey: string;
+    }>;
     getPlatformAdminInfo(): Promise<{
         principal: string;
         createdAt: bigint;
     } | null>;
-    getProjectAufwendungen(projectId: ProjectId): Promise<Result_31>;
-    getProjectBudgetReport(projectId: ProjectId, dateFrom: string, dateTo: string): Promise<Result_30>;
-    getProjectMembers(projectId: ProjectId): Promise<Result_29>;
+    getProjectAufwendungen(projectId: ProjectId): Promise<Result_33>;
+    getProjectBudgetReport(projectId: ProjectId, dateFrom: string, dateTo: string): Promise<Result_32>;
+    getProjectMembers(projectId: ProjectId): Promise<Result_31>;
+    getRelevantKnowledgeContext(queryText: string, maxEntries: bigint): Promise<string>;
     getReportData(filter: ReportFilter): Promise<ReportData>;
     getServiceYears(employeeId: bigint): Promise<Array<string>>;
     getSnapshotInterval(): Promise<bigint>;
-    getStandardarbeitszeitenForEmployee(employeeId: EmployeeId): Promise<Result_28>;
+    getStandardarbeitszeitenForEmployee(employeeId: EmployeeId): Promise<Result_30>;
     getStripeConfigStatus(): Promise<{
         hasPublishableKey: boolean;
         testMode: boolean;
@@ -1796,11 +1943,11 @@ export interface backendInterface {
         totalEmployees: bigint;
         totalCompanies: bigint;
     }>;
+    getTenantComplianceRules(companyId: bigint): Promise<Array<TenantComplianceRule>>;
     getTenantCostBreakdown(): Promise<Array<TenantCostEntry>>;
-    getTimeBalance(employeeId: EmployeeId): Promise<Result_27>;
-    getTimeEntryApprovalStatus(entryId: TimeEntryId): Promise<TimeEntryStatus | null>;
-    getUnbilledEntries(kundeId: bigint | null): Promise<Result_26>;
-    getUnbilledEntriesWithRates(kundeId: bigint | null): Promise<Result_25>;
+    getTimeBalance(employeeId: EmployeeId): Promise<Result_29>;
+    getUnbilledEntries(kundeId: bigint | null): Promise<Result_28>;
+    getUnbilledEntriesWithRates(kundeId: bigint | null): Promise<Result_27>;
     getUnreadCount(): Promise<bigint>;
     getUserNotificationSettings(): Promise<Result_2>;
     getUsersForCompany(companyId: CompanyId): Promise<Array<PlatformAdminUserEntry>>;
@@ -1829,23 +1976,23 @@ export interface backendInterface {
         activeEmployeeCount: bigint;
     }>>;
     listAllNotifications(): Promise<Array<Notification>>;
-    listApprovalAuditLog(): Promise<Array<TimeEntryApprovalAuditEntry>>;
     listAuditLog(targetType: string | null, targetId: bigint | null): Promise<Array<AuditEntry>>;
     listAuditLogs(filter: AuditLogFilter): Promise<Array<AuditLogEntry>>;
     listCustomers(): Promise<Array<Customer>>;
     listEmployees(): Promise<Array<Employee>>;
-    listEmployments(employeeId: EmployeeId): Promise<Result_24>;
+    listEmployments(employeeId: EmployeeId): Promise<Result_26>;
     listExpenseTypes(): Promise<Array<ExpenseType>>;
     listExpenses(filter: ExpenseFilter): Promise<Array<Expense>>;
     listHolidays(): Promise<Array<Holiday>>;
     listMyNotifications(): Promise<Array<UserNotification>>;
+    listPeriodCloseAudit(tenantId: CompanyId): Promise<Array<PeriodCloseAuditEntry>>;
+    listPeriodCloses(tenantId: CompanyId, month: bigint, year: bigint): Promise<Array<PeriodClose>>;
     listProjectAssignments(): Promise<Array<ProjectAssignment>>;
     listProjects(): Promise<Array<Project>>;
     listServiceTypes(): Promise<Array<ServiceType>>;
-    listSubmittedTimeEntries(): Promise<Array<TimeEntry>>;
-    listTimeBalanceCorrections(employeeId: EmployeeId): Promise<Result_23>;
+    listTimeBalanceCorrections(employeeId: EmployeeId): Promise<Result_25>;
     listTimeEntries(filter: TimeEntryFilter): Promise<Array<TimeEntry>>;
-    listVacationBalances(employeeId: EmployeeId): Promise<Result_22>;
+    listVacationBalances(employeeId: EmployeeId): Promise<Result_24>;
     manuallyTriggerStripeSync(companyId: bigint): Promise<Result_21>;
     markAllNotificationsRead(): Promise<{
         __kind__: "ok";
@@ -1862,23 +2009,28 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    precheckPeriodClose(tenantId: CompanyId, employeeId: EmployeeId, month: bigint, year: bigint): Promise<PrecheckResult>;
     purgeEmployee(id: EmployeeId): Promise<Result_5>;
-    reactivateStripeSubscription(companyId: bigint): Promise<Result_20>;
+    reactivateStripeSubscription(companyId: bigint): Promise<Result_22>;
     recordCycleSnapshot(frontendCycles: bigint, backendCycles: bigint): Promise<void>;
     recoverSubscriptionPlans(): Promise<Result_21>;
-    redeemInviteCode(code: string): Promise<Result_13>;
-    registerCompany(name: string, firstName: string, lastName: string, email: string): Promise<Result_17>;
-    rejectAbsence(id: AbsenceId, comment: string): Promise<Result_19>;
-    rejectAbsenceApproval(absenceId: AbsenceId, input: AbsenceApprovalInput): Promise<Result_5>;
-    rejectExpense(id: ExpenseId, comment: string | null): Promise<Result_11>;
-    rejectTimeEntry(entryId: TimeEntryId, input: TimeEntryApprovalInput): Promise<Result_3>;
+    redeemInviteCode(code: string): Promise<Result_14>;
+    registerCompany(name: string, firstName: string, lastName: string, email: string, planId: string | null, billingModel: string | null): Promise<Result_18>;
+    rejectAbsence(id: AbsenceId, comment: string): Promise<Result_20>;
+    rejectExpense(id: ExpenseId, comment: string | null): Promise<Result_12>;
     relinkStripeCustomer(companyId: bigint, stripeCustomerId: string): Promise<Result_21>;
     removeEmployeeFromProject(employeeId: EmployeeId, projectId: ProjectId): Promise<Result_5>;
+    reopenPeriod(input: ReopenPeriodInput): Promise<Result_23>;
     reprocessStripeEvent(stripeEventId: string): Promise<Result_21>;
-    resetAbsenceApprovalToDraft(absenceId: AbsenceId, reason: string | null): Promise<Result_5>;
-    resetAbsenceToAusstehend(id: AbsenceId, reason: string): Promise<Result_19>;
-    resetExpenseToAusstehend(id: ExpenseId, reason: string): Promise<Result_11>;
-    resetTimeEntryToDraft(entryId: TimeEntryId, reason: string | null): Promise<Result_3>;
+    resetAbsenceToAusstehend(id: AbsenceId, reason: string): Promise<Result_20>;
+    resetExpenseToAusstehend(id: ExpenseId, reason: string): Promise<Result_12>;
+    resetTenantComplianceRule(companyId: bigint, ruleCode: string): Promise<{
+        __kind__: "ok";
+        ok: TenantComplianceRule;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     resolveFinding(input: ResolveFindingInput): Promise<{
         __kind__: "ok";
         ok: ComplianceFinding;
@@ -1888,9 +2040,12 @@ export interface backendInterface {
     }>;
     restoreDefaultPlansIfMissing(): Promise<Result_21>;
     revokeInviteCode(code: string): Promise<Result_5>;
-    runWeeklyComplianceCheck(companyId: bigint): Promise<{
+    runWeeklyComplianceCheck(companyId: bigint, weekDate: string): Promise<{
         __kind__: "ok";
-        ok: bigint;
+        ok: {
+            existingFindings: bigint;
+            newFindings: bigint;
+        };
     } | {
         __kind__: "err";
         err: string;
@@ -1902,6 +2057,10 @@ export interface backendInterface {
         __kind__: "err";
         err: string;
     }>;
+    sendChatMessage(message: string, conversationHistory: Array<{
+        content: string;
+        role: string;
+    }>): Promise<Result_21>;
     sendNotification(notificationId: string): Promise<{
         __kind__: "ok";
         ok: null;
@@ -1917,11 +2076,18 @@ export interface backendInterface {
         err: string;
     }>;
     setCompanyBillingModel(companyId: bigint, billingModel: BillingModel): Promise<Result_5>;
-    setEmployeeActive(id: EmployeeId, active: boolean): Promise<Result_13>;
+    setEmployeeActive(id: EmployeeId, active: boolean): Promise<Result_14>;
     setFrontendCanisterId(id: string): Promise<void>;
     setFrontendCyclesManual(cycles: bigint): Promise<void>;
     setMyStandardarbeitszeiten(data: Standardarbeitszeiten): Promise<Result_5>;
-    setPlatformAdminConfig(config: PlatformAdminConfig): Promise<Result_5>;
+    setOpenAIConfig(apiKey: string): Promise<Result_5>;
+    setPlatformAdminConfig(config: {
+        frontendCanisterId: string;
+        stripeWebhookEndpointUrl: string;
+        stripeSecretKey: string;
+        stripePublishableKey: string;
+        stripeWebhookSecret: string;
+    }): Promise<Result_5>;
     setProjectMembers(projectId: ProjectId, members: Array<ProjectMemberAssignment>): Promise<Result_5>;
     setSnapshotInterval(seconds: bigint): Promise<void>;
     setStandardarbeitszeitenForEmployee(employeeId: EmployeeId, data: Standardarbeitszeiten): Promise<Result_5>;
@@ -1929,20 +2095,20 @@ export interface backendInterface {
     setUserActiveForCompany(companyId: CompanyId, employeeId: EmployeeId, active: boolean): Promise<Result_5>;
     setUserRoleForCompany(companyId: CompanyId, employeeId: EmployeeId, role: Role): Promise<Result_5>;
     startSnapshotTimer(): Promise<void>;
-    submitAbsenceForApproval(absenceId: AbsenceId): Promise<Result_5>;
-    submitTimeEntryForApproval(entryId: TimeEntryId): Promise<Result_3>;
-    syncStripeSubscription(companyId: bigint): Promise<Result_20>;
+    syncStripeSubscription(companyId: bigint): Promise<Result_22>;
+    testOpenAIConnection(): Promise<Result_21>;
     testStripeConnection(): Promise<{
         apiConnectionOk: boolean;
         apiConnectionMessage: string;
         customerPortalOk: boolean;
         customerPortalMessage: string;
     }>;
+    transformOpenAI(input: TransformationInput): Promise<TransformationOutput>;
     transformStripeResponse(args: HttpTransformArgs): Promise<HttpRequestResult>;
-    updateAbsence(id: AbsenceId, input: UpdateAbsenceInput): Promise<Result_19>;
-    updateAbsenceType(id: AbsenceTypeId, input: UpdateAbsenceTypeInput): Promise<Result_18>;
-    updateCompany(input: UpdateCompanyInput): Promise<Result_17>;
-    updateCompanySettings(input: CompanySettings): Promise<Result_16>;
+    updateAbsence(id: AbsenceId, input: UpdateAbsenceInput): Promise<Result_20>;
+    updateAbsenceType(id: AbsenceTypeId, input: UpdateAbsenceTypeInput): Promise<Result_19>;
+    updateCompany(input: UpdateCompanyInput): Promise<Result_18>;
+    updateCompanySettings(input: CompanySettings): Promise<Result_17>;
     updateComplianceProfile(input: UpdateComplianceProfileInput): Promise<{
         __kind__: "ok";
         ok: EmployeeComplianceProfile;
@@ -1951,17 +2117,33 @@ export interface backendInterface {
         err: string;
     }>;
     updateCostSettings(settings: CostSettings): Promise<void>;
-    updateCustomer(id: CustomerId, input: UpdateCustomerInput): Promise<Result_15>;
-    updateDefaultWorkHours(input: DefaultWorkHours): Promise<Result_14>;
-    updateEmployee(id: EmployeeId, input: UpdateEmployeeInput): Promise<Result_13>;
-    updateEmployment(employeeId: EmployeeId, employmentId: string, input: UpdateEmploymentInput): Promise<Result_12>;
-    updateExpense(id: ExpenseId, input: UpdateExpenseInput): Promise<Result_11>;
-    updateExpenseType(id: ExpenseTypeId, input: UpdateExpenseTypeInput): Promise<Result_10>;
-    updateHoliday(id: HolidayId, input: UpdateHolidayInput): Promise<Result_9>;
-    updateInvoice(invoiceId: bigint, input: UpdateInvoiceInput): Promise<Result_8>;
+    updateCustomer(id: CustomerId, input: UpdateCustomerInput): Promise<Result_16>;
+    updateDefaultWorkHours(input: DefaultWorkHours): Promise<Result_15>;
+    updateEmployee(id: EmployeeId, input: UpdateEmployeeInput): Promise<Result_14>;
+    updateEmployment(employeeId: EmployeeId, employmentId: string, input: UpdateEmploymentInput): Promise<Result_13>;
+    updateExpense(id: ExpenseId, input: UpdateExpenseInput): Promise<Result_12>;
+    updateExpenseType(id: ExpenseTypeId, input: UpdateExpenseTypeInput): Promise<Result_11>;
+    updateHoliday(id: HolidayId, input: UpdateHolidayInput): Promise<Result_10>;
+    updateInvoice(invoiceId: bigint, input: UpdateInvoiceInput): Promise<Result_9>;
+    updateKnowledgeEntry(id: string, entry: {
+        title: string;
+        content: string;
+        role: string;
+        isActive: boolean;
+        language: string;
+        category: string;
+    }): Promise<Result_8>;
+    updatePeriodCloseConfig(tenantId: CompanyId, config: PeriodCloseConfig): Promise<Result_5>;
     updateProject(id: ProjectId, input: UpdateProjectInput): Promise<Result_7>;
     updateServiceType(id: ServiceTypeId, input: UpdateServiceTypeInput): Promise<Result_6>;
     updateStripeSubscriptionQuantity(companyId: bigint, newQuantity: bigint): Promise<Result_5>;
+    updateTenantComplianceRule(input: UpdateTenantComplianceRuleInput): Promise<{
+        __kind__: "ok";
+        ok: TenantComplianceRule;
+    } | {
+        __kind__: "err";
+        err: string;
+    }>;
     updateTimeBalanceCorrection(employeeId: EmployeeId, correctionId: string, input: UpdateTimeBalanceCorrectionInput): Promise<Result_4>;
     updateTimeEntry(id: TimeEntryId, input: UpdateTimeEntryInput): Promise<Result_3>;
     updateUserNotificationSettings(input: UserNotificationSettings): Promise<Result_2>;

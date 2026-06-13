@@ -56,16 +56,18 @@ mixin (
       id = "basis";
       name = "Basis";
       description = "Für kleine Teams";
-      pricePerMonthCHF = 0.0;
-      pricePerYearCHF = 0.0;
+      pricePerMonthCHF = 10.0;
+      pricePerYearCHF = 9.0;
       minActiveDaysPerMonth = 1;
       maxEmployees = ?2;
       features = [
+        "Dashboard",
         "Zeiterfassung",
+        "Auswertungen",
+        "Stammdaten",
         "Kalenderübersicht",
-        "Spesenmanagement",
-        "Bis 2 Mitarbeitende",
-        "Internet Identity Login",
+        "Fakturierung",
+        "Einstellungen",
       ];
       isActive = true;
       sortOrder = 0;
@@ -77,6 +79,8 @@ mixin (
       paymentProvider  = #none;
       requiresPayment  = false;
       stripeMode       = null;
+      isRecommended      = false;
+      additionalFeatures = ["Basis E-Mail Support"];
     };
   };
 
@@ -85,19 +89,19 @@ mixin (
       id = "professional";
       name = "Professional";
       description = "Für wachsende Unternehmen";
-      pricePerMonthCHF = 7.0;
-      pricePerYearCHF = 6.0;
+      pricePerMonthCHF = 11.0;
+      pricePerYearCHF = 10.0;
       minActiveDaysPerMonth = 1;
-      maxEmployees = ?999;
+      maxEmployees = null;  // unbegrenzte Mitarbeitende
       features = [
+        "Dashboard",
         "Zeiterfassung",
+        "Auswertungen",
+        "Stammdaten",
         "Kalenderübersicht",
-        "Spesenmanagement",
-        "Unbegrenzte Mitarbeitende",
-        "Genehmigungsworkflows",
-        "Fakturierungsübersicht",
-        "Auswertungen & Reports",
-        "Prioritäts-Support",
+        "Fakturierung",
+        "Einstellungen",
+        "Spesenerfassung",
       ];
       isActive = true;
       sortOrder = 1;
@@ -109,6 +113,8 @@ mixin (
       paymentProvider  = #stripe;
       requiresPayment  = true;
       stripeMode       = null;
+      isRecommended      = true;
+      additionalFeatures = ["Premium E-Mail Support", "Premium Onboarding-Service"];
     };
   };
 
@@ -219,7 +225,13 @@ mixin (
     };
     // Stelle sicher, dass Default-Pläne vorhanden sind (aber immer Recovery prüfen)
     ensureDefaultPlansPresent();
-    let updated : CostDashboardTypes.SubscriptionPlan = { plan with updatedAt = Time.now() };
+    // Migration safety: merge new optional fields with defaults for callers that omit them
+    let updated : CostDashboardTypes.SubscriptionPlan = {
+      plan with
+      updatedAt          = Time.now();
+      isRecommended      = plan.isRecommended;
+      additionalFeatures = plan.additionalFeatures;
+    };
     // Verwende add (upsert): ersetzt existierende Einträge zuverlässig
     subscriptionPlans.add(plan.id, updated);
     #ok(updated);

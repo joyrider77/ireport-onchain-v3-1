@@ -48,7 +48,7 @@ module {
     employeeId : Nat;
     companyId : Nat;
     aktiv : Bool;                              // false by default; admin activates
-    vertraglicheWochenstunden : Float;         // default 42.0 (Swiss standard)
+    // vertraglicheWochenstunden is derived from employment data (read-only, not stored)
     gesetzlicheWochenhochstarbeitszeit : Float; // 45.0 or 50.0
     gesetzlicherFerienanspruchWochen : Float;   // default 4.0 (Schweizer OR)
     vertraglicheZusatzferienTage : Float;       // default 0.0
@@ -204,7 +204,6 @@ module {
   public type CreateComplianceProfileInput = {
     employeeId : Nat;
     companyId : Nat;
-    vertraglicheWochenstunden : Float;
     gesetzlicheWochenhochstarbeitszeit : Float;
     gesetzlicherFerienanspruchWochen : Float;
     vertraglicheZusatzferienTage : Float;
@@ -213,14 +212,33 @@ module {
   };
 
   public type UpdateComplianceProfileInput = {
-    id : Nat;
+    id : Nat;          // profile ID (0 when no profile exists yet)
+    employeeId : Nat;  // employee to create/update the profile for
     aktiv : Bool;
-    vertraglicheWochenstunden : Float;
     gesetzlicheWochenhochstarbeitszeit : Float;
     gesetzlicherFerienanspruchWochen : Float;
     vertraglicheZusatzferienTage : Float;
     ausnahmeprofil : ?Text;
     erfassungsModus : Text;
+  };
+
+  // ── Tenant compliance rule (per-tenant customisation) ─────────────────────
+
+  public type TenantComplianceRule = {
+    ruleCode : Text;              // e.g. "REST_TIME", "PAUSE_MINIMUM_5H30"
+    tenantId : Text;              // companyId as Text
+    customValue : ?Float;         // null = use Swiss-law default
+    isActive : Bool;
+    isCustomized : Bool;          // true once admin has manually changed a value
+    modifiedBy : Text;            // employeeId as Text
+    modifiedAt : Int;             // nanoseconds
+  };
+
+  public type UpdateTenantComplianceRuleInput = {
+    ruleCode : Text;
+    companyId : Nat;
+    newValue : ?Float;            // null = keep current value, only toggle isActive
+    isActive : Bool;
   };
 
 };

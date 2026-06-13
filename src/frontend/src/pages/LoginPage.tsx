@@ -43,7 +43,9 @@ export default function LoginPage() {
     if (isAuthenticated && role && companyId) {
       navigate({ to: "/dashboard" });
     } else if (isAuthenticated && (!role || !companyId)) {
-      navigate({ to: "/register" });
+      setBackendError(
+        "Dieses Konto ist noch nicht registriert. Bitte wählen Sie einen Plan auf der Startseite aus, um sich zu registrieren.",
+      );
     }
   }, [isAuthenticated, role, companyId, navigate, accountDisabled]);
 
@@ -73,7 +75,9 @@ export default function LoginPage() {
         clearTimeout(timeoutRef.current!);
         setLoading(false);
         isInitializing.current = false;
-        navigate({ to: "/register" });
+        setBackendError(
+          "Dieses Konto ist noch nicht registriert. Bitte wählen Sie einen Plan auf der Startseite aus, um sich zu registrieren.",
+        );
         return;
       }
 
@@ -320,22 +324,15 @@ export default function LoginPage() {
                   {backendError}
                 </p>
                 <Button
-                  onClick={handleRetry}
-                  data-ocid="login-retry-button"
+                  onClick={() =>
+                    navigate({ to: "/", search: { scroll: "pricing" } })
+                  }
+                  data-ocid="login-back-to-home-button"
                   variant="outline"
                   className="w-full"
                   size="lg"
                 >
-                  Erneut versuchen
-                </Button>
-                <Button
-                  onClick={handleLogin}
-                  data-ocid="login-button-after-error"
-                  variant="ghost"
-                  className="w-full text-sm"
-                  size="sm"
-                >
-                  Mit anderem Konto anmelden
+                  Zurück zur Startseite
                 </Button>
               </div>
             ) : (

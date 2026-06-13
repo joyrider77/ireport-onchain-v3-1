@@ -97,7 +97,7 @@ export function timestampToDate(ts: bigint): string {
 /** Format vacation balance duration (stored as bigint = number of days * 100 for 2 decimal places) */
 export function formatVacationDays(dauer: bigint): string {
   const days = Number(dauer) / 100;
-  return days % 1 === 0 ? `${days}` : days.toFixed(1);
+  return days.toFixed(2);
 }
 
 /** Parse vacation days input (e.g. "20" or "10.5") to bigint (days * 100) */

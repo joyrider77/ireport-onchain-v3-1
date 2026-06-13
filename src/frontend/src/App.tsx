@@ -33,6 +33,7 @@ const PlatformAdminPage = lazy(() => import("./pages/PlatformAdminPage"));
 const CostDashboardPage = lazy(() => import("./pages/CostDashboardPage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
 const HrCompliancePage = lazy(() => import("./pages/HrCompliancePage"));
+const MonatsabschlussPage = lazy(() => import("./pages/MonthlyClosePage"));
 const NotificationAdminPage = lazy(
   () => import("./pages/platformadmin/NotificationAdminPage"),
 );
@@ -89,6 +90,10 @@ const nutzungsbedingungenRoute = createRoute({
 const registerRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/register",
+  validateSearch: (search: Record<string, unknown>) => ({
+    planId: (search.planId as string) ?? "",
+    billing: (search.billing as string) ?? "monthly",
+  }),
   component: RegisterPage,
 });
 
@@ -177,6 +182,11 @@ const hrComplianceRoute = createRoute({
   path: "/hr-compliance",
   component: HrCompliancePage,
 });
+const monatsabschlussRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/auswertungen/monatsabschluss",
+  component: MonatsabschlussPage,
+});
 
 const abwesenheitRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -244,6 +254,7 @@ const routeTree = rootRoute.addChildren([
   einstellungenRoute,
   genehmigungsRoute,
   hrComplianceRoute,
+  monatsabschlussRoute,
   abwesenheitRoute,
   logoutRoute,
   platformAdminRoute,

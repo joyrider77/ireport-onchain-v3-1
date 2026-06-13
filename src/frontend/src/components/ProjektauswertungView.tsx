@@ -11,7 +11,7 @@ import { useActor } from "@caffeineai/core-infrastructure";
 import { Printer } from "lucide-react";
 import { useState } from "react";
 import { createActor } from "../backend";
-import type { Result_30 } from "../backend.d";
+import type { Result_31, Result_32 } from "../backend.d";
 import type {
   EmployeeBudgetReport as BackendEmployeeBudgetReport,
   ProjectBudgetReport as BackendProjectBudgetReport,
@@ -317,7 +317,7 @@ export function ProjektauswertungView({
         // ── Budget mode: call real backend, fall back to local mock on error ──
         let budgetReport: ProjectBudgetReport;
         try {
-          const res: Result_30 = await actor.getProjectBudgetReport(
+          const res: Result_32 = await actor.getProjectBudgetReport(
             projId as ProjectId,
             dateFrom,
             dateTo,

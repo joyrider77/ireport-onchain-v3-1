@@ -1,3 +1,4 @@
+import { ClosedPeriodBanner } from "@/components/ClosedPeriodBanner";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { Layout } from "@/components/Layout";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +33,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuthStore";
+import { useGetPeriodStatus } from "@/hooks/usePeriodClose";
 import { formatDateDE } from "@/lib/dateFormat";
 import {
   getActiveEmploymentForDate,
@@ -106,6 +108,17 @@ export default function AbwesenheitPage() {
   const { isAuthenticated, companyId, employeeId, role } = useAuth();
   const { actor, isFetching } = useActor(createActor);
   const queryClient = useQueryClient();
+
+  const [selectedMonth] = useState(() => new Date().getMonth() + 1);
+  const [selectedYear] = useState(() => new Date().getFullYear());
+  const isMitarbeiter = true;
+  const { data: periodCloseStatus } = useGetPeriodStatus(
+    companyId ? BigInt(companyId) : BigInt(0),
+    employeeId ? BigInt(employeeId) : undefined,
+    selectedMonth,
+    selectedYear,
+  );
+  const isPeriodClosed = periodCloseStatus?.status === "closed";
 
   const [showAbsenceDialog, setShowAbsenceDialog] = useState(false);
   const [showVacationDialog, setShowVacationDialog] = useState(false);
@@ -374,6 +387,12 @@ export default function AbwesenheitPage() {
   }
 
   function submitAbsence() {
+    if (isPeriodClosed) {
+      toast.error(
+        "Diese Periode ist abgeschlossen. Änderungen sind nicht mehr möglich.",
+      );
+      return;
+    }
     if (!validateAbsenceForm()) return;
     const typeId = absenceTypes.find(
       (t) => String(t.id) === absenceForm.absenceTypeId,
@@ -507,6 +526,13 @@ export default function AbwesenheitPage() {
       ? (ganztaetigPreviewMinutes ?? 0)
       : (hhmmToMinutes(vacationForm.dauerInput) ?? 0);
 
+    if (isPeriodClosed) {
+      toast.error(
+        "Diese Periode ist abgeschlossen. Änderungen sind nicht mehr möglich.",
+      );
+      return;
+    }
+
     if (editVacation) {
       updateMutation.mutate({
         id: editVacation.id,
@@ -534,6 +560,12 @@ export default function AbwesenheitPage() {
     a.status === "submitted" || a.status === ("pending" as AbsenceStatus);
 
   const handleDeleteAbsenceClick = (absence: Absence) => {
+    if (isPeriodClosed) {
+      toast.error(
+        "Diese Periode ist abgeschlossen. Löschen ist nicht mehr möglich.",
+      );
+      return;
+    }
     const isApproved = absence.status === "approved";
     const isAdminOrManager =
       role === "admin" || role === "manager" || role === "platform_admin";
@@ -560,6 +592,13 @@ export default function AbwesenheitPage() {
           </p>
         </div>
 
+        {isPeriodClosed && (
+          <ClosedPeriodBanner
+            closedAt={periodCloseStatus?.closedAt}
+            canReopen={false}
+          />
+        )}
+
         <Tabs defaultValue="abwesenheiten">
           <TabsList>
             <TabsTrigger value="abwesenheiten" data-ocid="tab-abwesenheiten">
@@ -583,6 +622,7 @@ export default function AbwesenheitPage() {
                   setShowAbsenceDialog(true);
                 }}
                 className="gap-2"
+                disabled={isPeriodClosed && isMitarbeiter}
                 data-ocid="btn-neue-abwesenheit"
               >
                 <PlusCircle className="w-4 h-4" />
@@ -696,6 +736,7 @@ export default function AbwesenheitPage() {
                   setShowVacationDialog(true);
                 }}
                 className="gap-2"
+                disabled={isPeriodClosed && isMitarbeiter}
                 data-ocid="btn-ferienantrag-stellen"
               >
                 <PlusCircle className="w-4 h-4" />

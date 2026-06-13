@@ -1040,33 +1040,36 @@ export default function AuswertungenPage() {
                                             }
                                           ).fieldChanges;
                                           if (fc && fc.length > 0) {
+                                            // Render fieldChanges as VORHER/NACHHER blocks
+                                            const beforeText = fc
+                                              .map(
+                                                (c) =>
+                                                  `${c.fieldName}: ${c.before || "—"}`,
+                                              )
+                                              .join("\n");
+                                            const afterText = fc
+                                              .map(
+                                                (c) =>
+                                                  `${c.fieldName}: ${c.after || "—"}`,
+                                              )
+                                              .join("\n");
                                             return (
-                                              <div className="space-y-1.5 text-xs">
-                                                <p className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">
-                                                  Geänderte Felder
-                                                </p>
+                                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                                                 <div className="space-y-1">
-                                                  {fc.map((change) => (
-                                                    <div
-                                                      key={`${change.fieldName}-${change.before}`}
-                                                      className="flex items-start gap-1.5 p-1.5 rounded bg-background border border-border/60"
-                                                    >
-                                                      <span className="font-medium text-foreground min-w-[100px] flex-shrink-0">
-                                                        {change.fieldName}:
-                                                      </span>
-                                                      <span className="text-destructive line-through break-words min-w-0">
-                                                        {change.before ||
-                                                          "\u2014"}
-                                                      </span>
-                                                      <span className="text-muted-foreground flex-shrink-0">
-                                                        \u2192
-                                                      </span>
-                                                      <span className="text-emerald-700 break-words min-w-0">
-                                                        {change.after ||
-                                                          "\u2014"}
-                                                      </span>
-                                                    </div>
-                                                  ))}
+                                                  <p className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">
+                                                    Vorher
+                                                  </p>
+                                                  <pre className="p-2 rounded bg-background border border-border text-xs whitespace-pre-wrap break-words max-h-32 overflow-auto">
+                                                    {beforeText}
+                                                  </pre>
+                                                </div>
+                                                <div className="space-y-1">
+                                                  <p className="font-semibold text-muted-foreground uppercase tracking-wide text-[10px]">
+                                                    Nachher
+                                                  </p>
+                                                  <pre className="p-2 rounded bg-background border border-border text-xs whitespace-pre-wrap break-words max-h-32 overflow-auto">
+                                                    {afterText}
+                                                  </pre>
                                                 </div>
                                               </div>
                                             );

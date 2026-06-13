@@ -1,3 +1,4 @@
+import { ClosedPeriodBanner } from "@/components/ClosedPeriodBanner";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { Layout } from "@/components/Layout";
 import { TimeEntryDialog } from "@/components/TimeEntryDialog";
@@ -26,6 +27,7 @@ import {
   toDateStringInTz,
   useCompanyTimezone,
 } from "@/hooks/useCompanyTimezone";
+import { useGetPeriodStatus } from "@/hooks/usePeriodClose";
 import {
   countVacationDaysProportional,
   getActiveEmploymentForDate,
@@ -1582,6 +1584,7 @@ function DayDetailSheet({
   projects,
   onClose,
   onAction,
+  periodLocked = false,
 }: {
   day: DayData | null;
   absenceTypes: AbsenceType[];
@@ -1589,6 +1592,7 @@ function DayDetailSheet({
   projects: Project[];
   onClose: () => void;
   onAction: (mode: ActionMode) => void;
+  periodLocked?: boolean;
 }) {
   const sheetRef = useRef<HTMLDivElement>(null);
 
@@ -1714,44 +1718,45 @@ function DayDetailSheet({
                         {formatHours(te.hours)} Std.
                       </span>
                       {/* Edit / Delete icons */}
-                      {(() => {
-                        const teStatus = String(
-                          (te as unknown as Record<string, unknown>).status ??
-                            "",
-                        ).toLowerCase();
-                        const teApproved =
-                          teStatus === "approved" || teStatus === "genehmigt";
-                        return (
-                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1">
-                            {!teApproved && (
+                      {!periodLocked &&
+                        (() => {
+                          const teStatus = String(
+                            (te as unknown as Record<string, unknown>).status ??
+                              "",
+                          ).toLowerCase();
+                          const teApproved =
+                            teStatus === "approved" || teStatus === "genehmigt";
+                          return (
+                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1">
+                              {!teApproved && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onAction({ kind: "editZeit", entry: te });
+                                  }}
+                                  aria-label="Zeiteintrag bearbeiten"
+                                  className="p-1 rounded hover:bg-blue-200 text-blue-600 transition-colors"
+                                  data-ocid="day-entry-edit-btn"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  onAction({ kind: "editZeit", entry: te });
+                                  onAction({ kind: "deleteZeit", entry: te });
                                 }}
-                                aria-label="Zeiteintrag bearbeiten"
-                                className="p-1 rounded hover:bg-blue-200 text-blue-600 transition-colors"
-                                data-ocid="day-entry-edit-btn"
+                                aria-label="Zeiteintrag löschen"
+                                className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                data-ocid="day-entry-delete-btn"
                               >
-                                <Pencil className="w-3.5 h-3.5" />
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onAction({ kind: "deleteZeit", entry: te });
-                              }}
-                              aria-label="Zeiteintrag löschen"
-                              className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                              data-ocid="day-entry-delete-btn"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        );
-                      })()}
+                            </div>
+                          );
+                        })()}
                     </div>
                   );
                 })}
@@ -1852,32 +1857,34 @@ function DayDetailSheet({
                         )}
                       </div>
                       {/* Edit / Delete icons */}
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAction({ kind: "editAbsence", absence: ab });
-                          }}
-                          aria-label="Abwesenheit bearbeiten"
-                          className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                          data-ocid="day-absence-edit-btn"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onAction({ kind: "deleteAbsence", absence: ab });
-                          }}
-                          aria-label="Abwesenheit löschen"
-                          className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                          data-ocid="day-absence-delete-btn"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      {!periodLocked && (
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAction({ kind: "editAbsence", absence: ab });
+                            }}
+                            aria-label="Abwesenheit bearbeiten"
+                            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                            data-ocid="day-absence-edit-btn"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAction({ kind: "deleteAbsence", absence: ab });
+                            }}
+                            aria-label="Abwesenheit löschen"
+                            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                            data-ocid="day-absence-delete-btn"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1914,6 +1921,10 @@ function DayDetailSheet({
                 className="flex-col h-auto gap-1 py-2.5 text-xs"
                 data-ocid="day-detail-add-time"
                 onClick={() => onAction({ kind: "zeit" })}
+                disabled={periodLocked}
+                title={
+                  periodLocked ? "Diese Periode ist abgeschlossen" : undefined
+                }
               >
                 <Clock className="w-4 h-4 text-blue-600" />
                 Zeit
@@ -1925,6 +1936,10 @@ function DayDetailSheet({
                 className="flex-col h-auto gap-1 py-2.5 text-xs"
                 data-ocid="day-detail-add-vacation"
                 onClick={() => onAction({ kind: "ferien" })}
+                disabled={periodLocked}
+                title={
+                  periodLocked ? "Diese Periode ist abgeschlossen" : undefined
+                }
               >
                 <Palmtree className="w-4 h-4 text-orange-500" />
                 Ferien
@@ -1936,6 +1951,10 @@ function DayDetailSheet({
                 className="flex-col h-auto gap-1 py-2.5 text-xs"
                 data-ocid="day-detail-add-absence"
                 onClick={() => onAction({ kind: "abwesenheit" })}
+                disabled={periodLocked}
+                title={
+                  periodLocked ? "Diese Periode ist abgeschlossen" : undefined
+                }
               >
                 <AlertCircle className="w-4 h-4 text-amber-500" />
                 Abwesenheit
@@ -1959,6 +1978,7 @@ export default function KalenderPage() {
   const queryClient = useQueryClient();
 
   const a = actor as unknown as AnyActor | null;
+  const _isMitarbeiter = true;
 
   const today = new Date();
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
@@ -1998,6 +2018,15 @@ export default function KalenderPage() {
   >(null);
 
   // Company calendar view
+  // ─── Period lock ──────────────────────────────────────────────────────────
+  const { data: periodCloseStatus } = useGetPeriodStatus(
+    companyId ? BigInt(companyId) : undefined,
+    employeeId ? BigInt(employeeId) : undefined,
+    currentMonth + 1,
+    currentYear,
+  );
+  const isPeriodClosed = periodCloseStatus?.status === "closed";
+
   const [calendarView, setCalendarView] = useState<"personal" | "company">(
     "personal",
   );
@@ -2057,25 +2086,32 @@ export default function KalenderPage() {
       999,
     );
     a.getCompanyCalendarAbsences(
-      companyId,
+      BigInt(companyId!),
       BigInt(firstVisibleDay.getTime()) * 1_000_000n,
       BigInt(lastVisibleDay.getTime()) * 1_000_000n,
     )
       .then((absences) => {
-        const unwrapOpt = (v: any): string =>
-          Array.isArray(v) ? (v[0] ?? "") : (v ?? "");
-        const unwrapStatus = (v: any): string => {
+        const unwrapOpt = (v: unknown): string =>
+          Array.isArray(v) ? (v[0] ?? "") : ((v as string) ?? "");
+        const unwrapStatus = (v: unknown): string => {
           if (typeof v === "string") return v;
           if (v && typeof v === "object") return Object.keys(v)[0] ?? "";
           return "";
         };
         setCompanyAbsences(
-          (absences as any[]).map((abs) => ({
-            ...abs,
+          (absences as Array<Record<string, unknown>>).map((abs) => ({
+            id: String(abs.id ?? ""),
+            visibilityMode: String(abs.visibilityMode ?? ""),
+            toDate: String(abs.toDate ?? ""),
+            fromDate: String(abs.fromDate ?? ""),
+            isOwnEntry: Boolean(abs.isOwnEntry),
+            displayTitle:
+              typeof abs.displayTitle === "string"
+                ? abs.displayTitle
+                : unwrapOpt(abs.displayTitle),
             employeeName: unwrapOpt(abs.employeeName),
             employeeId: unwrapOpt(abs.employeeId),
             displayColor: unwrapOpt(abs.displayColor),
-            displayTitle: unwrapOpt(abs.displayTitle),
             absenceTypeName: unwrapOpt(abs.absenceTypeName),
             status: unwrapStatus(abs.status),
           })),
@@ -2089,7 +2125,13 @@ export default function KalenderPage() {
 
   const monthParam = String(currentMonth + 1).padStart(2, "0");
 
+  // Previous month for fetching entries that span across the month boundary
+  const prevMonthIndex = currentMonth === 0 ? 11 : currentMonth - 1;
+  const prevMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+  const prevMonthParam = String(prevMonthIndex + 1).padStart(2, "0");
+
   const calendarQueryKey = ["calendar", currentYear, currentMonth];
+  const calendarPrevQueryKey = ["calendar", prevMonthYear, prevMonthIndex];
 
   const { data: calendarData, isLoading: calLoading } = useQuery<CalendarData>({
     queryKey: calendarQueryKey,
@@ -2098,6 +2140,19 @@ export default function KalenderPage() {
       return a.getCalendarEntries(
         monthParam,
         BigInt(currentYear),
+      ) as Promise<CalendarData>;
+    },
+    enabled: !!a && !actorFetching,
+  });
+
+  // Fetch previous month so entries spanning the month boundary are visible
+  const { data: calendarPrevData } = useQuery<CalendarData>({
+    queryKey: calendarPrevQueryKey,
+    queryFn: async () => {
+      if (!a) return { timeEntries: [], expenses: [], absences: [] };
+      return a.getCalendarEntries(
+        prevMonthParam,
+        BigInt(prevMonthYear),
       ) as Promise<CalendarData>;
     },
     enabled: !!a && !actorFetching,
@@ -2151,6 +2206,7 @@ export default function KalenderPage() {
 
   function refreshCalendar() {
     void queryClient.invalidateQueries({ queryKey: calendarQueryKey });
+    void queryClient.invalidateQueries({ queryKey: calendarPrevQueryKey });
   }
 
   /**
@@ -2173,9 +2229,19 @@ export default function KalenderPage() {
 
   function buildDayData(d: Date): DayData {
     const iso = isoDate(d);
-    const entries = calendarData?.timeEntries ?? [];
-    const expList = calendarData?.expenses ?? [];
-    const absences = calendarData?.absences ?? [];
+    // Merge current and previous month data so entries spanning the boundary are visible
+    const entries = [
+      ...(calendarData?.timeEntries ?? []),
+      ...(calendarPrevData?.timeEntries ?? []),
+    ];
+    const expList = [
+      ...(calendarData?.expenses ?? []),
+      ...(calendarPrevData?.expenses ?? []),
+    ];
+    const absences = [
+      ...(calendarData?.absences ?? []),
+      ...(calendarPrevData?.absences ?? []),
+    ];
 
     const dayEntries = entries.filter((e) => e.date === iso);
     const dayExpenses = expList.filter((e) => e.date === iso);
@@ -2222,6 +2288,12 @@ export default function KalenderPage() {
   }
 
   function handleAction(mode: ActionMode) {
+    if (isPeriodClosed) {
+      toast.error(
+        "Diese Periode ist abgeschlossen. Bearbeiten ist nicht mehr möglich.",
+      );
+      return;
+    }
     if (!selectedDay) return;
     const dateStr = isoDate(selectedDay.date);
 
@@ -2287,6 +2359,12 @@ export default function KalenderPage() {
   }
 
   async function handleConfirmDelete() {
+    if (isPeriodClosed) {
+      toast.error(
+        "Diese Periode ist abgeschlossen. Löschen ist nicht mehr möglich.",
+      );
+      return;
+    }
     if (!deleteTarget || !a) return;
 
     // Block deletion of approved entries for ALL users
@@ -2361,6 +2439,13 @@ export default function KalenderPage() {
             </p>
           </div>
         </div>
+
+        {isPeriodClosed && (
+          <ClosedPeriodBanner
+            closedAt={periodCloseStatus?.closedAt}
+            canReopen={false}
+          />
+        )}
 
         {/* Calendar card */}
         <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
@@ -2669,6 +2754,7 @@ export default function KalenderPage() {
             projects={projects}
             onClose={() => setSelectedDay(null)}
             onAction={handleAction}
+            periodLocked={isPeriodClosed}
           />
         )}
       </AnimatePresence>

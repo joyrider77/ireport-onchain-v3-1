@@ -28,6 +28,7 @@ import type {
   backendInterface,
 } from "../../backend.d";
 import { PlanChangeDialog } from "../../components/PlanChangeDialog";
+import { getActiveEmploymentForDate } from "../../lib/employmentUtils";
 import { type PlanChangeInfo, checkPlanChange } from "../../lib/planUtils";
 import { EmploymentSection } from "./EmploymentSection";
 import { TimeBalanceCorrectionSection } from "./TimeBalanceCorrectionSection";
@@ -73,7 +74,6 @@ interface PersonalForm {
 
 interface ComplianceForm {
   aktiv: boolean;
-  vertraglicheWochenstunden: number;
   gesetzlicheWochenhochstarbeitszeit: number;
   gesetzlicherFerienanspruchWochen: number;
   vertraglicheZusatzferienTage: number;
@@ -123,12 +123,47 @@ export function MitarbeiterDetail({
   const [complianceOpen, setComplianceOpen] = useState(false);
   const [complianceForm, setComplianceForm] = useState<ComplianceForm>({
     aktiv: false,
-    vertraglicheWochenstunden: 42,
     gesetzlicheWochenhochstarbeitszeit: 45,
     gesetzlicherFerienanspruchWochen: 4,
     vertraglicheZusatzferienTage: 0,
     ausnahmeprofil: "",
   });
+
+  // ── Fetch employments for read-only Wochenstunden display ──────────
+  const { data: employments = [] } = useQuery<
+    import("../../backend.d").Employment[]
+  >({
+    queryKey: ["employments", String(employee.id)],
+    queryFn: async () => {
+      if (!actor) return [];
+      try {
+        const res = await actor.listEmployments(employee.id);
+        if (res.__kind__ === "ok") return res.ok;
+        return [];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!actor && complianceOpen,
+  });
+
+  // Compute weekly hours from the currently active employment (today's date)
+  const vertraglicheWochenstundenReadOnly: number = (() => {
+    if (!employments.length) return 40.0;
+    const todayIso = new Date().toISOString().split("T")[0];
+    const activeEmp = getActiveEmploymentForDate(employments, todayIso);
+    if (!activeEmp) return 40.0;
+    const totalMinutes =
+      Number(activeEmp.stundenMo) +
+      Number(activeEmp.stundenDi) +
+      Number(activeEmp.stundenMi) +
+      Number(activeEmp.stundenDo) +
+      Number(activeEmp.stundenFr) +
+      Number(activeEmp.stundenSa) +
+      Number(activeEmp.stundenSo);
+    const hours = totalMinutes / 60;
+    return Math.round(hours * 10) / 10;
+  })();
 
   // ── Fetch compliance profile ────────────────────────────────────
   const { data: complianceProfile, isLoading: complianceLoading } =
@@ -150,7 +185,6 @@ export function MitarbeiterDetail({
     if (complianceProfile) {
       setComplianceForm({
         aktiv: complianceProfile.aktiv,
-        vertraglicheWochenstunden: complianceProfile.vertraglicheWochenstunden,
         gesetzlicheWochenhochstarbeitszeit:
           complianceProfile.gesetzlicheWochenhochstarbeitszeit,
         gesetzlicherFerienanspruchWochen:
@@ -246,8 +280,8 @@ export function MitarbeiterDetail({
       const profileId = complianceProfile?.id ?? BigInt(0);
       const input: UpdateComplianceProfileInput = {
         id: profileId,
+        employeeId: employee.id,
         aktiv: complianceForm.aktiv,
-        vertraglicheWochenstunden: complianceForm.vertraglicheWochenstunden,
         gesetzlicheWochenhochstarbeitszeit:
           complianceForm.gesetzlicheWochenhochstarbeitszeit,
         gesetzlicherFerienanspruchWochen:
@@ -776,28 +810,17 @@ export function MitarbeiterDetail({
                         />
                       </div>
 
-                      {/* Vertragliche Wochenstunden */}
+                      {/* Vertragliche Wochenstunden — read-only from Beschäftigung */}
                       <div className="space-y-1">
-                        <Label htmlFor="cp-wochenstunden">
-                          Vertragliche Wochenstunden
-                        </Label>
-                        <Input
-                          id="cp-wochenstunden"
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          max="50"
-                          value={complianceForm.vertraglicheWochenstunden}
-                          onChange={(e) =>
-                            setComplianceForm({
-                              ...complianceForm,
-                              vertraglicheWochenstunden:
-                                Number.parseFloat(e.target.value) || 0,
-                            })
-                          }
-                          disabled={!canWrite}
-                          data-ocid="compliance-wochenstunden-input"
-                        />
+                        <Label>Vertragliche Wochenstunden</Label>
+                        <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-input bg-muted text-sm text-muted-foreground">
+                          <span data-ocid="compliance-wochenstunden-readonly">
+                            {vertraglicheWochenstundenReadOnly} h
+                          </span>
+                          <span className="text-xs ml-auto opacity-60">
+                            aus Beschäftigung
+                          </span>
+                        </div>
                       </div>
 
                       {/* Gesetzliche Wochenhöchstarbeitszeit */}

@@ -47,14 +47,19 @@ import SubscriptionApi "mixins/subscription-api";
 import NotificationTypes "types/notification";
 import NotificationApi "mixins/notification-api";
 import StripeApi "mixins/stripe-api";
-import ApprovalTypes "types/timetracking-approval-and-feature-flags";
-import TimetrackingApprovalApi "mixins/timetracking-approval-api";
-import ApprovalLib "lib/timetracking-approval";
 import ComplianceTypes "types/compliance";
 import ComplianceApi "mixins/compliance-api";
+import AiApi "mixins/ai-api";import KnowledgeBaseApi "mixins/knowledge-base-api";
+import KbTypes "types/knowledge-base";
+
 import PauseApi "mixins/pause-api";
+import PeriodCloseTypes "types/period-close";
+import PeriodCloseApi "mixins/period-close-api";
 import VacationLedgerLib "lib/vacation-ledger";
-import Migration "migration";
+
+
+
+
 
 
 
@@ -70,7 +75,8 @@ import Migration "migration";
 // RULE: When changing a stable variable's type, always add a migration in migration.mo
 // to copy existing data to the new variable with sensible defaults for new fields.
 
-(with migration = Migration.run)
+
+
 actor Self {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
@@ -96,6 +102,11 @@ actor Self {
   let nextVacationBalanceId = { var value : Nat = 1 };
   let nextTimeCorrectionId = { var value : Nat = 1 };
   let nextAuditId = { var value : Nat = 0 };
+  // --- Periodenabschluss ---
+  let periodCloses = Map.empty<PeriodCloseTypes.PeriodCloseId, PeriodCloseTypes.PeriodClose>();
+  let periodCloseAudit = List.empty<PeriodCloseTypes.PeriodCloseAuditEntry>();
+  let periodCloseConfigs = Map.empty<CommonTypes.CompanyId, PeriodCloseTypes.PeriodCloseConfig>();
+  let nextPeriodCloseAuditId = { var value : Nat = 1 };
 
   // --- Fakturierung ---
   let nextInvoiceId = { var value : Nat = 1 };
@@ -423,16 +434,41 @@ actor Self {
   let inviteToEmployee = Map.empty<Text, CommonTypes.InviteEntry>();
 
   // --- HR & Compliance-Modul ---
-  let complianceProfiles = List.empty<ComplianceTypes.EmployeeComplianceProfile>();
+  // complianceProfiles: legacy stable var consumed by migration (old type with vertraglicheWochenstunden).
+  // complianceProfilesV2: new stable var produced by migration (new type without vertraglicheWochenstunden).
+  type LegacyComplianceProfile = {
+    id : Nat;
+    employeeId : Nat;
+    companyId : Nat;
+    aktiv : Bool;
+    vertraglicheWochenstunden : Float;
+    gesetzlicheWochenhochstarbeitszeit : Float;
+    gesetzlicherFerienanspruchWochen : Float;
+    vertraglicheZusatzferienTage : Float;
+    ausnahmeprofil : ?Text;
+    erfassungsModus : Text;
+    createdAt : Int;
+    updatedAt : Int;
+  };
+  let complianceProfiles = List.empty<LegacyComplianceProfile>();
+  let complianceProfilesV2 = List.empty<ComplianceTypes.EmployeeComplianceProfile>();
   let complianceFindings = List.empty<ComplianceTypes.ComplianceFinding>();
   let vacationLedgers    = List.empty<ComplianceTypes.VacationLedger>();
   let nextComplianceProfileId = { var value : Nat = 1 };
   let nextComplianceFindingId = { var value : Nat = 1 };
   let nextVacationLedgerId    = { var value : Nat = 1 };
+  // Mandantenspezifische Compliance-Regeln ("companyId:ruleCode" -> TenantComplianceRule)
+  let tenantComplianceRules = Map.empty<Text, ComplianceTypes.TenantComplianceRule>();
 
   // --- Pausen-Overrides (Pause-Erkennung & Compliance, Punkt 21) ---
   let pauseOverrides      = List.empty<ComplianceTypes.PauseOverride>();
   let nextPauseOverrideId = { var value : Nat = 1 };
+
+  // --- OpenAI / KI-Konfiguration (Platform Admin only) ---
+  let openAIConfigState = { var value : ?CostDashboardTypes.OpenAIConfig = null };
+  // --- Wissensbasis für Support-KI ---
+  let knowledgeEntries : List.List<KbTypes.KnowledgeEntry> = List.empty();
+  let knowledgeBaseInitialized = { var value : Bool = false };
 
   // --- Mixins einbinden ---
   include CompanyApi(
@@ -477,7 +513,7 @@ actor Self {
     companySubscriptions,
     companySubscriptionDetailsV3,
     principalToCompany,
-    complianceProfiles,
+    complianceProfilesV2,
     nextComplianceProfileId,
   );
 
@@ -507,13 +543,6 @@ actor Self {
     timeEntries,
   );
 
-  // --- Genehmigungsprozesse & Feature-Flags ---
-  let approvalAuditLog       = List.empty<ApprovalTypes.TimeEntryApprovalAuditEntry>();
-  let nextApprovalAuditId    = { var value : Nat = 0 };
-
-  let timeEntryApprovalData  = Map.empty<Nat, ApprovalLib.ApprovalRecord>();
-  let absenceApprovalData    = Map.empty<Nat, ApprovalLib.ApprovalRecord>();
-
   include TimetrackingApi(
     accessControlState,
     companies,
@@ -524,7 +553,7 @@ actor Self {
     nextTimeEntryId,
     auditLogEntriesV6,
     nextAuditLogId,
-    timeEntryApprovalData,
+    periodCloses,
   );
 
   include ExpensesApi(
@@ -539,6 +568,7 @@ actor Self {
     nextAuditId,
     auditLogEntriesV6,
     nextAuditLogId,
+    periodCloses,
   );
 
   include AbsencesApi(
@@ -556,7 +586,7 @@ actor Self {
     nextAuditId,
     auditLogEntriesV6,
     nextAuditLogId,
-    absenceApprovalData,
+    periodCloses,
   );
 
   include ReportsApi(
@@ -618,25 +648,6 @@ actor Self {
     nextAuditLogId,
   );
 
-  include TimetrackingApprovalApi(
-    employees,
-    principalToCompany,
-    principalToEmployee,
-    timeEntries,
-    absences,
-    approvalAuditLog,
-    nextApprovalAuditId,
-    timeEntryApprovalData,
-    absenceApprovalData,
-    companySubscriptions,
-    subscriptionPlansV4,
-    auditLogEntriesV6,
-    nextAuditLogId,
-    vacationLedgers,
-    nextVacationLedgerId,
-    complianceProfiles,
-    employmentsV2,
-  );
 
   include CostDashboardApi(
     companies,
@@ -738,7 +749,7 @@ actor Self {
     employees,
     principalToCompany,
     principalToEmployee,
-    complianceProfiles,
+    complianceProfilesV2,
     complianceFindings,
     vacationLedgers,
     nextComplianceProfileId,
@@ -747,6 +758,11 @@ actor Self {
     timeEntries,
     absences,
     pauseOverrides,
+    tenantComplianceRules,
+    auditLogEntriesV6,
+    nextAuditLogId,
+    employmentsV2,
+    vacationBalances,
   );
 
   include PauseApi(
@@ -756,6 +772,31 @@ actor Self {
     timeEntries,
     pauseOverrides,
     nextPauseOverrideId,
+  );
+
+  include KnowledgeBaseApi(
+    platformAdminPrincipal,
+    knowledgeEntries,
+    knowledgeBaseInitialized,
+  );
+
+  include AiApi(
+    platformAdminPrincipal,
+    openAIConfigState,
+    knowledgeEntries,
+  );
+
+  include PeriodCloseApi(
+    periodCloses,
+    periodCloseAudit,
+    periodCloseConfigs,
+    nextPeriodCloseAuditId,
+    employees,
+    principalToCompany,
+    principalToEmployee,
+    timeEntries,
+    expenses,
+    absences,
   );
 
   // Gibt die eigene Backend-Canister-ID zurück (dynamisch via Principal.fromActor(Self))

@@ -42,13 +42,10 @@ import type {
   AbsenceFilter,
   AbsenceStatus,
   AbsenceType,
-  Customer,
   Employee,
   Expense,
   ExpenseFilter,
   ExpenseStatus,
-  Project,
-  ServiceType,
 } from "../backend";
 
 type AnyActor = Record<string, (...args: unknown[]) => Promise<unknown>>;
@@ -86,40 +83,6 @@ function daysBetween(from: string, to: string): number {
 
 function formatDate(ts: bigint): string {
   return new Date(Number(ts) / 1_000_000).toLocaleDateString("de-CH");
-}
-
-/** Format a time entry date field — handles nanosecond BigInt OR ISO string */
-function formatTimeEntryDate(date: unknown): string {
-  if (!date) return "–";
-  if (typeof date === "bigint") {
-    return new Date(Number(date) / 1_000_000).toLocaleDateString("de-CH");
-  }
-  if (typeof date === "number") {
-    // Nanoseconds as number
-    const d = new Date(date > 1e12 ? date / 1_000_000 : date * 1000);
-    return d.toLocaleDateString("de-CH");
-  }
-  if (typeof date === "string") {
-    // ISO date string YYYY-MM-DD
-    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      const [y, m, d] = date.split("-");
-      return `${d}.${m}.${y}`;
-    }
-    const parsed = new Date(date);
-    if (!Number.isNaN(parsed.getTime()))
-      return parsed.toLocaleDateString("de-CH");
-  }
-  return "–";
-}
-
-/** Format hours (number) as hh:mm */
-function formatHoursHHMM(hours: unknown): string {
-  if (hours === undefined || hours === null) return "–";
-  const h = typeof hours === "bigint" ? Number(hours) : Number(hours);
-  if (Number.isNaN(h)) return "–";
-  const wholeHours = Math.floor(h);
-  const minutes = Math.round((h - wholeHours) * 60);
-  return `${String(wholeHours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
 type AbsenceStatusFilter = "all" | "submitted" | "approved" | "rejected";
@@ -169,20 +132,10 @@ export default function GenehmigungsPage() {
   const [resetExpenseId, setResetExpenseId] = useState<bigint | null>(null);
   const [resetExpenseReason, setResetExpenseReason] = useState("");
 
-  // Reject Zeitrapport dialog state
-  const [rejectZeitrapportId, setRejectZeitrapportId] = useState<bigint | null>(
-    null,
-  );
-  const [rejectZeitrapportReason, setRejectZeitrapportReason] = useState("");
   const [filterMonthFerien, setFilterMonthFerien] = useState<string>("alle");
   const [filterMonthAbsenzen, setFilterMonthAbsenzen] =
     useState<string>("alle");
   const [filterMonthSpesen, setFilterMonthSpesen] = useState<string>("alle");
-  const [filterMonthZeitrapporte, setFilterMonthZeitrapporte] =
-    useState<string>("alle");
-  const [filterStatusZeitrapporte, setFilterStatusZeitrapporte] =
-    useState<string>("alle");
-
   useEffect(() => {
     if (!isAuthenticated || !companyId) {
       navigate({ to: "/" });
@@ -339,101 +292,9 @@ export default function GenehmigungsPage() {
           );
         });
 
-  const { data: submittedTimeEntriesRaw = [], refetch: refetchTimeEntries } =
-    useQuery({
-      queryKey: ["submittedTimeEntries", companyId],
-      queryFn: async () => {
-        if (!actor) return [];
-        return (await toAny(actor).listSubmittedTimeEntries()) as Record<
-          string,
-          unknown
-        >[];
-      },
-      enabled,
-      staleTime: 30_000,
-    });
-
-  // Apply Alle/Meine filter for time entries
-  const submittedTimeEntriesFiltered =
-    mitarbeiterFilter === "meine"
-      ? submittedTimeEntriesRaw.filter((e) =>
-          supervisedEmployeeIds.includes(String(e.employeeId)),
-        )
-      : submittedTimeEntriesRaw;
-
-  // Apply month + status filter for Zeitrapporte
-  const submittedTimeEntries = submittedTimeEntriesFiltered
-    .filter((e) => {
-      if (filterMonthZeitrapporte === "alle") return true;
-      const raw = e.date;
-      if (!raw) return false;
-      let d: Date;
-      if (typeof raw === "bigint") d = new Date(Number(raw) / 1_000_000);
-      else if (typeof raw === "number")
-        d = new Date(raw > 1e12 ? raw / 1_000_000 : raw * 1000);
-      else d = new Date(String(raw));
-      return (
-        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}` ===
-        filterMonthZeitrapporte
-      );
-    })
-    .filter((e) => {
-      if (filterStatusZeitrapporte === "alle") return true;
-      return String(e.status) === filterStatusZeitrapporte;
-    });
-
   function getEmployeeName(id: bigint): string {
     const emp = employees.find((e) => e.id === id);
     return emp ? `${emp.firstName} ${emp.lastName}` : String(id);
-  }
-
-  const { data: projects = [] } = useQuery<Project[]>({
-    queryKey: ["projects"],
-    queryFn: async () => {
-      if (!actor) return [];
-      return (await toAny(actor).listProjects()) as Project[];
-    },
-    enabled,
-    staleTime: 60_000,
-  });
-
-  const { data: customers = [] } = useQuery<Customer[]>({
-    queryKey: ["customers"],
-    queryFn: async () => {
-      if (!actor) return [];
-      return (await toAny(actor).listCustomers()) as Customer[];
-    },
-    enabled,
-    staleTime: 60_000,
-  });
-
-  const { data: serviceTypes = [] } = useQuery<ServiceType[]>({
-    queryKey: ["serviceTypes"],
-    queryFn: async () => {
-      if (!actor) return [];
-      return (await toAny(actor).listServiceTypes()) as ServiceType[];
-    },
-    enabled,
-    staleTime: 60_000,
-  });
-
-  function getProjectName(id: unknown): string {
-    const proj = projects.find((p) => String(p.id) === String(id));
-    return proj?.name ?? "–";
-  }
-
-  function getClientName(id: unknown): string {
-    const proj = projects.find((p) => String(p.id) === String(id));
-    if (!proj) return "–";
-    const cust = customers.find(
-      (c) => String(c.id) === String(proj.customerId),
-    );
-    return cust?.name ?? "–";
-  }
-
-  function getServiceTypeName(id: unknown): string {
-    const st = serviceTypes.find((s) => String(s.id) === String(id));
-    return st?.name ?? "–";
   }
 
   // ─── Absence mutations ────────────────────────────────────────────────────────
@@ -611,44 +472,6 @@ export default function GenehmigungsPage() {
     },
   });
 
-  const approveTimeEntryMutation = useMutation({
-    mutationFn: async (id: bigint) => {
-      if (!actor) throw new Error("Nicht verfügbar");
-      const result = await actor.approveTimeEntry(id, {});
-      const r = result as { ok?: unknown; err?: string } | null;
-      if (r && "err" in (r as object))
-        throw new Error((r as any).err ?? "Fehler bei der Genehmigung");
-    },
-    onSuccess: () => {
-      refetchTimeEntries();
-      queryClient.invalidateQueries({ queryKey: ["timeEntries"] });
-      queryClient.invalidateQueries({ queryKey: ["submittedTimeEntries"] });
-      toast.success("Zeiteintrag genehmigt");
-    },
-    onError: (err: Error) =>
-      toast.error(`Fehler: ${err?.message ?? "Unbekannter Fehler"}`),
-  });
-
-  const rejectTimeEntryMutation = useMutation({
-    mutationFn: async ({ id, reason }: { id: bigint; reason: string }) => {
-      if (!actor) throw new Error("Nicht verfügbar");
-      const result = await actor.rejectTimeEntry(id, { reason: reason });
-      const r = result as { ok?: unknown; err?: string } | null;
-      if (r && "err" in (r as object))
-        throw new Error((r as any).err ?? "Fehler bei der Ablehnung");
-    },
-    onSuccess: () => {
-      refetchTimeEntries();
-      queryClient.invalidateQueries({ queryKey: ["timeEntries"] });
-      queryClient.invalidateQueries({ queryKey: ["submittedTimeEntries"] });
-      setRejectZeitrapportId(null);
-      setRejectZeitrapportReason("");
-      toast.success("Zeiteintrag abgelehnt");
-    },
-    onError: (err: Error) =>
-      toast.error(`Fehler: ${err?.message ?? "Unbekannter Fehler"}`),
-  });
-
   if (role !== "admin" && role !== "manager") return null;
 
   return (
@@ -711,12 +534,6 @@ export default function GenehmigungsPage() {
             </TabsTrigger>
             <TabsTrigger value="spesen" data-ocid="tab-spesen-genehmigung">
               Spesen
-            </TabsTrigger>
-            <TabsTrigger
-              value="zeitrapporte"
-              data-ocid="tab-zeitrapporte-genehmigung"
-            >
-              Zeitrapporte
             </TabsTrigger>
           </TabsList>
 
@@ -1308,257 +1125,7 @@ export default function GenehmigungsPage() {
               </CardContent>
             </Card>
           </TabsContent>
-
-          {/* ─── Tab 3: Zeitrapporte ──────────────────────────────── */}
-          <TabsContent value="zeitrapporte" className="mt-4 space-y-4">
-            <div className="flex justify-between items-center flex-wrap gap-2">
-              <p className="text-sm text-muted-foreground">
-                Eingereichte Zeitrapporte aller Mitarbeitenden
-              </p>
-              <div className="flex items-center gap-2 flex-wrap">
-                <Label className="text-sm text-muted-foreground whitespace-nowrap">
-                  Monat:
-                </Label>
-                <Select
-                  value={filterMonthZeitrapporte}
-                  onValueChange={setFilterMonthZeitrapporte}
-                >
-                  <SelectTrigger
-                    className="w-36"
-                    data-ocid="select-zeitrapporte-month-filter"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="alle">Alle Monate</SelectItem>
-                    {Array.from({ length: 12 }, (_, i) => {
-                      const d = new Date();
-                      d.setMonth(d.getMonth() - i);
-                      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-                      const label = d.toLocaleDateString("de-CH", {
-                        month: "long",
-                        year: "numeric",
-                      });
-                      return (
-                        <SelectItem key={val} value={val}>
-                          {label}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-                <Label className="text-sm text-muted-foreground whitespace-nowrap">
-                  Status:
-                </Label>
-                <Select
-                  value={filterStatusZeitrapporte}
-                  onValueChange={setFilterStatusZeitrapporte}
-                >
-                  <SelectTrigger
-                    className="w-36"
-                    data-ocid="select-zeitrapporte-status-filter"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="alle">Alle Status</SelectItem>
-                    <SelectItem value="submitted">Ausstehend</SelectItem>
-                    <SelectItem value="approved">Genehmigt</SelectItem>
-                    <SelectItem value="rejected">Abgelehnt</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <Card className="shadow-card">
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-[#00182b] hover:bg-[#00182b]">
-                        <TableHead className="text-white">
-                          Mitarbeiter
-                        </TableHead>
-                        <TableHead className="text-white">Datum</TableHead>
-                        <TableHead className="text-white">Stunden</TableHead>
-                        <TableHead className="text-white">Kunde</TableHead>
-                        <TableHead className="text-white">Projekt</TableHead>
-                        <TableHead className="text-white">
-                          Leistungsart
-                        </TableHead>
-                        <TableHead className="text-white">
-                          Beschreibung
-                        </TableHead>
-                        <TableHead className="text-white">Aktionen</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {submittedTimeEntries.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={8}>
-                            <div
-                              className="flex flex-col items-center justify-center py-16 gap-3 text-center"
-                              data-ocid="empty-zeitrapporte-genehmigung"
-                            >
-                              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                                <ClipboardList className="w-6 h-6 text-muted-foreground" />
-                              </div>
-                              <div>
-                                <p className="text-sm font-medium text-foreground">
-                                  Keine ausstehenden Zeitrapporte
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  Alle Zeitrapporte wurden bearbeitet
-                                </p>
-                              </div>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        submittedTimeEntries.map((entry, idx) => (
-                          <TableRow
-                            key={String(entry.id)}
-                            data-ocid={`zeitrapport-item-${idx + 1}`}
-                          >
-                            <TableCell>
-                              {getEmployeeName(
-                                BigInt(String(entry.employeeId)),
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {formatTimeEntryDate(entry.date)}
-                            </TableCell>
-                            <TableCell className="tabular-nums">
-                              {formatHoursHHMM(entry.hours)}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {getClientName(entry.projectId)}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {getProjectName(entry.projectId)}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {getServiceTypeName(entry.serviceTypeId)}
-                            </TableCell>
-                            <TableCell className="max-w-[160px] truncate">
-                              {String(entry.description || "-")}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex gap-2">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
-                                  onClick={() =>
-                                    approveTimeEntryMutation.mutate(
-                                      BigInt(String(entry.id)),
-                                    )
-                                  }
-                                  disabled={approveTimeEntryMutation.isPending}
-                                  data-ocid={`btn-approve-zeitrapport-${idx + 1}`}
-                                >
-                                  <Check className="w-3.5 h-3.5" />
-                                  Genehmigen
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
-                                  onClick={() => {
-                                    setRejectZeitrapportId(
-                                      BigInt(String(entry.id)),
-                                    );
-                                    setRejectZeitrapportReason("");
-                                  }}
-                                  data-ocid={`btn-reject-zeitrapport-${idx + 1}`}
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                  Ablehnen
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
-
-        {/* ─── Dialog: Zeitrapport ablehnen ─────────────────────────── */}
-        <Dialog
-          open={rejectZeitrapportId !== null}
-          onOpenChange={(open) => {
-            if (!open) {
-              setRejectZeitrapportId(null);
-              setRejectZeitrapportReason("");
-            }
-          }}
-        >
-          <DialogContent
-            className="max-w-md"
-            data-ocid="dialog-reject-zeitrapport"
-          >
-            <DialogHeader>
-              <DialogTitle>Zeiteintrag ablehnen</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3 py-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="rejectZeitrapportReason">
-                  Begründung <span className="text-destructive">*</span>
-                </Label>
-                <Textarea
-                  id="rejectZeitrapportReason"
-                  placeholder="Grund der Ablehnung eingeben…"
-                  rows={3}
-                  value={rejectZeitrapportReason}
-                  onChange={(e) => setRejectZeitrapportReason(e.target.value)}
-                  data-ocid="input-reject-zeitrapport-reason"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setRejectZeitrapportId(null);
-                  setRejectZeitrapportReason("");
-                }}
-                data-ocid="btn-cancel-reject-zeitrapport"
-              >
-                Abbrechen
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={() => {
-                  if (
-                    rejectZeitrapportId !== null &&
-                    rejectZeitrapportReason.trim()
-                  ) {
-                    rejectTimeEntryMutation.mutate({
-                      id: rejectZeitrapportId,
-                      reason: rejectZeitrapportReason,
-                    });
-                  }
-                }}
-                disabled={
-                  rejectTimeEntryMutation.isPending ||
-                  !rejectZeitrapportReason.trim()
-                }
-                data-ocid="btn-confirm-reject-zeitrapport"
-              >
-                {rejectTimeEntryMutation.isPending
-                  ? "Ablehnen…"
-                  : "Ablehnen bestätigen"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         {/* ─── Dialog: Ferienantrag ablehnen ────────────────────────── */}
         <Dialog

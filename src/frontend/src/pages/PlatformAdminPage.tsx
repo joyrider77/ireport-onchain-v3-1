@@ -25,6 +25,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   BarChart2,
+  BookOpen,
   Building2,
   Check,
   CheckCircle2,
@@ -34,6 +35,7 @@ import {
   CreditCard,
   Eye,
   EyeOff,
+  Filter,
   Info,
   Key,
   Pencil,
@@ -43,6 +45,7 @@ import {
   Save,
   Settings2,
   ShieldCheck,
+  Sparkles,
   Trash2,
   Users,
   X,
@@ -105,6 +108,19 @@ type SubscriptionPlanFormState = Omit<
   SubscriptionPlan,
   "id" | "sortOrder" | "updatedAt"
 >;
+
+// KnowledgeEntry — für die Wissensbasis des KI-Assistenten
+interface KnowledgeEntry {
+  id: string;
+  category: string;
+  title: string;
+  content: string;
+  language: string;
+  role: string;
+  isActive: boolean;
+  createdAt: bigint;
+  updatedAt: bigint;
+}
 
 // MonthlyBillingEntry — matches backend.d.ts exactly
 interface MonthlyBillingEntry {
@@ -1019,6 +1035,8 @@ const EMPTY_PLAN: SubscriptionPlanFormState = {
   maxEmployees: undefined,
   features: [],
   isActive: true,
+  isRecommended: false,
+  additionalFeatures: [],
   requiresPayment: false,
   paymentProvider: "none" as import("../backend.d").PaymentProvider,
   stripePriceId: "",
@@ -1054,6 +1072,8 @@ function SubscriptionPlanModal({
     maxEmployees: p.maxEmployees,
     features: [...p.features],
     isActive: p.isActive,
+    isRecommended: p.isRecommended ?? false,
+    additionalFeatures: p.additionalFeatures ? [...p.additionalFeatures] : [],
     requiresPayment: p.requiresPayment,
     paymentProvider: p.paymentProvider,
     stripePriceId: p.stripePriceId ?? "",
@@ -1066,6 +1086,7 @@ function SubscriptionPlanModal({
     plan ? buildFormFromPlan(plan) : { ...EMPTY_PLAN },
   );
   // newFeature state removed – features now selected via SIDEBAR_FEATURES checkboxes
+  const [newAdditionalFeature, setNewAdditionalFeature] = useState("");
 
   // Whenever the dialog opens (or the plan prop changes while open), reload all fields
   // biome-ignore lint/correctness/useExhaustiveDependencies: plan reference changes when edit target changes
@@ -1316,6 +1337,98 @@ function SubscriptionPlanModal({
             );
           })()}
 
+          {/* Zusätzliche Funktionen — directly below Enthaltene Funktionen */}
+          <div className="space-y-2 pt-2 border-t border-border/50">
+            <Label className="block text-sm font-medium">
+              Zusätzliche Funktionen
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Manuell erfasste Funktionen (z.B. Premium-Support,
+              Onboarding-Service)
+            </p>
+            <div className="flex gap-2">
+              <Input
+                value={newAdditionalFeature}
+                onChange={(e) => setNewAdditionalFeature(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const trimmed = newAdditionalFeature.trim();
+                    if (
+                      trimmed &&
+                      !(form.additionalFeatures ?? []).includes(trimmed)
+                    ) {
+                      setForm((f) => ({
+                        ...f,
+                        additionalFeatures: [
+                          ...(f.additionalFeatures ?? []),
+                          trimmed,
+                        ],
+                      }));
+                      setNewAdditionalFeature("");
+                    }
+                  }
+                }}
+                placeholder="z.B. Premium-Support"
+                className="text-sm h-8 flex-1"
+                data-ocid="platform-admin.subscription_plan_additional_feature_input"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs px-3"
+                onClick={() => {
+                  const trimmed = newAdditionalFeature.trim();
+                  if (
+                    trimmed &&
+                    !(form.additionalFeatures ?? []).includes(trimmed)
+                  ) {
+                    setForm((f) => ({
+                      ...f,
+                      additionalFeatures: [
+                        ...(f.additionalFeatures ?? []),
+                        trimmed,
+                      ],
+                    }));
+                    setNewAdditionalFeature("");
+                  }
+                }}
+                data-ocid="platform-admin.subscription_plan_additional_feature_add_button"
+              >
+                Hinzufügen
+              </Button>
+            </div>
+            {(form.additionalFeatures ?? []).length > 0 && (
+              <div className="flex flex-col gap-1 mt-1">
+                {(form.additionalFeatures ?? []).map((feat, idx) => (
+                  <div
+                    key={feat}
+                    className="flex items-center justify-between px-2 py-1 bg-muted/40 rounded text-sm"
+                  >
+                    <span className="text-foreground">{feat}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setForm((f) => ({
+                          ...f,
+                          additionalFeatures: (
+                            f.additionalFeatures ?? []
+                          ).filter((x) => x !== feat),
+                        }))
+                      }
+                      className="text-muted-foreground hover:text-destructive transition-colors"
+                      aria-label={`${feat} entfernen`}
+                      data-ocid={`platform-admin.subscription_plan_additional_feature_remove.${idx + 1}`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Stripe-Konfiguration pro Plan */}
           <div className="space-y-3 pt-2 border-t border-border/50">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
@@ -1452,6 +1565,23 @@ function SubscriptionPlanModal({
               checked={form.isActive}
               onCheckedChange={(checked) =>
                 setForm((f) => ({ ...f, isActive: checked }))
+              }
+            />
+          </div>
+
+          {/* Empfohlen */}
+          <div className="flex items-center justify-between py-2 border-t border-border/50">
+            <div>
+              <Label className="text-sm font-medium">Empfohlen</Label>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Als empfohlener Plan auf der Startseite hervorheben
+              </p>
+            </div>
+            <Switch
+              data-ocid="platform-admin.subscription_plan_recommended_toggle"
+              checked={form.isRecommended ?? false}
+              onCheckedChange={(checked) =>
+                setForm((f) => ({ ...f, isRecommended: checked }))
               }
             />
           </div>
@@ -2008,18 +2138,63 @@ function SubscriptionSection() {
                         MA
                       </span>
                     </div>
-                    {plan.features.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {plan.features.map((feat) => (
-                          <span
-                            key={feat}
-                            className="inline-flex items-center px-1.5 py-0.5 bg-primary/8 text-primary text-[10px] rounded-full border border-primary/20"
-                          >
-                            {feat}
+                    {(() => {
+                      const FEATURE_LABELS: Record<string, string> = {
+                        dashboard: "Dashboard",
+                        "time-tracking": "Zeiterfassung",
+                        "expense-tracking": "Spesenerfassung",
+                        calendar: "Kalenderübersicht",
+                        reports: "Auswertungen",
+                        invoicing: "Fakturierung",
+                        "master-data": "Stammdaten",
+                        approvals: "Genehmigungen",
+                        "hr-compliance": "HR & Compliance",
+                        settings: "Einstellungen",
+                      };
+                      // Deduplicate: only show labels of actually checked feature checkboxes + additional
+                      const checkedLabels = plan.features.map(
+                        (k) => FEATURE_LABELS[k] ?? k,
+                      );
+                      const checkedLabelsLower = checkedLabels.map(
+                        (l: string) => l.toLowerCase().trim(),
+                      );
+                      const additionals = (
+                        plan.additionalFeatures ?? []
+                      ).filter(
+                        (a: string) =>
+                          !checkedLabelsLower.includes(a.toLowerCase().trim()),
+                      );
+                      const allTags = [
+                        ...new Set(
+                          [...checkedLabels, ...additionals]
+                            .map((t: string) => t.trim())
+                            .filter(Boolean),
+                        ),
+                      ];
+                      return allTags.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {plan.isRecommended && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 bg-green-500/15 text-green-700 text-[10px] rounded-full border border-green-500/30 font-medium">
+                              ★ Empfohlen
+                            </span>
+                          )}
+                          {allTags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="inline-flex items-center px-1.5 py-0.5 bg-primary/8 text-primary text-[10px] rounded-full border border-primary/20"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      ) : plan.isRecommended ? (
+                        <div className="flex flex-wrap gap-1">
+                          <span className="inline-flex items-center px-1.5 py-0.5 bg-green-500/15 text-green-700 text-[10px] rounded-full border border-green-500/30 font-medium">
+                            ★ Empfohlen
                           </span>
-                        ))}
-                      </div>
-                    )}
+                        </div>
+                      ) : null;
+                    })()}
                   </div>
 
                   <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -2541,6 +2716,700 @@ function StripeConfigSection() {
           </div>
         </CardContent>
       )}
+    </Card>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────
+// WissensbasisSection  (Knowledge base for KI-Assistent)
+// ────────────────────────────────────────────────────────────────
+
+const CATEGORY_MAP: Record<string, string> = {
+  faq: "FAQ",
+  feature: "Funktion",
+  guide: "Anleitung",
+  help: "Hilfe",
+  trust: "Vertrauen",
+};
+
+const ROLE_MAP: Record<string, string> = {
+  all: "Alle",
+  admin: "Admin",
+  manager: "Manager",
+  mitarbeiter: "Mitarbeiter",
+};
+
+const LANG_MAP: Record<string, string> = {
+  de: "DE",
+  en: "EN",
+};
+
+const CATEGORY_BADGE_COLORS: Record<string, string> = {
+  faq: "bg-blue-500/10 text-blue-700 border-blue-500/20",
+  feature: "bg-purple-500/10 text-purple-700 border-purple-500/20",
+  guide: "bg-green-500/10 text-green-700 border-green-500/20",
+  help: "bg-orange-500/10 text-orange-700 border-orange-500/20",
+  trust: "bg-teal-500/10 text-teal-700 border-teal-500/20",
+};
+
+function WissensbasisSection() {
+  const { actor, isFetching } = useActor(createActor);
+  const queryClient = useQueryClient();
+
+  const [filterCategory, setFilterCategory] = useState("all");
+  const [filterRole, setFilterRole] = useState("all");
+  const [showModal, setShowModal] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<KnowledgeEntry | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  const [formCategory, setFormCategory] = useState("faq");
+  const [formTitle, setFormTitle] = useState("");
+  const [formContent, setFormContent] = useState("");
+  const [formLanguage, setFormLanguage] = useState("de");
+  const [formRole, setFormRole] = useState("all");
+  const [formIsActive, setFormIsActive] = useState(true);
+
+  const { data: entries = [], isLoading } = useQuery<KnowledgeEntry[]>({
+    queryKey: ["knowledgeEntriesAdmin"],
+    queryFn: async () => {
+      if (!actor) return [];
+      try {
+        return (await toAny(
+          actor,
+        ).getKnowledgeEntriesAdmin()) as KnowledgeEntry[];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!actor && !isFetching,
+    staleTime: 30_000,
+  });
+
+  const addMutation = useMutation({
+    mutationFn: async (data: {
+      category: string;
+      title: string;
+      content: string;
+      language: string;
+      role: string;
+      isActive: boolean;
+    }) => {
+      if (!actor) throw new Error("Kein Actor");
+      const result = (await toAny(actor).addKnowledgeEntry(data)) as
+        | { ok: KnowledgeEntry }
+        | { err: string };
+      if ("err" in result) throw new Error(result.err);
+      return result.ok;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["knowledgeEntriesAdmin"] });
+      toast.success("Eintrag hinzugefügt.");
+      closeModal();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: {
+        category: string;
+        title: string;
+        content: string;
+        language: string;
+        role: string;
+        isActive: boolean;
+      };
+    }) => {
+      if (!actor) throw new Error("Kein Actor");
+      const result = (await toAny(actor).updateKnowledgeEntry(id, data)) as
+        | { ok: KnowledgeEntry }
+        | { err: string };
+      if ("err" in result) throw new Error(result.err);
+      return result.ok;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["knowledgeEntriesAdmin"] });
+      toast.success("Eintrag aktualisiert.");
+      closeModal();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      if (!actor) throw new Error("Kein Actor");
+      const result = (await toAny(actor).deleteKnowledgeEntry(id)) as
+        | { ok: boolean }
+        | { err: string };
+      if ("err" in result) throw new Error(result.err);
+      return result.ok;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["knowledgeEntriesAdmin"] });
+      toast.success("Eintrag gelöscht.");
+      setDeleteConfirmId(null);
+    },
+    onError: (e: Error) => {
+      toast.error(e.message);
+      setDeleteConfirmId(null);
+    },
+  });
+
+  function openNewModal() {
+    setEditingEntry(null);
+    setFormCategory("faq");
+    setFormTitle("");
+    setFormContent("");
+    setFormLanguage("de");
+    setFormRole("all");
+    setFormIsActive(true);
+    setShowModal(true);
+  }
+
+  function openEditModal(entry: KnowledgeEntry) {
+    setEditingEntry(entry);
+    setFormCategory(entry.category);
+    setFormTitle(entry.title);
+    setFormContent(entry.content);
+    setFormLanguage(entry.language);
+    setFormRole(entry.role);
+    setFormIsActive(entry.isActive);
+    setShowModal(true);
+  }
+
+  function closeModal() {
+    setShowModal(false);
+    setEditingEntry(null);
+  }
+
+  function handleSave() {
+    const data = {
+      category: formCategory,
+      title: formTitle.trim(),
+      content: formContent.trim(),
+      language: formLanguage,
+      role: formRole,
+      isActive: formIsActive,
+    };
+    if (!data.title || !data.content) {
+      toast.error("Titel und Inhalt sind erforderlich.");
+      return;
+    }
+    if (editingEntry) {
+      updateMutation.mutate({ id: editingEntry.id, data });
+    } else {
+      addMutation.mutate(data);
+    }
+  }
+
+  const filteredEntries = entries.filter((e) => {
+    const catMatch = filterCategory === "all" || e.category === filterCategory;
+    const roleMatch = filterRole === "all" || e.role === filterRole;
+    return catMatch && roleMatch;
+  });
+
+  const isSaving = addMutation.isPending || updateMutation.isPending;
+
+  return (
+    <>
+      <Card className="mt-4" data-ocid="platform-admin.wissensbasis_card">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-primary" />
+                Wissensbasis
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Inhalte für den KI-Assistenten
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              onClick={openNewModal}
+              style={{ background: "#006066" }}
+              className="text-white hover:opacity-90"
+              data-ocid="platform-admin.wissensbasis_add_button"
+            >
+              <Plus className="w-3 h-3 mr-1" />
+              Neuer Eintrag
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Filter row */}
+          <div className="flex flex-wrap gap-2">
+            <div className="flex items-center gap-1.5">
+              <Filter className="w-3 h-3 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Kategorie:</span>
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="text-xs border border-border rounded px-2 py-0.5 bg-background text-foreground"
+                data-ocid="platform-admin.wissensbasis_filter_category"
+              >
+                <option value="all">Alle</option>
+                <option value="faq">FAQ</option>
+                <option value="feature">Funktion</option>
+                <option value="guide">Anleitung</option>
+                <option value="help">Hilfe</option>
+                <option value="trust">Vertrauen</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">Rolle:</span>
+              <select
+                value={filterRole}
+                onChange={(e) => setFilterRole(e.target.value)}
+                className="text-xs border border-border rounded px-2 py-0.5 bg-background text-foreground"
+                data-ocid="platform-admin.wissensbasis_filter_role"
+              >
+                <option value="all">Alle</option>
+                <option value="admin">Admin</option>
+                <option value="manager">Manager</option>
+                <option value="mitarbeiter">Mitarbeiter</option>
+              </select>
+            </div>
+            <span className="ml-auto text-xs text-muted-foreground self-center">
+              {filteredEntries.length} Einträge
+            </span>
+          </div>
+
+          {/* Table */}
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-8 w-full" />
+              ))}
+            </div>
+          ) : filteredEntries.length === 0 ? (
+            <div
+              className="py-8 text-center text-xs text-muted-foreground"
+              data-ocid="platform-admin.wissensbasis_empty_state"
+            >
+              Keine Einträge gefunden.
+            </div>
+          ) : (
+            <div className="border border-border rounded-md overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-muted/40 border-b border-border">
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">
+                      Kategorie
+                    </th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">
+                      Titel
+                    </th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">
+                      Rolle
+                    </th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">
+                      Sprache
+                    </th>
+                    <th className="text-left px-3 py-2 font-medium text-muted-foreground">
+                      Aktiv
+                    </th>
+                    <th className="text-right px-3 py-2 font-medium text-muted-foreground">
+                      Aktionen
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredEntries.map((entry, idx) => (
+                    <tr
+                      key={entry.id}
+                      className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors"
+                      data-ocid={`platform-admin.wissensbasis_item.${idx + 1}`}
+                    >
+                      <td className="px-3 py-2">
+                        <span
+                          className={`inline-flex items-center px-1.5 py-0.5 rounded border text-xs font-medium ${
+                            CATEGORY_BADGE_COLORS[entry.category] ??
+                            "bg-muted text-foreground border-border"
+                          }`}
+                        >
+                          {CATEGORY_MAP[entry.category] ?? entry.category}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 max-w-[200px]">
+                        <span
+                          className="block truncate text-foreground"
+                          title={entry.title}
+                        >
+                          {entry.title}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded border text-xs bg-muted text-muted-foreground border-border">
+                          {ROLE_MAP[entry.role] ?? entry.role}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded border text-xs bg-muted text-muted-foreground border-border">
+                          {LANG_MAP[entry.language] ??
+                            entry.language.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        {entry.isActive ? (
+                          <Check className="w-3.5 h-3.5 text-green-600" />
+                        ) : (
+                          <X className="w-3.5 h-3.5 text-muted-foreground" />
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center justify-end gap-1">
+                          {deleteConfirmId === entry.id ? (
+                            <>
+                              <span className="text-xs text-red-600 mr-1">
+                                Löschen?
+                              </span>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="destructive"
+                                className="h-6 px-2 text-xs"
+                                disabled={deleteMutation.isPending}
+                                onClick={() => deleteMutation.mutate(entry.id)}
+                                data-ocid={`platform-admin.wissensbasis_confirm_button.${idx + 1}`}
+                              >
+                                Ja
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 text-xs"
+                                onClick={() => setDeleteConfirmId(null)}
+                                data-ocid={`platform-admin.wissensbasis_cancel_button.${idx + 1}`}
+                              >
+                                Nein
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0"
+                                onClick={() => openEditModal(entry)}
+                                data-ocid={`platform-admin.wissensbasis_edit_button.${idx + 1}`}
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-500/10"
+                                onClick={() => setDeleteConfirmId(entry.id)}
+                                data-ocid={`platform-admin.wissensbasis_delete_button.${idx + 1}`}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Add / Edit Modal */}
+      <Dialog open={showModal} onOpenChange={(open) => !open && closeModal()}>
+        <DialogContent
+          className="max-w-lg"
+          data-ocid="platform-admin.wissensbasis_dialog"
+        >
+          <DialogHeader>
+            <DialogTitle>
+              {editingEntry ? "Eintrag bearbeiten" : "Neuer Eintrag"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Kategorie</Label>
+              <Select value={formCategory} onValueChange={setFormCategory}>
+                <SelectTrigger
+                  className="h-8 text-xs"
+                  data-ocid="platform-admin.wissensbasis_form_category"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="faq">FAQ</SelectItem>
+                  <SelectItem value="feature">Funktion</SelectItem>
+                  <SelectItem value="guide">Anleitung</SelectItem>
+                  <SelectItem value="help">Hilfe</SelectItem>
+                  <SelectItem value="trust">Vertrauen</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Titel</Label>
+              <Input
+                value={formTitle}
+                onChange={(e) => setFormTitle(e.target.value)}
+                placeholder="Titel des Eintrags"
+                className="h-8 text-xs"
+                data-ocid="platform-admin.wissensbasis_form_title"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Inhalt</Label>
+              <Textarea
+                value={formContent}
+                onChange={(e) => setFormContent(e.target.value)}
+                placeholder="Inhalt des Eintrags (für den KI-Kontext)"
+                rows={5}
+                className="text-xs resize-none"
+                data-ocid="platform-admin.wissensbasis_form_content"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Sprache</Label>
+                <Select value={formLanguage} onValueChange={setFormLanguage}>
+                  <SelectTrigger
+                    className="h-8 text-xs"
+                    data-ocid="platform-admin.wissensbasis_form_language"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="de">Deutsch (DE)</SelectItem>
+                    <SelectItem value="en">English (EN)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Rolle</Label>
+                <Select value={formRole} onValueChange={setFormRole}>
+                  <SelectTrigger
+                    className="h-8 text-xs"
+                    data-ocid="platform-admin.wissensbasis_form_role"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alle</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="mitarbeiter">Mitarbeiter</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="form-isActive"
+                checked={formIsActive}
+                onCheckedChange={setFormIsActive}
+                data-ocid="platform-admin.wissensbasis_form_active"
+              />
+              <Label htmlFor="form-isActive" className="text-xs cursor-pointer">
+                Aktiv
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={closeModal}
+              data-ocid="platform-admin.wissensbasis_cancel_button"
+            >
+              Abbrechen
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={isSaving}
+              onClick={handleSave}
+              style={{ background: "#006066" }}
+              className="text-white hover:opacity-90"
+              data-ocid="platform-admin.wissensbasis_submit_button"
+            >
+              {isSaving ? "Speichern..." : "Speichern"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────
+// KIConfigSection  (OpenAI API Key for Chat-Assistent)
+// ────────────────────────────────────────────────────────────────
+
+function KIConfigSection() {
+  const { actor, isFetching } = useActor(createActor);
+
+  const [openAIKey, setOpenAIKey] = useState("");
+  const [isSavingOpenAI, setIsSavingOpenAI] = useState(false);
+  const [isTestingOpenAI, setIsTestingOpenAI] = useState(false);
+  const [openAITestResult, setOpenAITestResult] = useState<string | null>(null);
+  const [openAIError, setOpenAIError] = useState<string | null>(null);
+
+  const { data: openAIStatus, refetch: refetchOpenAIStatus } = useQuery<{
+    isConfigured: boolean;
+  }>({
+    queryKey: ["openAIConfigStatus"],
+    queryFn: async () => {
+      if (!actor) return { isConfigured: false };
+      try {
+        return (await toAny(actor).getOpenAIConfigStatus()) as {
+          isConfigured: boolean;
+        };
+      } catch {
+        return { isConfigured: false };
+      }
+    },
+    enabled: !!actor && !isFetching,
+    staleTime: 60_000,
+  });
+
+  async function handleSaveOpenAI() {
+    if (!actor || !openAIKey.trim()) return;
+    setIsSavingOpenAI(true);
+    setOpenAIError(null);
+    try {
+      const result = (await toAny(actor).setOpenAIConfig(openAIKey.trim())) as {
+        __kind__: string;
+        err?: string;
+      };
+      if (result.__kind__ === "ok") {
+        toast.success("OpenAI API Key gespeichert.");
+        setOpenAIKey("");
+        refetchOpenAIStatus();
+      } else {
+        toast.error(result.err ?? "Fehler beim Speichern.");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Fehler beim Speichern.");
+    } finally {
+      setIsSavingOpenAI(false);
+    }
+  }
+
+  async function handleTestOpenAI() {
+    if (!actor) return;
+    setIsTestingOpenAI(true);
+    setOpenAITestResult(null);
+    setOpenAIError(null);
+    try {
+      const result = (await toAny(actor).testOpenAIConnection()) as {
+        __kind__: string;
+        ok?: string;
+        err?: string;
+      };
+      if (result.__kind__ === "ok") {
+        setOpenAITestResult(result.ok ?? "Verbindung erfolgreich.");
+      } else {
+        setOpenAIError(result.err ?? "Verbindungstest fehlgeschlagen.");
+      }
+    } catch (e) {
+      setOpenAIError(
+        e instanceof Error ? e.message : "Verbindungstest fehlgeschlagen.",
+      );
+    } finally {
+      setIsTestingOpenAI(false);
+    }
+  }
+
+  return (
+    <Card data-ocid="platform-admin.ki_config_card">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-primary" />
+          KI-Konfiguration
+        </CardTitle>
+        <p className="text-xs text-muted-foreground mt-1">
+          OpenAI API Key für den Chat-Assistenten hinterlegen.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Status:</span>
+          {openAIStatus?.isConfigured ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-500/10 text-green-700 text-xs rounded-full border border-green-500/20">
+              <CheckCircle2 className="w-3 h-3" />
+              Konfiguriert
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-500/10 text-yellow-700 text-xs rounded-full border border-yellow-500/20">
+              <AlertTriangle className="w-3 h-3" />
+              Nicht konfiguriert
+            </span>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-xs font-medium">OpenAI API Key</Label>
+          <div className="flex gap-2">
+            <Input
+              type="password"
+              value={openAIKey}
+              onChange={(e) => setOpenAIKey(e.target.value)}
+              placeholder="sk-..."
+              className="flex-1 text-sm"
+              data-ocid="platform-admin.ki_apikey_input"
+            />
+            <Button
+              type="button"
+              size="sm"
+              disabled={isSavingOpenAI || !openAIKey.trim()}
+              onClick={handleSaveOpenAI}
+              style={{ background: "#006066" }}
+              className="text-white hover:opacity-90"
+              data-ocid="platform-admin.ki_save_button"
+            >
+              {isSavingOpenAI ? "Speichern..." : "Speichern"}
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isTestingOpenAI || !openAIStatus?.isConfigured}
+            onClick={handleTestOpenAI}
+            data-ocid="platform-admin.ki_test_button"
+          >
+            {isTestingOpenAI ? "Teste..." : "Verbindung testen"}
+          </Button>
+          {openAITestResult && (
+            <span className="text-xs text-green-700 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" />
+              {openAITestResult}
+            </span>
+          )}
+          {openAIError && (
+            <span className="text-xs text-red-600 flex items-center gap-1">
+              <XCircle className="w-3 h-3" />
+              {openAIError}
+            </span>
+          )}
+        </div>
+
+        {/* Wissensbasis */}
+        <WissensbasisSection />
+      </CardContent>
     </Card>
   );
 }
@@ -3267,6 +4136,9 @@ export default function PlatformAdminPage() {
 
         {/* Stripe-Konfiguration (global) */}
         <StripeConfigSection />
+
+        {/* KI-Konfiguration (OpenAI) */}
+        <KIConfigSection />
 
         {/* Stripe Diagnostics */}
         {companies && companies.length > 0 && (

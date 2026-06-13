@@ -32,6 +32,8 @@ function makePlan(
     minActiveDaysPerMonth: 0n,
     requiresPayment: false,
     paymentProvider: "none" as import("../backend.d").PaymentProvider,
+    isRecommended: false,
+    additionalFeatures: [],
     ...overrides,
   };
 }

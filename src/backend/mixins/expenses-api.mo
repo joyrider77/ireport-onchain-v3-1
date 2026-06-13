@@ -13,6 +13,8 @@ import AuditTypes "../types/audit";
 import ExpenseLib "../lib/expenses";
 import AccessControlLib "../lib/AccessControlLib";
 import InputValidator "../lib/InputValidator";
+import PeriodCloseTypes "../types/period-close";
+import PeriodCloseLib "../lib/period-close";
 
 mixin (
   accessControlState : AccessControl.AccessControlState,
@@ -26,6 +28,7 @@ mixin (
   nextAuditId : { var value : Nat },
   auditLogEntriesV3 : List.List<AuditTypes.AuditLogEntry>,
   nextAuditLogId : { var value : Nat },
+  periodCloses : Map.Map<PeriodCloseTypes.PeriodCloseId, PeriodCloseTypes.PeriodClose>,
 ) {
   // Hilfsfunktion: Authentifizierung prüfen
   private func expRequireAuth(caller : Principal) : (CommonTypes.CompanyId, CommonTypes.EmployeeId) {
@@ -38,6 +41,27 @@ mixin (
       case (?eid) eid;
     };
     (companyId, employeeId);
+  };
+
+  // Hilfsfunktion: Periodensperre pruefen (gilt fuer alle Rollen, keine Ausnahmen)
+  private func expCheckPeriodLock(
+    caller     : Principal,
+    companyId  : CommonTypes.CompanyId,
+    employeeId : CommonTypes.EmployeeId,
+    dateStr    : Text,
+  ) : CommonTypes.Result<()> {
+    ignore caller;
+    let parts = dateStr.split(#char '-').toArray();
+    if (parts.size() < 2) { return #ok(()) };
+    let yearOpt = parts[0].toNat();
+    let monthOpt = parts[1].toNat();
+    let (year, month) = switch (yearOpt, monthOpt) {
+      case (?y, ?m) { (y, m) };
+      case _ { return #ok(()) };
+    };
+    // Direkt via Monat/Jahr pruefen – kein fehlerbehafteter Timestamp-Roundtrip
+    let closes = periodCloses.entries().toArray();
+    PeriodCloseLib.checkPeriodEditableByMonthYear(closes, companyId, employeeId, month, year);
   };
 
   // Hilfsfunktion: Admin/Manager-Rolle prüfen (delegiert an AccessControlLib)
@@ -159,6 +183,11 @@ mixin (
       case (#err(msg)) { return #err(msg) };
       case (#ok(())) {};
     };
+    // Periodensperre pruefen
+    switch (expCheckPeriodLock(caller, companyId, employeeId, input.date)) {
+      case (#err(msg)) { return #err(msg) };
+      case (#ok(())) {};
+    };
     let id = nextExpenseId.value;
     nextExpenseId.value += 1;
     let expense = ExpenseLib.createExpense(expenses, id, companyId, employeeId, input);
@@ -200,6 +229,17 @@ mixin (
     input : TrackingTypes.UpdateExpenseInput,
   ) : async CommonTypes.Result<TrackingTypes.Expense> {
     let (companyId, employeeId) = expRequireAuth(caller);
+    // Periodensperre pruefen
+    let existingExpLock = expenses.find(func(e : TrackingTypes.Expense) : Bool = e.id == id and e.companyId == companyId and e.employeeId == employeeId);
+    switch (existingExpLock) {
+      case (?existing) {
+        switch (expCheckPeriodLock(caller, companyId, employeeId, existing.date)) {
+          case (#err(msg)) { return #err(msg) };
+          case (#ok(())) {};
+        };
+      };
+      case null {};
+    };
     // Vorherigen Zustand merken
     let beforeOpt = expenses.find(func(e) { e.id == id and e.companyId == companyId and e.employeeId == employeeId and e.status == #pending });
     switch (ExpenseLib.updateExpense(expenses, companyId, id, employeeId, input)) {
@@ -239,6 +279,17 @@ mixin (
     id : CommonTypes.ExpenseId
   ) : async CommonTypes.Result<()> {
     let (companyId, employeeId) = expRequireAuth(caller);
+    // Periodensperre pruefen
+    let expForLock = expenses.find(func(e : TrackingTypes.Expense) : Bool = e.id == id and e.companyId == companyId and e.employeeId == employeeId);
+    switch (expForLock) {
+      case (?existing) {
+        switch (expCheckPeriodLock(caller, companyId, employeeId, existing.date)) {
+          case (#err(msg)) { return #err(msg) };
+          case (#ok(())) {};
+        };
+      };
+      case null {};
+    };
     // Vorherigen Zustand merken
     let beforeOpt = expenses.find(func(e) { e.id == id and e.companyId == companyId and e.employeeId == employeeId and e.status == #pending });
     if (ExpenseLib.deleteExpense(expenses, companyId, id, employeeId)) {

@@ -15,6 +15,9 @@ import VacationLedgerLib "../lib/vacation-ledger";
 import AccessControlLib "../lib/AccessControlLib";
 import Text "mo:core/Text";
 import Iter "mo:core/Iter";
+import AuditTypes "../types/audit";
+import Int "mo:core/Int";
+import Debug "mo:core/Debug";
 
 mixin (
   accessControlState : AccessControl.AccessControlState,
@@ -31,6 +34,11 @@ mixin (
   timeEntries : List.List<TrackingTypes.TimeEntry>,
   absences : List.List<TrackingTypes.Absence>,
   pauseOverrides : List.List<ComplianceTypes.PauseOverride>,
+  tenantComplianceRules : Map.Map<Text, ComplianceTypes.TenantComplianceRule>,
+  auditLogEntriesV6 : List.List<AuditTypes.AuditLogEntry>,
+  nextAuditLogId : { var value : Nat },
+  employmentsV2 : List.List<CompanyTypes.Employment>,
+  vacationBalances : List.List<CompanyTypes.VacationBalance>,
 ) {
 
   // ─── Hilfsfunktionen ──────────────────────────────────────────────────────────
@@ -86,6 +94,25 @@ mixin (
       p.employeeId == employeeId and p.companyId == companyId
     });
   };
+  // Gibt die vertraglichen Wochenstunden aus der zum Datum gültigen Beschäftigung zurück (read-only)
+  // Nur Admin/Manager oder der betroffene Mitarbeiter selbst darf dies abfragen.
+  public shared query ({ caller }) func getContractualHoursForEmployee(employeeId : Nat, dateISO : Text) : async ?Float {
+    let companyId = requireCompanyId_(caller);
+    // Zugriff: Admin/Manager oder der betroffene Mitarbeiter selbst
+    let callerIsEmployee = switch (principalToEmployee.get(caller)) {
+      case null { false };
+      case (?eid) { eid == employeeId };
+    };
+    if (not callerIsEmployee and not isAdminOrManager_(caller, companyId)) {
+      Runtime.trap("Zugriff verweigert");
+    };
+    // Alle Beschäftigungen des Mitarbeiters für diese Firma sammeln
+    let empEmployments = employmentsV2.filter(func(e : CompanyTypes.Employment) : Bool {
+      e.employeeId == employeeId and e.companyId == companyId
+    }).toArray();
+    ComplianceLib.getContractualHoursForDate(employeeId, dateISO, empEmployments);
+  };
+
 
   // Aktualisiert ein Compliance-Profil (nur Admin)
   public shared ({ caller }) func updateComplianceProfile(
@@ -105,13 +132,20 @@ mixin (
       };
     };
 
-    var result : ?ComplianceTypes.EmployeeComplianceProfile = null;
-    complianceProfiles.mapInPlace(func(p : ComplianceTypes.EmployeeComplianceProfile) : ComplianceTypes.EmployeeComplianceProfile {
-      if (p.id == input.id and p.companyId == companyId) {
+    // Look up existing profile by employeeId (correct lookup key)
+    var existingProfile : ?ComplianceTypes.EmployeeComplianceProfile = null;
+    for (p in complianceProfiles.values()) {
+      if (p.employeeId == input.employeeId and p.companyId == companyId) {
+        existingProfile := ?p;
+      };
+    };
+
+    switch (existingProfile) {
+      case (?existing) {
+        // UPDATE existing profile (vertraglicheWochenstunden is derived from employment, not stored)
         let updated : ComplianceTypes.EmployeeComplianceProfile = {
-          p with
+          existing with
           aktiv = input.aktiv;
-          vertraglicheWochenstunden = input.vertraglicheWochenstunden;
           gesetzlicheWochenhochstarbeitszeit = input.gesetzlicheWochenhochstarbeitszeit;
           gesetzlicherFerienanspruchWochen = input.gesetzlicherFerienanspruchWochen;
           vertraglicheZusatzferienTage = input.vertraglicheZusatzferienTage;
@@ -119,13 +153,32 @@ mixin (
           erfassungsModus = input.erfassungsModus;
           updatedAt = Time.now();
         };
-        result := ?updated;
-        updated;
-      } else { p };
-    });
-    switch (result) {
-      case null { #err("Compliance-Profil nicht gefunden") };
-      case (?p) { #ok(p) };
+        complianceProfiles.mapInPlace(func(p : ComplianceTypes.EmployeeComplianceProfile) : ComplianceTypes.EmployeeComplianceProfile {
+          if (p.id == existing.id and p.companyId == companyId) { updated } else { p }
+        });
+        #ok(updated);
+      };
+      case null {
+        // CREATE new profile; use input.employeeId as the employee lookup key
+        let now = Time.now();
+        let newId = nextComplianceProfileId.value;
+        nextComplianceProfileId.value += 1;
+        let newProfile : ComplianceTypes.EmployeeComplianceProfile = {
+          id = newId;
+          employeeId = input.employeeId;
+          companyId = companyId;
+          aktiv = input.aktiv;
+          gesetzlicheWochenhochstarbeitszeit = input.gesetzlicheWochenhochstarbeitszeit;
+          gesetzlicherFerienanspruchWochen = input.gesetzlicherFerienanspruchWochen;
+          vertraglicheZusatzferienTage = input.vertraglicheZusatzferienTage;
+          ausnahmeprofil = input.ausnahmeprofil;
+          erfassungsModus = input.erfassungsModus;
+          createdAt = now;
+          updatedAt = now;
+        };
+        complianceProfiles.add(newProfile);
+        #ok(newProfile);
+      };
     };
   };
 
@@ -210,9 +263,29 @@ mixin (
   ) : async ?ComplianceTypes.VacationLedger {
     let companyId = requireCompanyId_(caller);
     requireAdminOrManager_(caller, companyId);
-    // Normalisieren: "YYYY-YYYY" → erste 4 Stellen; YYYY_MM_DD → erste 4 Stellen
     let normalizedKey : Text = normalizeYearKey_(serviceYearKey);
-    VacationLedgerLib.getVacationLedger(vacationLedgers, employeeId, companyId, normalizedKey);
+    switch (VacationLedgerLib.getVacationLedger(vacationLedgers, employeeId, companyId, normalizedKey)) {
+      case null null;
+      case (?existing) {
+        let yearInt : Int = switch (Int.fromText(normalizedKey)) { case (?y) y; case null 0 };
+        var liveZusatzTage : Float = 0.0;
+        var found = false;
+        for (vb in vacationBalances.values()) {
+          if (vb.employeeId == employeeId and vb.companyId == companyId and vb.kalenderjahr == yearInt) {
+            liveZusatzTage := vb.dauer.toFloat() / 100.0;
+            found := true;
+          };
+        };
+        if (found) {
+          ?{ existing with
+            vertraglicheZusatzferienTage = liveZusatzTage;
+            verbleibendeFerientage = liveZusatzTage - existing.bezogeneFerientage - existing.geplanteFerientage;
+          }
+        } else {
+          ?existing
+        };
+      };
+    };
   };
 
   // Gibt den eigenen VacationLedger zurück
@@ -222,7 +295,28 @@ mixin (
     let companyId = requireCompanyId_(caller);
     let empId = requireEmployeeId_(caller);
     let normalizedKey : Text = normalizeYearKey_(serviceYearKey);
-    VacationLedgerLib.getVacationLedger(vacationLedgers, empId, companyId, normalizedKey);
+    switch (VacationLedgerLib.getVacationLedger(vacationLedgers, empId, companyId, normalizedKey)) {
+      case null null;
+      case (?existing) {
+        let yearInt : Int = switch (Int.fromText(normalizedKey)) { case (?y) y; case null 0 };
+        var liveZusatzTage : Float = 0.0;
+        var found = false;
+        for (vb in vacationBalances.values()) {
+          if (vb.employeeId == empId and vb.companyId == companyId and vb.kalenderjahr == yearInt) {
+            liveZusatzTage := vb.dauer.toFloat() / 100.0;
+            found := true;
+          };
+        };
+        if (found) {
+          ?{ existing with
+            vertraglicheZusatzferienTage = liveZusatzTage;
+            verbleibendeFerientage = liveZusatzTage - existing.bezogeneFerientage - existing.geplanteFerientage;
+          }
+        } else {
+          ?existing
+        };
+      };
+    };
   };
 
   // Hilfsfunktion: Verschiedene Key-Formate auf 4-stelliges Jahr normalisieren
@@ -371,9 +465,17 @@ mixin (
         let hasCritical = empFindings.any(func(f) : Bool { f.status == #CRITICAL });
         let hasBreach = empFindings.any(func(f) : Bool { f.status == #BREACH });
         let hasWarning = empFindings.any(func(f) : Bool { f.status == #WARNING });
+        // Ferienstatus-Risiko in Gesamtstatus einbeziehen
+        let ledgerOpt = vacationLedgers.find(func(l : ComplianceTypes.VacationLedger) : Bool {
+          l.employeeId == emp.id and l.companyId == companyId
+        });
+        let hasTwoWeekBlockRisk = switch (ledgerOpt) {
+          case null { false };
+          case (?l) { not l.twoWeekBlockSatisfied };
+        };
         let gesamtstatus : ComplianceTypes.ComplianceStatus = if (hasCritical) { #CRITICAL }
           else if (hasBreach) { #BREACH }
-          else if (hasWarning) { #WARNING }
+          else if (hasWarning or hasTwoWeekBlockRisk) { #WARNING }
           else { #COMPLIANT };
 
         {
@@ -390,13 +492,231 @@ mixin (
     );
   };
 
+  // ─── Swiss default compliance rule table ────────────────────────────────────
+
+  // Gibt alle 9 Compliance-Regeln zurück (mandantenspezifische Werte oder Schweizer Defaults).
+  // Regel-Codes: REST_TIME, WEEKEND_REST, OVERTIME_CONTRACTUAL, OVERTIME_LEGAL_45,
+  //   OVERTIME_LEGAL_50, PAUSE_MINIMUM_5H30, PAUSE_MINIMUM_7H, PAUSE_MINIMUM_9H,
+  //   VACATION_TWO_WEEK_BLOCK
+  public shared query ({ caller }) func getTenantComplianceRules(
+    companyId : Nat,
+  ) : async [ComplianceTypes.TenantComplianceRule] {
+    let callerCompanyId = requireCompanyId_(caller);
+    if (callerCompanyId != companyId) Runtime.trap("Zugriff verweigert");
+    requireAdminOrManager_(caller, companyId);
+    getTenantRules_(companyId);
+  };
+
+  // Hilfsfunktion: gibt 9 Regeln zurück (Mandanten-Override falls vorhanden, sonst Swiss default)
+  private func getTenantRules_(companyId : Nat) : [ComplianceTypes.TenantComplianceRule] {
+    let cidText = companyId.toText();
+    type RuleDef = { code : Text; defaultValue : Float };
+    let defaults : [RuleDef] = [
+      { code = "REST_TIME";             defaultValue = 11.0  },
+      { code = "WEEKEND_REST";          defaultValue = 35.0  },
+      { code = "OVERTIME_CONTRACTUAL"; defaultValue = 42.0  },
+      { code = "OVERTIME_LEGAL_45";    defaultValue = 45.0  },
+      { code = "OVERTIME_LEGAL_50";    defaultValue = 50.0  },
+      { code = "PAUSE_MINIMUM_5H30";   defaultValue = 15.0  },
+      { code = "PAUSE_MINIMUM_7H";     defaultValue = 30.0  },
+      { code = "PAUSE_MINIMUM_9H";     defaultValue = 60.0  },
+      { code = "VACATION_TWO_WEEK_BLOCK"; defaultValue = 10.0 },
+    ];
+    let mapKey = func(code : Text) : Text { cidText # ":" # code };
+    defaults.map<RuleDef, ComplianceTypes.TenantComplianceRule>(func(rd) {
+      switch (tenantComplianceRules.get(mapKey(rd.code))) {
+        case (?r) { r };
+        case null {
+          {
+            ruleCode    = rd.code;
+            tenantId    = cidText;
+            customValue = null;
+            isActive    = true;
+            isCustomized = false;
+            modifiedBy  = "";
+            modifiedAt  = 0;
+          };
+        };
+      };
+    });
+  };
+
+  // Aktualisiert eine Compliance-Regel für einen Mandanten (Admin/Manager).
+  // Warnung bei Unterschreitung gesetzlicher Mindestwerte wird clientseitig angezeigt.
+  // Alle Änderungen werden im Audit-Protokoll aufgezeichnet.
+  public shared ({ caller }) func updateTenantComplianceRule(
+    input : ComplianceTypes.UpdateTenantComplianceRuleInput,
+  ) : async { #ok : ComplianceTypes.TenantComplianceRule; #err : Text } {
+    let callerCompanyId = requireCompanyId_(caller);
+    if (callerCompanyId != input.companyId) return #err("Zugriff verweigert");
+    requireAdminOrManager_(caller, input.companyId);
+    let empIdOpt = principalToEmployee.get(caller);
+    let cidText = input.companyId.toText();
+    let mapKey = cidText # ":" # input.ruleCode;
+    let now = Time.now();
+    // actorName für Audit-Log und modifiedBy
+    let actorEmpOpt = switch (empIdOpt) {
+      case null { null };
+      case (?eid) { employees.find(func(e : CompanyTypes.Employee) : Bool { e.id == eid }) };
+    };
+    let actorName = switch (actorEmpOpt) {
+      case null { "Unbekannt" };
+      case (?e) { e.firstName # " " # e.lastName };
+    };
+    let modifiedBy = actorName;
+    let existingOpt = tenantComplianceRules.get(mapKey);
+    // Vorher-Werte für strukturiertes Audit-Log
+    let beforeCustomValue : Text = switch (existingOpt) {
+      case null { "default" };
+      case (?r) { switch (r.customValue) { case null { "default" }; case (?v) { v.toText() } } };
+    };
+    let beforeIsActive : Text = switch (existingOpt) {
+      case null { "true" };
+      case (?r) { debug_show(r.isActive) };
+    };
+    let newRule : ComplianceTypes.TenantComplianceRule = {
+      ruleCode     = input.ruleCode;
+      tenantId     = cidText;
+      customValue  = input.newValue;
+      isActive     = input.isActive;
+      isCustomized = input.newValue != null;
+      modifiedBy;
+      modifiedAt   = now;
+    };
+    tenantComplianceRules.add(mapKey, newRule);
+    let afterCustomValue : Text = switch (newRule.customValue) { case null { "default" }; case (?v) { v.toText() } };
+    let afterIsActive : Text = debug_show(newRule.isActive);
+    // Audit-Log mit strukturierten Feldänderungen (VORHER/NACHHER)
+    let auditId = nextAuditLogId.value;
+    nextAuditLogId.value += 1;
+    auditLogEntriesV6.add({
+      id             = "AL-" # auditId.toText();
+      companyId      = input.companyId;
+      timestamp      = now;
+      operation      = #update;
+      entityType     = #company;
+      entityId       = mapKey;
+      actorPrincipal = caller.toText();
+      actorName;
+      beforeState    = ?("Regel: " # input.ruleCode);
+      afterState     = ?("Regel: " # input.ruleCode);
+      fieldChanges   = ?[
+        {
+          fieldName = "customValue";
+          before    = beforeCustomValue;
+          after     = afterCustomValue;
+        },
+        {
+          fieldName = "isActive";
+          before    = beforeIsActive;
+          after     = afterIsActive;
+        },
+      ];
+    });
+    #ok(newRule);
+  };
+
+  // Setzt eine Compliance-Regel auf den Schweizer Standardwert zurück (nur Admin/Manager).
+  public shared ({ caller }) func resetTenantComplianceRule(
+    companyId : Nat,
+    ruleCode  : Text,
+  ) : async { #ok : ComplianceTypes.TenantComplianceRule; #err : Text } {
+    let callerCompanyId = requireCompanyId_(caller);
+    if (callerCompanyId != companyId) return #err("Zugriff verweigert");
+    requireAdminOrManager_(caller, companyId);
+    let cidText = companyId.toText();
+    let mapKey = cidText # ":" # ruleCode;
+    let now = Time.now();
+    let empIdOpt = principalToEmployee.get(caller);
+    // actorName für Audit-Log und modifiedBy
+    let actorEmpOpt = switch (empIdOpt) {
+      case null { null };
+      case (?e_) { employees.find(func(e : CompanyTypes.Employee) : Bool { e.id == e_ }) };
+    };
+    let actorName = switch (actorEmpOpt) {
+      case null { "Unbekannt" };
+      case (?e) { e.firstName # " " # e.lastName };
+    };
+    let modifiedBy = actorName;
+    let existingOpt = tenantComplianceRules.get(mapKey);
+    let beforeCustomValue2 : Text = switch (existingOpt) {
+      case null { "default" };
+      case (?r) { switch (r.customValue) { case null { "default" }; case (?v) { v.toText() } } };
+    };
+    let beforeIsActive2 : Text = switch (existingOpt) {
+      case null { "true" };
+      case (?r) { debug_show(r.isActive) };
+    };
+    let resetRule : ComplianceTypes.TenantComplianceRule = {
+      ruleCode     = ruleCode;
+      tenantId     = cidText;
+      customValue  = null;   // null = Swiss-law default
+      isActive     = true;
+      isCustomized = false;
+      modifiedBy;
+      modifiedAt   = now;
+    };
+    tenantComplianceRules.add(mapKey, resetRule);
+    // Audit-Log mit strukturierten Feldänderungen
+    let auditId2 = nextAuditLogId.value;
+    nextAuditLogId.value += 1;
+    auditLogEntriesV6.add({
+      id             = "AL-" # auditId2.toText();
+      companyId;
+      timestamp      = now;
+      operation      = #update;
+      entityType     = #company;
+      entityId       = mapKey;
+      actorPrincipal = caller.toText();
+      actorName;
+      beforeState    = ?("Regel: " # ruleCode);
+      afterState     = ?("Regel: " # ruleCode # " (Zurückgesetzt auf Schweizer Standard)");
+      fieldChanges   = ?[
+        {
+          fieldName = "customValue";
+          before    = beforeCustomValue2;
+          after     = "default";
+        },
+        {
+          fieldName = "isActive";
+          before    = beforeIsActive2;
+          after     = "true";
+        },
+      ];
+    });
+    #ok(resetRule);
+  };
+
+  // Gibt den frühesten Eintrittszeitpunkt (von) als Int (nanoseconds) zurück.
+  // Gibt 0 zurück wenn keine Beschäftigung gefunden wird.
+  private func getEarliestHireDate_(empId : Nat, companyId_ : Nat) : Int {
+    var earliest : Int = 0;
+    var found : Bool = false;
+    for (e in employmentsV2.values()) {
+      if (e.employeeId == empId and e.companyId == companyId_) {
+        if (not found or e.von < earliest) {
+          earliest := e.von;
+          found := true;
+        };
+      };
+    };
+    earliest
+  };
+
+  private func getEarliestHireDateText_(empId : Nat, companyId_ : Nat) : Text {
+    let ts = getEarliestHireDate_(empId, companyId_);
+    if (ts == 0) { "" } else { ComplianceLib.nsToDate(ts) }
+  };
+
   // ─── Weekly compliance check (Admin/Manager trigger) ──────────────────────────
 
   // Führt den wöchentlichen Compliance-Check für alle Mitarbeiter einer Firma durch.
+  // weekDate: Optional YYYY-MM-DD; wenn angegeben, wird die ISO-Woche dieses Datums geprüft.
   // Gibt die Anzahl der generierten Findings zurück.
   public shared ({ caller }) func runWeeklyComplianceCheck(
     companyId : Nat,
-  ) : async { #ok : Nat; #err : Text } {
+    weekDate  : Text,
+  ) : async { #ok : { newFindings : Nat; existingFindings : Nat }; #err : Text } {
     let callerCompanyId = requireCompanyId_(caller);
     if (callerCompanyId != companyId) return #err("Zugriff verweigert");
     requireAdminOrManager_(caller, companyId);
@@ -405,29 +725,70 @@ mixin (
       e.companyId == companyId and e.active
     }).toArray();
 
-    var findingsCount = 0;
+    var newFindingsCount = 0;
+    var existingFindingsCount = 0;
 
-    // Aktuelle Woche berechnen (Montag bis Sonntag)
+    // Woche berechnen: weekDate wenn angegeben, sonst aktuelle Woche
     let nsPerDay : Int = 86_400_000_000_000;
-    let todayDays = Time.now() / nsPerDay;
+    let referenceDays : Int = if (weekDate == "") {
+      Time.now() / nsPerDay
+    } else {
+      ComplianceLib.dateToUnixDays(weekDate)
+    };
     // Wochentag: 0=Mo..6=So; 1970-01-01 war Donnerstag (=3)
-    let raw = todayDays % 7;
+    let raw = referenceDays % 7;
     let shifted = raw + 3;
     let weekday = ((shifted % 7) + 7) % 7;
-    let mondayDays = todayDays - weekday;
+    let mondayDays = referenceDays - weekday;
     let weekStart = ComplianceLib.unixDaysToDate(mondayDays);
     let weekEnd = ComplianceLib.unixDaysToDate(mondayDays + 6);
 
     for (emp in companyEmployees.values()) {
+      // Beschäftigung: aktuellste aktive Employment für Soll-Stunden ermitteln
+      let nsPerDay2 : Int = 86_400_000_000_000;
+      let weekEndNs : Int = ComplianceLib.dateToNs(weekEnd) + nsPerDay2 - 1;
+      let empEmps = employmentsV2.filter(func(em : CompanyTypes.Employment) : Bool {
+        em.employeeId == emp.id and em.companyId == companyId;
+      }).toArray();
+      // Neueste Beschäftigung suchen, die während der Woche aktiv war
+      let activeEmp : ?CompanyTypes.Employment = do {
+        var best : ?CompanyTypes.Employment = null;
+        for (em in empEmps.values()) {
+          let vonNs = ComplianceLib.normalizeNs(em.von);
+          let bisOk = switch (em.bis) {
+            case null { true };
+            case (?b) { ComplianceLib.normalizeNs(b) >= ComplianceLib.dateToNs(weekStart) };
+          };
+          if (vonNs <= weekEndNs and bisOk) {
+            switch (best) {
+              case null { best := ?em };
+              case (?prev) {
+                if (em.von > prev.von) { best := ?em };
+              };
+            };
+          };
+        };
+        best;
+      };
+      // Wöchentliche Soll-Stunden aus Beschäftigung berechnen (Mo–Fr, in Minuten → Stunden)
+      let contractualWeeklyH : Float = switch (activeEmp) {
+        case null { 40.0 }; // Fallback wenn keine Beschäftigung
+        case (?em) {
+          let totalMin : Nat = em.stundenMo + em.stundenDi + em.stundenMi + em.stundenDo +
+                               em.stundenFr + em.stundenSa + em.stundenSo;
+          totalMin.toFloat() / 60.0;
+        };
+      };
+
       // Compliance-Profil des Mitarbeiters suchen; falls keines vorhanden, Default erstellen
       let profileOpt = complianceProfiles.find(func(p : ComplianceTypes.EmployeeComplianceProfile) : Bool {
         p.employeeId == emp.id and p.companyId == companyId
       });
-      // Profil auflösen: existierendes verwenden oder neues mit Defaults anlegen
+      // Profil auflösen: existierendes verwenden oder neues anlegen
+      // vertraglicheWochenstunden wird NICHT im Profil gespeichert – kommt aus der Beschäftigung
       let profile : ComplianceTypes.EmployeeComplianceProfile = switch (profileOpt) {
         case (?p) { p };
         case null {
-          // Automatisch ein aktives Default-Profil erstellen
           let now = Time.now();
           let newId = nextComplianceProfileId.value;
           nextComplianceProfileId.value += 1;
@@ -436,7 +797,6 @@ mixin (
             employeeId = emp.id;
             companyId;
             aktiv = true;
-            vertraglicheWochenstunden = 42.0;
             gesetzlicheWochenhochstarbeitszeit = 45.0;
             gesetzlicherFerienanspruchWochen = 4.0;
             vertraglicheZusatzferienTage = 0.0;
@@ -463,35 +823,68 @@ mixin (
         let newFindings = ComplianceLib.runWeeklyCheckForEmployee(
           emp.id, companyId, weekStart, weekEnd,
           allEmpEntries, profile, nextComplianceFindingId,
-          empPauseOverrides
+          empPauseOverrides, contractualWeeklyH
         );
 
         for (finding in newFindings.values()) {
-          complianceFindings.add(finding);
-          findingsCount += 1;
+          // Deduplizierung: gleicher Mitarbeiter + ruleCode + periodeKey bereits vorhanden?
+          // Auch FREIGEGEBEN-Findings unterdrücken die Neu-Erstellung (Bug 32)
+          let existingOpt = complianceFindings.find(func(f : ComplianceTypes.ComplianceFinding) : Bool {
+            f.employeeId == finding.employeeId
+              and f.companyId == finding.companyId
+              and f.ruleCode == finding.ruleCode
+              and f.periodeKey == finding.periodeKey
+          });
+          switch (existingOpt) {
+            case (?existing) {
+              // Bereits vorhanden (offen oder freigegeben): nicht neu erstellen
+              existingFindingsCount += 1;
+            };
+            case null {
+              complianceFindings.add(finding);
+              newFindingsCount += 1;
+            };
+          };
         };
 
-        // VacationLedger aktualisieren (auch bei fehlendem Ledger wird ein neuer erstellt)
+        // VacationLedger aktualisieren – pro Kalenderjahr Zusatztage aus VacationBalance lesen
         let empAbsences = absences.filter(func(ab : TrackingTypes.Absence) : Bool {
           ab.employeeId == emp.id and ab.companyId == companyId;
         }).toArray();
-        if (emp.startDate != "") {
-          VacationLedgerLib.updateOnAbsenceChange(
-            vacationLedgers, nextVacationLedgerId,
-            emp.id, companyId, emp.startDate, emp.geburtsdatum,
-            profile.vertraglicheZusatzferienTage, empAbsences, 10
-          );
+        let hireDateText = getEarliestHireDateText_(emp.id, companyId);
+        if (hireDateText != "") {
+          let todayStrForLedger = ComplianceLib.today();
+          let yearsForLedger = ComplianceLib.getAllCalendarYears(hireDateText, null, todayStrForLedger);
+          for (yr in yearsForLedger.values()) {
+            let yKey = yr.toText();
+            let zusatzTageForYear : Float = do {
+              var found : Float = 0.0;
+              for (vb in vacationBalances.values()) {
+                if (vb.employeeId == emp.id and vb.companyId == companyId and vb.kalenderjahr == yr) {
+                  found := vb.dauer.toFloat() / 100.0;
+                };
+              };
+              found
+            };
+            ignore VacationLedgerLib.upsertCalendarYearLedger(
+              vacationLedgers, nextVacationLedgerId,
+              emp.id, companyId, yKey,
+              hireDateText, null, emp.geburtsdatum, zusatzTageForYear,
+              empAbsences, 10
+            );
+          };
         };
       };
     };
 
-    #ok(findingsCount);
+    #ok({ newFindings = newFindingsCount; existingFindings = existingFindingsCount });
   };
 
   // ─── Auto-Initialisierung Compliance-Profil ────────────────────────────────────
 
   // Erstellt ein Standard-Compliance-Profil für einen neuen Mitarbeiter (interne Hilfsfunktion)
   // aktiv = true: sofort aktiv, damit der wöchentliche Check greift.
+  // vertraglicheWochenstunden wird NICHT gespeichert – wird aus der Beschäftigung gelesen.
   func initComplianceProfileForEmployee(
     employeeId : Nat,
     companyId : Nat,
@@ -504,7 +897,6 @@ mixin (
       employeeId;
       companyId;
       aktiv = true;                          // Sofort aktiv; Admin kann deaktivieren
-      vertraglicheWochenstunden = 42.0;      // Schweizer Standard
       gesetzlicheWochenhochstarbeitszeit = 45.0;
       gesetzlicherFerienanspruchWochen = 4.0;
       vertraglicheZusatzferienTage = 0.0;
@@ -538,7 +930,8 @@ mixin (
     let todayYearStr = if (todayParts.size() > 0) { todayParts[0] } else { "2024" };
 
     for (emp in companyEmployees.values()) {
-      if (emp.startDate != "") {
+      let hireDateText = getEarliestHireDateText_(emp.id, companyId);
+      if (hireDateText != "") {
         let empAbsences = absences.filter(func(ab : TrackingTypes.Absence) : Bool {
           ab.employeeId == emp.id and ab.companyId == companyId;
         }).toArray();
@@ -546,38 +939,43 @@ mixin (
         let profileOpt = complianceProfiles.find(func(p : ComplianceTypes.EmployeeComplianceProfile) : Bool {
           p.employeeId == emp.id and p.companyId == companyId
         });
-        let zusatzTage = switch (profileOpt) {
-          case null { 0.0 };
-          case (?p) { p.vertraglicheZusatzferienTage };
-        };
 
         // Alle Kalenderjahre ab Eintrittsjahr bis heute anlegen/aktualisieren
-        let years = ComplianceLib.getAllCalendarYears(emp.startDate, null, todayStr);
+        let years = ComplianceLib.getAllCalendarYears(hireDateText, null, todayStr);
         for (year in years.values()) {
           let key = year.toText();
+          // Zusatztage aus VacationBalance für dieses Jahr und diesen Mitarbeiter
+          let zusatzTage : Float = do {
+            var found : Float = 0.0;
+            for (vb in vacationBalances.values()) {
+              if (vb.employeeId == emp.id and vb.companyId == companyId and vb.kalenderjahr == year) {
+                found := vb.dauer.toFloat() / 100.0;
+              };
+            };
+            found
+          };
           let ledger = VacationLedgerLib.upsertCalendarYearLedger(
             vacationLedgers, nextVacationLedgerId,
             emp.id, companyId, key,
-            emp.startDate, null, emp.geburtsdatum, zusatzTage,
+            hireDateText, null, emp.geburtsdatum, zusatzTage,
             empAbsences, 10
           );
 
-          // Ferienminimum-Compliance prüfen: gesetzlicher Anspruch > VacationBalance des Mandanten?
+          // Ferienminimum-Compliance prüfen: gesetzlicher Anspruch > tatsächlich konfiguriertes Ferienguthaben?
           // Nur für das aktuelle Jahr relevant
           if (key == todayYearStr) {
-            // Gesetzlichen Anspruch mit dem tatsächlich konfigurierten Anspruch vergleichen
-            // (VacationBalance im VacationLedger = gesetzlicheFerientage + zusatzTage)
-            let gesamtAnspruch = ledger.gesetzlicheFerientage + zusatzTage;
-            // Prüfen ob ein bestehendes VACATION_MINIMUM-Finding für dieses Jahr schon existiert
+            // Prüfen ob ein bestehendes VACATION_MINIMUM-Finding für dieses Jahr schon existiert (inkl. FREIGEGEBEN)
             let existingFinding = complianceFindings.any(func(f : ComplianceTypes.ComplianceFinding) : Bool {
               f.employeeId == emp.id and f.companyId == companyId
                 and f.ruleCode == "VACATION_MINIMUM"
                 and f.periodeKey == key
-                and f.resolvedAt == null
             });
-            // Warnung erzeugen wenn gesetzlicher Anspruch > vertraglich konfigurierte Zusatztage
-            // (d.h. wenn kein Zusatzanspruch vorhanden, aber Mitarbeiter U20 -> gesetzl. = 25 > 20 Standard)
-            if (not existingFinding and ledger.gesetzlicheFerientage > 20.0 and zusatzTage < (ledger.gesetzlicheFerientage - 20.0)) {
+            // Warnung erzeugen wenn vertragliches Guthaben unter gesetzlichem Minimum liegt.
+            // vertraglicheZusatzferienTage aus dem Ledger = tatsächlich hinterlegtes Ferienguthaben
+            // (= vb.dauer/100 für das Kalenderjahr, oder 0.0 wenn kein Eintrag vorhanden)
+            let gesetzlicherBedarf = ledger.gesetzlicheFerientage;
+            let gedecktDurch = ledger.vertraglicheZusatzferienTage; // tatsächlich konfiguriertes Guthaben
+            if (not existingFinding and zusatzTage > 0.0 and gesetzlicherBedarf > gedecktDurch + 0.01) {
               let findingId = nextComplianceFindingId.value;
               nextComplianceFindingId.value += 1;
               let finding = ComplianceLib.makeFinding(
@@ -585,13 +983,13 @@ mixin (
                 #SERVICE_YEAR, key,
                 "VACATION_MINIMUM",
                 #WARNING,
-                20.0 + zusatzTage,         // IST: konfigurieter Anspruch
-                ledger.gesetzlicheFerientage, // SOLL: gesetzlicher Anspruch
+                gedecktDurch,              // IST: konfigurierter Anspruch
+                gesetzlicherBedarf,        // SOLL: gesetzlicher Anspruch
                 "Tage",
                 "Gesetzliches Ferienminimum nicht eingehalten: Mindestens " #
-                  ComplianceLib.floatToText(ledger.gesetzlicheFerientage, 1) #
-                  " Tage erforderlich (U20-Regel), aber nur " #
-                  ComplianceLib.floatToText(20.0 + zusatzTage, 1) #
+                  ComplianceLib.floatToText(gesetzlicherBedarf, 2) #
+                  " Tage erforderlich (" # key # "), aber nur " #
+                  ComplianceLib.floatToText(gedecktDurch, 2) #
                   " Tage konfiguriert.",
                 ?"OR Art. 329a",
                 [],

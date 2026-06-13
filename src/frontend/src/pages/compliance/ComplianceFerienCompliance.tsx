@@ -2,7 +2,7 @@ import { useAuth } from "@/hooks/useAuthStore";
 import { useActor } from "@caffeineai/core-infrastructure";
 import { useEffect, useState } from "react";
 import { createActor } from "../../backend";
-import type { Employee, VacationBalance, VacationLedger } from "../../backend";
+import type { Employee, VacationLedger } from "../../backend";
 
 type AnyActor = Record<string, (...args: unknown[]) => Promise<unknown>>;
 const toAny = (a: unknown): AnyActor => a as AnyActor;
@@ -54,9 +54,6 @@ export default function ComplianceFerienCompliance({ employees }: Props) {
   >([]);
   const [selectedYearKey, setSelectedYearKey] = useState<string>("");
   const [ledger, setLedger] = useState<VacationLedger | null>(null);
-  const [vacationBalances, setVacationBalances] = useState<VacationBalance[]>(
-    [],
-  );
   const [loading, setLoading] = useState(false);
 
   const enabled = !!actor && !isFetching && isAuthenticated;
@@ -71,7 +68,6 @@ export default function ComplianceFerienCompliance({ employees }: Props) {
     setYearOptions(opts);
     setSelectedYearKey(opts.length > 0 ? opts[0].key : "");
     setLedger(null);
-    setVacationBalances([]);
   }, [selectedEmployeeId, employees]);
 
   useEffect(() => {
@@ -90,23 +86,14 @@ export default function ComplianceFerienCompliance({ employees }: Props) {
     if (!actor || !selectedEmployeeId || !selectedYearKey) return;
     setLoading(true);
     try {
-      // Load ledger for calendar year key (4-digit string, e.g. "2024")
       const result = (await toAny(actor).getVacationLedger(
         selectedEmployeeId,
         selectedYearKey,
       )) as VacationLedger | null;
       setLedger(result);
-
-      // Also load vacation balances to check compliance against admin-configured quota
-      type BalanceResult = { ok?: VacationBalance[]; err?: unknown };
-      const balRes = (await toAny(actor).listVacationBalances(
-        selectedEmployeeId,
-      )) as BalanceResult;
-      setVacationBalances(balRes?.ok ?? []);
     } catch (e) {
       console.error("Fehler beim Laden des Vacation Ledger:", e);
       setLedger(null);
-      setVacationBalances([]);
     } finally {
       setLoading(false);
     }
@@ -117,25 +104,34 @@ export default function ComplianceFerienCompliance({ employees }: Props) {
     ? `${selectedEmployee.firstName} ${selectedEmployee.lastName}`
     : "–";
 
-  // For calendar year display, show the 4-digit year directly
   const displayYear = selectedYearKey;
 
-  // Find VacationBalance for the selected calendar year
-  const matchingBalance = vacationBalances.find(
-    (b) => Number(b.kalenderjahr) === Number(selectedYearKey),
-  );
-  const balanceDays = matchingBalance ? Number(matchingBalance.dauer) : null;
-  const gesetzlichDays = ledger ? ledger.gesetzlicheFerientage : 0;
+  // All values come directly from ledger
+  const gesetzlichDays = ledger ? Number(ledger.gesetzlicheFerientage) : 0;
+  const vertraglichDays = ledger
+    ? Number(ledger.vertraglicheZusatzferienTage)
+    : 0;
+  const bezogenDays = ledger ? Number(ledger.bezogeneFerientage) : 0;
+  const geplantDays = ledger ? Number(ledger.geplanteFerientage) : 0;
+  const verbleibendDays = ledger ? Number(ledger.verbleibendeFerientage) : 0;
+  const twoWeekOk = ledger ? Boolean(ledger.twoWeekBlockSatisfied) : false;
 
-  // Compliance status for admin-configured vacation quota vs legal minimum
-  const complianceStatus: "ok" | "below_minimum" | "no_balance" | "none" =
-    ledger && gesetzlichDays > 0
-      ? balanceDays === null
-        ? "no_balance"
-        : balanceDays < gesetzlichDays
-          ? "below_minimum"
-          : "ok"
-      : "none";
+  // Overall compliance status
+  const currentYear = new Date().getFullYear();
+  const isCurrentYear = Number(selectedYearKey) >= currentYear;
+  // minimumViolation: only for past years where bezogen+geplant < gesetzlich
+  const minimumViolation =
+    !isCurrentYear &&
+    bezogenDays + geplantDays < gesetzlichDays &&
+    gesetzlichDays > 0;
+
+  const gesamtstatusLabel: "Erfüllt" | "Warnung" | "Verstoss" | "–" = !ledger
+    ? "–"
+    : minimumViolation
+      ? "Verstoss"
+      : !twoWeekOk
+        ? "Warnung"
+        : "Erfüllt";
 
   return (
     <div
@@ -179,7 +175,6 @@ export default function ComplianceFerienCompliance({ employees }: Props) {
             onChange={(e) => {
               setSelectedYearKey(e.target.value);
               setLedger(null);
-              setVacationBalances([]);
             }}
             className="border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring w-32"
             data-ocid="compliance.ferien_year_select"
@@ -245,16 +240,16 @@ export default function ComplianceFerienCompliance({ employees }: Props) {
                   Vertraglich (Tage)
                 </th>
                 <th className="text-center px-4 py-3 font-medium text-muted-foreground">
-                  Compliance
+                  Gesamtstatus
                 </th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">
-                  Geplant
+                  Geplant (Tage)
                 </th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">
-                  Bezogen
+                  Bezogen (Tage)
                 </th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">
-                  Verbleibend
+                  Verbleibend (Tage)
                 </th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">
                   Längster Block
@@ -271,72 +266,67 @@ export default function ComplianceFerienCompliance({ employees }: Props) {
                 </td>
                 <td className="px-4 py-3 text-foreground">{displayYear}</td>
                 <td className="px-4 py-3 text-right tabular-nums">
-                  {ledger.gesetzlicheFerientage} T
+                  {gesetzlichDays.toFixed(2)} T
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums">
                   <div className="flex items-center justify-end gap-2">
-                    <span>{ledger.vertraglicheZusatzferienTage} T</span>
-                    {ledger.vertraglicheZusatzferienTage === 0 &&
-                      ledger.gesetzlicheFerientage > 0 && (
-                        <span
-                          className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800"
-                          title="Vertraglicher Ferienanspruch nicht hinterlegt – bitte in den Stammdaten prüfen."
-                        >
-                          Bitte prüfen
-                        </span>
-                      )}
+                    <span>{vertraglichDays.toFixed(2)} T</span>
+                    {gesetzlichDays > 0 && vertraglichDays < gesetzlichDays && (
+                      <span
+                        className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800"
+                        title={`Vertraglicher Anspruch (${vertraglichDays.toFixed(2)} T) liegt unter gesetzlichem Minimum (${gesetzlichDays.toFixed(2)} T).`}
+                      >
+                        Unter Minimum
+                      </span>
+                    )}
                   </div>
                 </td>
                 <td className="px-4 py-3 text-center">
-                  {complianceStatus === "below_minimum" && (
+                  {gesamtstatusLabel === "Verstoss" ? (
                     <span
-                      className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800"
-                      title={`Gesetzlicher Mindestanspruch: ${gesetzlichDays} Tage. Hinterlegtes Ferienguthaben: ${balanceDays} Tage.`}
+                      className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800"
+                      title={`Gesetzlicher Mindestanspruch von ${gesetzlichDays.toFixed(2)} T nicht erfüllt.`}
                     >
-                      Unter gesetzl. Minimum
+                      ✗ Verstoss
                     </span>
-                  )}
-                  {complianceStatus === "no_balance" && (
+                  ) : gesamtstatusLabel === "Warnung" ? (
                     <span
-                      className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800"
-                      title="Für dieses Kalenderjahr wurde noch kein Ferienguthaben erfasst."
+                      className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800"
+                      title="2-Wochen-Ferienblock noch nicht erfüllt."
                     >
-                      Kein Guthaben erfasst
+                      ⚠ Warnung
                     </span>
-                  )}
-                  {complianceStatus === "ok" && (
+                  ) : gesamtstatusLabel === "Erfüllt" ? (
                     <span
                       className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800"
-                      title={`Gesetzlicher Mindestanspruch: ${gesetzlichDays} Tage. Hinterlegtes Ferienguthaben: ${balanceDays} Tage.`}
+                      title={`Gesetzlicher Mindestanspruch: ${gesetzlichDays.toFixed(2)} T. Vertraglich: ${vertraglichDays.toFixed(2)} T.`}
                     >
                       ✓ Erfüllt
                     </span>
+                  ) : (
+                    <span className="text-muted-foreground">–</span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums">
-                  {ledger.geplanteFerientage} T
+                  {geplantDays.toFixed(2)} T
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums">
-                  {ledger.bezogeneFerientage} T
+                  {bezogenDays.toFixed(2)} T
                 </td>
                 <td
-                  className={`px-4 py-3 text-right tabular-nums ${restColor(
-                    ledger.verbleibendeFerientage,
-                  )}`}
+                  className={`px-4 py-3 text-right tabular-nums ${restColor(verbleibendDays)}`}
                 >
-                  {ledger.verbleibendeFerientage} T
+                  {Number(ledger.verbleibendeFerientage).toFixed(2)} T
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums">
-                  {Number(ledger.laengsterZusammenhangenderBlock)} T
+                  {Number(ledger.laengsterZusammenhangenderBlock).toFixed(2)} T
                 </td>
                 <td
                   className={`px-4 py-3 text-center font-medium ${
-                    ledger.twoWeekBlockSatisfied
-                      ? "text-green-600"
-                      : "text-red-600"
+                    twoWeekOk ? "text-green-600" : "text-red-600"
                   }`}
                 >
-                  {ledger.twoWeekBlockSatisfied ? "✓" : "✗"}
+                  {twoWeekOk ? "✓" : "✗"}
                 </td>
               </tr>
             </tbody>
